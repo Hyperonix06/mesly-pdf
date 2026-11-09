@@ -32,8 +32,21 @@ jobs:
           choco install tesseract -y --no-progress
           if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) { choco install innosetup -y --no-progress }
           $td = Join-Path $env:TESS_DIR "tessdata"
+          # Dil modelleri: yeniden deneme + yedek kaynak (geçici 5xx hatalarına karşı)
           foreach ($l in @("tur", "eng", "osd")) {
-            Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata/raw/main/$l.traineddata" -OutFile (Join-Path $td "$l.traineddata")
+            $out = Join-Path $td "$l.traineddata"
+            $urls = @("https://raw.githubusercontent.com/tesseract-ocr/tessdata/main/$l.traineddata",
+                      "https://github.com/tesseract-ocr/tessdata/raw/main/$l.traineddata",
+                      "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/$l.traineddata")
+            $ok = $false
+            foreach ($u in $urls) {
+              for ($i = 1; $i -le 4 -and -not $ok; $i++) {
+                try { Invoke-WebRequest $u -OutFile "$out.part" -TimeoutSec 180; Move-Item -Force "$out.part" $out; $ok = $true }
+                catch { Write-Host "Deneme $i başarısız ($u): $($_.Exception.Message)"; Start-Sleep (5 * $i) }
+              }
+              if ($ok) { break }
+            }
+            if (-not $ok -and -not (Test-Path $out)) { throw "$l dil modeli indirilemedi" }
           }
           echo "$env:TESS_DIR" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & (Join-Path $env:TESS_DIR "tesseract.exe") --list-langs
