@@ -10,8 +10,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass, field, asdict
 
-from .ocr import app_data_dir
-from .preprocess import PreprocessOptions
+from .paths import app_data_dir
 
 # Adım türleri: ad -> (Türkçe etiket, varsayılan parametreler)
 STEP_TYPES = {
@@ -108,6 +107,7 @@ def run_task(task: Task, inputs: list[str], output_dir: str | None = None, log=p
              cancel=None) -> list[str]:
     """Görevi girdilere uygular; üretilen dosyaların listesini döndürür."""
     from . import pages, editing, security, convert, ocr as ocrmod, sign as signmod
+    from .preprocess import PreprocessOptions
     out_dir = output_dir or task.output_dir or os.path.dirname(inputs[0])
     os.makedirs(out_dir, exist_ok=True)
     work = tempfile.mkdtemp(prefix="mesly_")

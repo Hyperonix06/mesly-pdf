@@ -89,30 +89,15 @@ def redact_regions(path: str, out: str, regions: dict[int, list[tuple]], fill: s
     import pypdfium2 as pdfium
     import pypdfium2.raw as pdfium_c
 
+    from .document import PDFIUM_LOCK
     if not rasterize:
-        doc = pdfium.PdfDocument(path, password=password)
-        for pi, rects in regions.items():
-            page = doc[pi]
-            removed = False
-            for obj in list(page.get_objects(max_depth=1)):
-                if obj.type == pdfium_c.FPDF_PAGEOBJ_TEXT:
-                    try:
-                        ob = obj.get_bounds()
-                    except Exception:
-                        continue
-                    if any(_intersects(ob, r) for r in rects):
-                        page.remove_obj(obj)
-                        removed = True
-            if removed:
-                page.gen_content()
-            del obj
-        buf = io.BytesIO()
-        doc.save(buf)
-        del page, doc
+        PDFIUM_LOCK.acquire()
+        try:
+            _remove_text_objects(path, out, regions, password)
+        finally:
+            PDFIUM_LOCK.release()
         from .editing import overlay
         tmp_in = out + ".r.pdf"
-        with open(tmp_in, "wb") as f:
-            f.write(buf.getvalue())
         from reportlab.lib.colors import HexColor
         with pikepdf.open(tmp_in) as pdf:
             offs = {i: (float(pdf.pages[i].mediabox[0]), float(pdf.pages[i].mediabox[1])) for i in regions}
@@ -128,7 +113,6 @@ def redact_regions(path: str, out: str, regions: dict[int, list[tuple]], fill: s
         import os
         os.remove(tmp_in)
         return out
-
     # Güvenli mod
     from .document import PdfDocument
     from reportlab.pdfgen import canvas
@@ -169,6 +153,33 @@ def redact_regions(path: str, out: str, regions: dict[int, list[tuple]], fill: s
             # Bu sayfadaki açıklamaları da temizle (gizli metin içerebilir)
         pdf.save(out)
     return out
+
+
+def _remove_text_objects(path, out, regions, password):
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as pdfium_c
+    doc = pdfium.PdfDocument(path, password=password)
+    for pi, rects in regions.items():
+        page = doc[pi]
+        removed = False
+        for obj in list(page.get_objects(max_depth=1)):
+            if obj.type == pdfium_c.FPDF_PAGEOBJ_TEXT:
+                try:
+                    ob = obj.get_bounds()
+                except Exception:
+                    continue
+                if any(_intersects(ob, r) for r in rects):
+                    page.remove_obj(obj)
+                    removed = True
+            del obj
+        if removed:
+            page.gen_content()
+        del page
+    buf = io.BytesIO()
+    doc.save(buf)
+    del doc
+    with open(out + ".r.pdf", "wb") as f:
+        f.write(buf.getvalue())
 
 
 def _page_rect_to_pixels(rect, w, h, rot, scale):

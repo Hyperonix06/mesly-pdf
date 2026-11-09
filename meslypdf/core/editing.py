@@ -299,6 +299,12 @@ def add_image(path: str, out: str, page: int, image: str, x: float, y: float, w:
 
 
 def text_lines(path: str, page: int, password: str | None = None) -> list[dict]:
+    from .document import PDFIUM_LOCK
+    with PDFIUM_LOCK:
+        return _text_lines(path, page, password)
+
+
+def _text_lines(path: str, page: int, password: str | None = None) -> list[dict]:
     """Sayfadaki metin satırlarını (PDF metin nesnelerinden) döndürür:
     {'bounds': (l,b,r,t), 'text', 'size', 'bold', 'baseline'}"""
     import pypdfium2 as pdfium
@@ -438,14 +444,36 @@ def add_link(path: str, out: str, page: int, rect: tuple, uri: str | None = None
 
 
 def list_links(path: str) -> list[dict]:
+    """Bağlantılar: {'page','rect','uri','dest'} (dest: hedef sayfa indeksi)."""
     res = []
     with pikepdf.open(path) as pdf:
+        pages = {p.obj.objgen: i for i, p in enumerate(pdf.pages)}
+        named = {}
+        try:
+            if "/Names" in pdf.Root and "/Dests" in pdf.Root.Names:
+                from pikepdf import NameTree
+                for k, v in NameTree(pdf.Root.Names.Dests).items():
+                    named[str(k)] = v.get("/D", v) if isinstance(v, pikepdf.Dictionary) else v
+        except Exception:
+            pass
         for i, p in enumerate(pdf.pages):
             for a in p.obj.get("/Annots", []):
-                if a.get("/Subtype") == "/Link":
-                    act = a.get("/A")
-                    res.append({"page": i, "rect": [float(v) for v in a.Rect],
-                                "uri": str(act.URI) if act is not None and "/URI" in act else None})
+                if a.get("/Subtype") != "/Link":
+                    continue
+                act = a.get("/A")
+                uri = str(act.URI) if act is not None and "/URI" in act else None
+                dest = a.get("/Dest")
+                if dest is None and act is not None and str(act.get("/S", "")) == "/GoTo":
+                    dest = act.get("/D")
+                if isinstance(dest, (pikepdf.String, pikepdf.Name)):
+                    dest = named.get(str(dest))
+                dpage = None
+                if isinstance(dest, pikepdf.Array) and len(dest):
+                    try:
+                        dpage = pages.get(dest[0].objgen)
+                    except Exception:
+                        dpage = int(dest[0]) if isinstance(dest[0], int) else None
+                res.append({"page": i, "rect": [float(v) for v in a.Rect], "uri": uri, "dest": dpage})
     return res
 
 
@@ -492,10 +520,9 @@ def set_bookmarks(path: str, out: str, items: list[dict]) -> str:
 def auto_bookmarks_from_headings(path: str, out: str, min_size_ratio: float = 1.25) -> str:
     """Gövde metninden belirgin biçimde büyük (veya kalın ve büyük) satırları başlık kabul edip
     yazı tipi boyutuna göre hiyerarşik yer imleri oluşturur."""
-    import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
-    n = len(doc)
-    del doc
+    from .document import PdfDocument
+    with PdfDocument(path) as _d:
+        n = _d.page_count
     all_lines = []
     for i in range(n):
         for ln in text_lines(path, i):

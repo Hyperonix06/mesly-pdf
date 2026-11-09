@@ -548,7 +548,7 @@ def make_pdfua(path: str, out: str, title: str | None = None, lang: str = "tr-TR
     from reportlab.pdfgen import canvas
     from reportlab.lib.utils import ImageReader
     from .ocr import _text_layer_canvas
-    results = recognize_pdf(path, ocr_lang)
+    results = recognize_pdf(path, ocr_lang, keep_images="always")
     buf = io.BytesIO()
     c = canvas.Canvas(buf)
     counts = []

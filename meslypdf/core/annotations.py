@@ -374,3 +374,37 @@ def export_comments_text(path: str) -> str:
         for r in d["replies"]:
             lines.append(f"    ↳ {r['author']}: {r['contents']}")
     return "\n".join(lines)
+
+
+def set_rect(path: str, out: str, objgen, new_rect: tuple) -> str:
+    """Yorumu taşır/boyutlandırır: Rect, QuadPoints, InkList, L ve Popup birlikte dönüştürülür.
+    Görünüm akışı BBox'tan Rect'e eşlendiği için ölçeklenir."""
+    with pikepdf.open(path, allow_overwriting_input=True) as pdf:
+        _, a = _find(pdf, objgen)
+        l, b, r, t = [float(v) for v in a.Rect]
+        nl, nb, nr, nt = new_rect
+        sx = (nr - nl) / (r - l) if r != l else 1.0
+        sy = (nt - nb) / (t - b) if t != b else 1.0
+
+        def tx(x):
+            return nl + (x - l) * sx
+
+        def ty(y):
+            return nb + (y - b) * sy
+        a.Rect = pikepdf.Array([nl, nb, nr, nt])
+        if "/QuadPoints" in a:
+            q = [float(v) for v in a.QuadPoints]
+            a.QuadPoints = pikepdf.Array([tx(v) if k % 2 == 0 else ty(v) for k, v in enumerate(q)])
+        if "/InkList" in a:
+            a.InkList = pikepdf.Array([pikepdf.Array([tx(float(v)) if k % 2 == 0 else ty(float(v)) for k, v in enumerate(s_)])
+                                       for s_ in a.InkList])
+        if "/L" in a:
+            L = [float(v) for v in a.L]
+            a.L = pikepdf.Array([tx(L[0]), ty(L[1]), tx(L[2]), ty(L[3])])
+        if "/Popup" in a and "/Rect" in a.Popup:
+            pr = [float(v) for v in a.Popup.Rect]
+            dx, dy = nl - l, nt - t
+            a.Popup.Rect = pikepdf.Array([pr[0] + dx, pr[1] + dy, pr[2] + dx, pr[3] + dy])
+        a.M = pikepdf.String(_pdf_date())
+        pdf.save(out)
+    return out

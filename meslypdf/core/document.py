@@ -1,11 +1,25 @@
 """PDF görüntüleme, metin çıkarma ve arama (PDFium tabanlı)."""
 from __future__ import annotations
 
+import functools
 import os
+import threading
 from dataclasses import dataclass, field
 
 import pypdfium2 as pdfium
 from PIL import Image
+
+# PDFium iş parçacığı güvenli değildir: tüm çağrılar bu kilitle sıraya girer.
+# (Arka plan çizici, OCR ve arayüz aynı anda PDFium kullanabilir.)
+PDFIUM_LOCK = threading.RLock()
+
+
+def _locked(fn):
+    @functools.wraps(fn)
+    def wrapper(*a, **kw):
+        with PDFIUM_LOCK:
+            return fn(*a, **kw)
+    return wrapper
 
 
 @dataclass
@@ -28,22 +42,27 @@ class PdfDocument:
     def __init__(self, path: str, password: str | None = None):
         self.path = os.path.abspath(path)
         self.password = password
-        self._doc = pdfium.PdfDocument(self.path, password=password)
-        try:
-            self._doc.init_forms()  # form alanları ve imza görünümleri çizilsin
-        except Exception:
-            pass
+        with PDFIUM_LOCK:
+            self._doc = pdfium.PdfDocument(self.path, password=password)
+            try:
+                self._doc.init_forms()  # form alanları ve imza görünümleri çizilsin
+            except Exception:
+                pass
+            self._count = len(self._doc)
+            self._sizes = [tuple(self._doc.get_page_size(i)) for i in range(self._count)]
+        self._words_cache: dict = {}
+        self._text_cache: dict = {}
 
     # -- temel bilgiler -------------------------------------------------
     def __len__(self):
-        return len(self._doc)
+        return self._count
 
     @property
     def page_count(self) -> int:
-        return len(self._doc)
+        return self._count
 
     def page_size(self, index: int) -> tuple[float, float]:
-        return tuple(self._doc.get_page_size(index))
+        return self._sizes[index]
 
     def metadata(self) -> dict:
         try:
@@ -119,6 +138,12 @@ class PdfDocument:
 
     # -- metin -----------------------------------------------------------
     def page_text(self, index: int) -> str:
+        if index in self._text_cache:
+            return self._text_cache[index]
+        self._text_cache[index] = t = self._page_text(index)
+        return t
+
+    def _page_text(self, index: int) -> str:
         page = self._doc[index]
         tp = page.get_textpage()
         try:
@@ -140,6 +165,11 @@ class PdfDocument:
 
     def words(self, index: int) -> list[tuple[str, tuple]]:
         """Kelime + sınırlayıcı kutu (PDF koordinatları)."""
+        if index not in self._words_cache:
+            self._words_cache[index] = self._words(index)
+        return self._words_cache[index]
+
+    def _words(self, index: int) -> list[tuple[str, tuple]]:
         page = self._doc[index]
         tp = page.get_textpage()
         out = []
@@ -162,6 +192,70 @@ class PdfDocument:
             tp.close()
             page.close()
         return out
+
+    # -- karakter düzeyinde seçim (metin akışına göre) -----------------
+    def _tp(self, index):
+        """Sayfa + metin sayfası önbelleği (son birkaç sayfa)."""
+        cache = self.__dict__.setdefault("_tp_cache", {})
+        if index not in cache:
+            if len(cache) > 6:
+                for k in list(cache)[:3]:
+                    pg_, tp_ = cache.pop(k)
+                    tp_.close()
+                    pg_.close()
+            page = self._doc[index]
+            cache[index] = (page, page.get_textpage())
+        return cache[index][1]
+
+    def char_count(self, index: int) -> int:
+        return self._tp(index).count_chars()
+
+    def char_at(self, index: int, x: float, y: float, tol: float = 4.0) -> int:
+        """PDF noktasındaki karakter indeksi (-1: metin yok)."""
+        try:
+            i = self._tp(index).get_index(x, y, tol, tol)
+            return -1 if i is None else int(i)
+        except Exception:
+            return -1
+
+    def nearest_char(self, index: int, x: float, y: float) -> int:
+        """Sürüklerken en yakın karakter (geniş tolerans)."""
+        for tol in (3, 12, 40, 120):
+            i = self.char_at(index, x, y, tol)
+            if i >= 0:
+                return i
+        return -1
+
+    def range_rects(self, index: int, a: int, b: int) -> list[tuple]:
+        lo, hi = min(a, b), max(a, b)
+        tp = self._tp(index)
+        n = tp.count_rects(lo, hi - lo + 1)
+        return [tuple(tp.get_rect(k)) for k in range(n)]
+
+    def range_text(self, index: int, a: int, b: int) -> str:
+        lo, hi = min(a, b), max(a, b)
+        return self._tp(index).get_text_range(lo, hi - lo + 1)
+
+    def word_range(self, index: int, i: int) -> tuple[int, int]:
+        tp = self._tp(index)
+        n = tp.count_chars()
+        sep = set(" \t\r\n.,;:!?()[]{}\"'«»“”/\\")
+        a = b = i
+        while a > 0 and tp.get_text_range(a - 1, 1) not in sep:
+            a -= 1
+        while b < n - 1 and tp.get_text_range(b + 1, 1) not in sep:
+            b += 1
+        return a, b
+
+    def line_range(self, index: int, i: int) -> tuple[int, int]:
+        tp = self._tp(index)
+        n = tp.count_chars()
+        a = b = i
+        while a > 0 and tp.get_text_range(a - 1, 1) not in ("\n", "\r"):
+            a -= 1
+        while b < n - 1 and tp.get_text_range(b + 1, 1) not in ("\n", "\r"):
+            b += 1
+        return a, b
 
     def search(self, query: str, match_case: bool = False, whole_word: bool = False,
                pages: list[int] | None = None) -> list[SearchHit]:
@@ -188,6 +282,13 @@ class PdfDocument:
         return hits
 
     def close(self):
+        for pg_, tp_ in self.__dict__.get("_tp_cache", {}).values():
+            try:
+                tp_.close()
+                pg_.close()
+            except Exception:
+                pass
+        self.__dict__["_tp_cache"] = {}
         try:
             self._doc.close()
         except Exception:
@@ -198,6 +299,12 @@ class PdfDocument:
 
     def __exit__(self, *a):
         self.close()
+
+
+for _name, _fn in list(vars(PdfDocument).items()):
+    if callable(_fn) and not _name.startswith("__") and _name not in ("page_size", "page_count"):
+        setattr(PdfDocument, _name, _locked(_fn))
+PdfDocument.close = _locked(PdfDocument.close)
 
 
 def is_encrypted(path: str) -> bool:

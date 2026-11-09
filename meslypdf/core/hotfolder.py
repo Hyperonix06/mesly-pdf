@@ -15,7 +15,7 @@ import threading
 import time
 from dataclasses import dataclass, field, asdict
 
-from .ocr import app_data_dir
+from .paths import app_data_dir
 from .tasks import Task, run_task
 
 SUPPORTED = ["*.pdf", "*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff", "*.bmp", "*.docx", "*.doc", "*.xlsx",

@@ -149,6 +149,115 @@ def selftest(args) -> int:
     return 0 if ok else 1
 
 
+def _splash(app):
+    """Ağır modüller yüklenirken anında görünen açılış ekranı."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPixmap, QPainter, QColor, QFont, QLinearGradient
+    from PySide6.QtWidgets import QSplashScreen
+    from . import __version__
+    from .core.fonts import asset_path
+    w, h = 520, 300
+    pm = QPixmap(w, h)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    g = QLinearGradient(0, 0, w, h)
+    g.setColorAt(0, QColor("#14213D"))
+    g.setColorAt(1, QColor("#2457D6"))
+    p.setBrush(g)
+    p.setPen(Qt.NoPen)
+    p.drawRoundedRect(0, 0, w, h, 18, 18)
+    icon = QPixmap(asset_path("icon_256.png"))
+    if not icon.isNull():
+        p.drawPixmap(40, 86, 120, 120, icon)
+    p.setPen(QColor("white"))
+    p.setFont(QFont("Segoe UI", 30, QFont.Bold))
+    p.drawText(184, 140, "Mesly PDF")
+    p.setFont(QFont("Segoe UI", 11))
+    p.setPen(QColor("#C8D1E6"))
+    p.drawText(186, 172, "PDF düzenleyici · OCR · dönüştürme")
+    p.drawText(186, 196, f"Sürüm {__version__}")
+    p.end()
+    sp = QSplashScreen(pm, Qt.WindowStaysOnTopHint)
+    sp.setAttribute(Qt.WA_TranslucentBackground)
+    sp.show()
+    sp.showMessage("Yükleniyor…", Qt.AlignBottom | Qt.AlignHCenter, QColor("#C8D1E6"))
+    app.processEvents()
+    return sp
+
+
+def _install_crash_handler():
+    """Yakalanmayan hataları günlüğe yazar ve kullanıcıya anlaşılır bir pencere gösterir (uygulama kapanmaz)."""
+    import threading
+    import traceback
+    import datetime as _dt
+    from .core.paths import app_data_dir
+    log = os.path.join(app_data_dir(), "hata_gunlugu.txt")
+
+    def write(tb):
+        try:
+            with open(log, "a", encoding="utf-8") as f:
+                f.write(f"\n===== {_dt.datetime.now():%Y-%m-%d %H:%M:%S} =====\n{tb}")
+        except Exception:
+            pass
+
+    def show(tb):
+        from PySide6.QtWidgets import QMessageBox, QApplication
+        if QApplication.instance() is None:
+            return
+        box = QMessageBox()
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Mesly PDF – beklenmeyen hata")
+        box.setText("Beklenmeyen bir hata oluştu. Çalışmanız etkilenmedi; işleme devam edebilirsiniz.\n\n"
+                    f"Ayrıntılar hata günlüğüne yazıldı:\n{log}")
+        box.setDetailedText(tb)
+        box.exec()
+
+    def hook(et, ev, tb_):
+        if issubclass(et, KeyboardInterrupt):
+            return sys.__excepthook__(et, ev, tb_)
+        tb = "".join(traceback.format_exception(et, ev, tb_))
+        write(tb)
+        try:
+            show(tb)
+        except Exception:
+            pass
+    sys.excepthook = hook
+    threading.excepthook = lambda a: write("".join(traceback.format_exception(a.exc_type, a.exc_value, a.exc_traceback)))
+
+
+def _warmup():
+    """Pencere açıldıktan sonra ağır modülleri önceden yükler; ilk belge açılışı beklemesin."""
+    import threading
+    from PySide6.QtCore import QTimer
+
+    def core():
+        for m in ("pikepdf", "pypdfium2", "reportlab.pdfgen.canvas", "cv2", "pytesseract", "meslypdf.core.ocr",
+                  "meslypdf.core.editing", "meslypdf.core.annotations", "meslypdf.core.forms", "meslypdf.core.security",
+                  "meslypdf.core.convert", "meslypdf.core.compare", "docx", "openpyxl", "pptx", "pyhanko.sign",
+                  "meslypdf.core.sign"):
+            try:
+                __import__(m)
+            except Exception:
+                pass
+
+    def ui():
+        for m in ("meslypdf.ui.document_tab", "meslypdf.ui.organize", "meslypdf.ui.ocr_editor", "meslypdf.ui.compare_view"):
+            try:
+                __import__(m)
+            except Exception:
+                pass
+    t = threading.Thread(target=core, daemon=True, name="Isinma")
+    t.start()
+
+    def wait_ui():
+        if t.is_alive():
+            QTimer.singleShot(300, wait_ui)
+        else:
+            ui()
+    QTimer.singleShot(600, wait_ui)
+
+
 def main():
     args = sys.argv[1:]
     if args and args[0] == "--cli":
@@ -173,6 +282,8 @@ def main():
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Mesly.MeslyPDF")
         except Exception:
             pass
+    splash = _splash(app) if not (args and args[0] == "--tray") else None
+    _install_crash_handler()
     from .ui import theme
     from .ui.common import Settings
     Settings.load()
@@ -196,7 +307,10 @@ def main():
         win.update_tray()
     else:
         win.show()
+        if splash:
+            splash.finish(win)
         handle_args(win, args)
+        _warmup()
     rc = app.exec()
     if win.hotfolder_service.running:
         win.hotfolder_service.stop()

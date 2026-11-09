@@ -27,6 +27,105 @@ from .ribbon import Ribbon
 MARKUP_COLORS = {"highlight": "#FFEB3B", "underline": "#1E88E5", "strike": "#E53935"}
 
 
+class InlineTextEditor(QFrame):
+    """Sayfa üzerinde, paragrafın yerinde açılan metin düzenleyici + mini biçim çubuğu."""
+
+    def __init__(self, tab, page, block):
+        super().__init__()
+        self.tab, self.page, self.block = tab, page, block
+        self.proxy = None
+        self.setObjectName("InlineEditor")
+        self.setStyleSheet("#InlineEditor { background: transparent; }")
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(2)
+        self.bar = QFrame()
+        self.bar.setObjectName("InlineBar")
+        self.bar.setStyleSheet(f"#InlineBar {{ background: {theme.C['nav']}; border-radius: 6px; }} "
+                               "QToolButton { color: white; border: none; padding: 2px 6px; } "
+                               "QToolButton:checked { background: rgba(255,255,255,0.18); border-radius: 4px; }")
+        h = QHBoxLayout(self.bar)
+        h.setContentsMargins(6, 2, 6, 2)
+        h.setSpacing(2)
+        self.size = QSpinBox()
+        self.size.setRange(4, 144)
+        self.size.setValue(round(block["size"]))
+        self.size.setFixedWidth(64)
+        self.size.setToolTip("Yazı boyutu")
+        self.size.valueChanged.connect(lambda *_: (self._apply_font(), tab._position_inline()))
+        self.edit = None
+        h.addWidget(self.size)
+
+        def tb(ic, tip, checkable=False, slot=None):
+            b = QToolButton()
+            b.setIcon(theme.icon(ic, "#FFFFFF"))
+            b.setToolTip(tip)
+            b.setCheckable(checkable)
+            if slot:
+                b.clicked.connect(slot)
+            h.addWidget(b)
+            return b
+        self.bold = tb("mdi6.format-bold", "Kalın", True, lambda: self._apply_font())
+        self.bold.setChecked(block["bold"])
+        self.align = "left"
+        self._aligns = {}
+        for k, ic, tip in (("left", "mdi6.format-align-left", "Sola"), ("center", "mdi6.format-align-center", "Ortala"),
+                           ("right", "mdi6.format-align-right", "Sağa"), ("justify", "mdi6.format-align-justify", "İki yana")):
+            self._aligns[k] = tb(ic, tip, True, lambda checked=False, k=k: self._set_align(k))
+        self._aligns["left"].setChecked(True)
+        self.color = "#000000"
+        self.edit = None
+        self.cbtn = tb("mdi6.palette", "Renk", False, self._pick)
+        h.addStretch()
+        tb("mdi6.close", "İptal (Esc)", False, lambda: tab._close_inline(False))
+        ok = tb("mdi6.check-bold", "Uygula (Ctrl+Enter)", False, lambda: tab._close_inline(True))
+        ok.setStyleSheet("QToolButton { background: %s; border-radius: 4px; }" % theme.C["primary"])
+        v.addWidget(self.bar)
+        self.edit = QPlainTextEdit(block["text"])
+        self.edit.setFrameShape(QFrame.NoFrame)
+        self.edit.textChanged.connect(tab._position_inline)
+        v.addWidget(self.edit, 1)
+        self._scale = 1.0
+        self._apply_font()
+        QShortcut(QKeySequence("Ctrl+Return"), self.edit, lambda: tab._close_inline(True))
+        QShortcut(QKeySequence("Escape"), self.edit, lambda: tab._close_inline(False))
+
+    def _pick(self):
+        c = QColorDialog.getColor(QColor(self.color), self.tab)
+        if c.isValid():
+            self.color = c.name()
+            self.cbtn.setIcon(theme.icon("mdi6.palette", self.color))
+            self._apply_font()
+
+    def _set_align(self, k):
+        self.align = k
+        for kk, b in self._aligns.items():
+            b.setChecked(kk == k)
+
+    def set_scale(self, sc):
+        if abs(sc - self._scale) > 1e-3:
+            self._scale = sc
+            self._apply_font()
+
+    def _apply_font(self):
+        from PySide6.QtGui import QFont
+        if self.edit is None:
+            return
+        px = max(6, int(self.size.value() * self._scale))
+        f = QFont("DejaVu Sans")
+        f.setPixelSize(px)
+        f.setBold(self.bold.isChecked())
+        self.edit.setFont(f)
+        self.edit.setStyleSheet(f"QPlainTextEdit {{ background: rgba(255,255,255,245); color: {self.color}; "
+                                f"font-size: {px}px; font-weight: {'bold' if self.bold.isChecked() else 'normal'}; "
+                                f"border: 2px solid {theme.C['primary']}; border-radius: 3px; padding: 0px; }}")
+
+    def params(self):
+        return {"size": self.size.value(), "bold": self.bold.isChecked(), "color": self.color, "align": self.align,
+                "changed": (self.size.value() != round(self.block["size"]) or self.bold.isChecked() != self.block["bold"]
+                            or self.color != "#000000" or self.align != "left")}
+
+
 class PageBox(QLineEdit):
     """Sayfa numarası girişi (QSpinBox yerine; stil sayfasıyla sorunsuz)."""
 
@@ -183,6 +282,7 @@ class DocumentTab(QWidget):
         v.addWidget(self.split, 1)
 
         self.view.pageChanged.connect(self._page_changed)
+        self.view.pageChanged.connect(self._ensure_edit_blocks)
         self.view.zoomChanged.connect(lambda z: self.zoom_combo.setEditText(f"%{round(z * 100)}"))
         self.view.rectDrawn.connect(self.on_rect)
         self.view.pointClicked.connect(self.on_point)
@@ -190,6 +290,14 @@ class DocumentTab(QWidget):
         self.view.textSelected.connect(self.on_text_selected)
         self.view.contextRequested.connect(self.on_context)
         self.view.layoutChanged.connect(self._reposition_overlays)
+        self.view.rangeSelected.connect(self.on_range_selected)
+        self.view.selectionCleared.connect(self.hide_selection_bar)
+        self.view.annotationMoved.connect(lambda pg_, og, r: self.apply("Yorum taşındı", ann.set_rect, og, r))
+        self.view.annotationActivated.connect(self._edit_annotation)
+        self.view.annotationDeleteRequested.connect(lambda og: self.apply("Yorum silindi", ann.delete_annotation, og))
+        self.view.linkActivated.connect(self._open_link)
+        self.view.annot_provider = lambda page: [d for d in self.annotations_cached() if d["page"] == page]
+        self.view.link_provider = lambda page: [d for d in self.links_cached() if d["page"] == page]
         self._build_ribbon()
         for seq, fn in (("Ctrl+Z", self.undo), ("Ctrl+Y", self.redo), ("Ctrl+Shift+Z", self.redo), ("Ctrl+S", self.save),
                         ("Ctrl+Shift+S", self.save_as), ("Ctrl+F", self.focus_search), ("Ctrl+P", self.print_doc),
@@ -197,6 +305,9 @@ class DocumentTab(QWidget):
                         ("Escape", lambda: self.set_tool("select")), ("Ctrl+C", self.copy_selection)):
             QShortcut(QKeySequence(seq), self, fn, context=Qt.WidgetWithChildrenShortcut)
         self._selected = None
+        self._ops = []
+        self._op_running = False
+        self._annot_cache = (None, [])
 
     def _statusbar(self):
         bar = QFrame()
@@ -272,7 +383,12 @@ class DocumentTab(QWidget):
         p.add("Farklı kaydet", "mdi6.content-save-edit-outline", self.save_as)
         p.add("Yazdır", "mdi6.printer-outline", self.print_doc, "Yazdır (Ctrl+P)")
         p.group("Geçmiş")
-        self.b_undo = p.add("Geri al", "mdi6.undo", self.undo, "Geri al (Ctrl+Z)")
+        self.b_undo = p.add("Geri al", "mdi6.undo", self.undo, "Geri al (Ctrl+Z) · geçmiş için basılı tutun")
+        from PySide6.QtWidgets import QToolButton as _QTB
+        self.b_undo.setPopupMode(_QTB.MenuButtonPopup)
+        self._hist_menu = QMenu(self.b_undo)
+        self._hist_menu.aboutToShow.connect(self._fill_history)
+        self.b_undo.setMenu(self._hist_menu)
         self.b_redo = p.add("Yinele", "mdi6.redo", self.redo, "Yinele (Ctrl+Y)")
         p.group("Araçlar")
         sel = self._tool_btn(p, "Seç", "mdi6.cursor-text", "select", "Metin seç (Esc)")
@@ -282,12 +398,10 @@ class DocumentTab(QWidget):
         p.add("Ara", "mdi6.magnify", self.focus_search, "Ara (Ctrl+F)")
         p.group("Görünüm")
         p.add("Gece modu", "mdi6.weather-night", self.toggle_night, checkable=True)
-        p.add("Tam ekran", "mdi6.fullscreen", self.main.toggle_fullscreen)
         p.add("Özellikler", "mdi6.information-outline", self.op_metadata)
         p.group("Hızlı işlemler")
         p.add("OCR uygula", "mdi6.text-recognition", self.op_ocr, "Taranmış sayfalara aranabilir metin katmanı ekle")
         p.add("Word'e aktar", "mdi6.file-word-outline", lambda: self.op_export("docx"), color="#2B579A")
-        p.add("Excel'e aktar", "mdi6.file-excel-outline", lambda: self.op_export("xlsx"), color="#217346")
         p.add("Karşılaştır", "mdi6.compare", self.op_compare)
 
         # -------- Düzenle
@@ -424,6 +538,8 @@ class DocumentTab(QWidget):
         self.doc = PdfDocument(self.path)
         self.view.invalidate_words()
         # sahne temizlenecek: katman nesnelerini önce düzgünce kaldır
+        if getattr(self, "_inline", None):
+            self._close_inline(commit=False)
         self._clear_edit_overlay()
         self._clear_form_proxies()
         pending = dict(self.pending_redactions)
@@ -505,31 +621,57 @@ class DocumentTab(QWidget):
         self.reload()
         self.status_msg.setText(label_text)
 
-    def apply(self, msg, fn, *args, **kw):
-        """Senkron işlem: fn(src, out, *args) -> yeni sürüm."""
-        out = self._next_path()
-        try:
-            QApplication.setOverrideCursor(Qt.WaitCursor)
-            fn(self.path, out, *args, **kw)
-        except Exception as e:
-            QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Hata", f"İşlem başarısız:\n{e}")
-            return False
-        QApplication.restoreOverrideCursor()
-        if not os.path.exists(out):
-            return False
-        self.push_version(out, msg)
-        toast(self, msg, "ok")
+    def apply(self, msg, fn, *args, _then=None, _title=None, **kw):
+        """İşlemi arka planda ve sıralı kuyrukta çalıştırır: fn(kaynak, çıktı, *args) -> yeni sürüm.
+        Arayüz donmaz; ardışık işlemler sırayla, her biri bir öncekinin sonucuna uygulanır."""
+        self._ops.append((msg, fn, args, kw, _then, _title))
+        self._run_next_op()
         return True
 
     def apply_async(self, title, msg, fn, *args, **kw):
+        return self.apply(msg, fn, *args, _title=title, **kw)
+
+    @property
+    def busy(self):
+        return self._op_running or bool(self._ops)
+
+    def _run_next_op(self):
+        if self._op_running or not self._ops:
+            return
+        msg, fn, args, kw, then, title = self._ops.pop(0)
         out = self._next_path()
+        self._op_running = True
+        self.status_msg.setText("⏳ " + (title or "İşleniyor…"))
 
         def done(_):
+            self._op_running = False
             if os.path.exists(out):
                 self.push_version(out, msg)
                 toast(self, msg, "ok")
-        run_task(self, title, fn, self.path, out, *args, on_done=done, **kw)
+            if then:
+                then()
+            self._run_next_op()
+
+        def err(m):
+            self._op_running = False
+            self._ops.clear()
+            self.status_msg.setText("")
+            QMessageBox.critical(self, "Hata", f"İşlem başarısız:\n{m}")
+        run_task(self, title or "İşleniyor…", fn, self.path, out, *args, on_done=done, on_error=err, **kw)
+
+    def _fill_history(self):
+        m = self._hist_menu
+        m.clear()
+        m.addSection("Geçmiş (bir adıma dönmek için tıklayın)")
+        for k in range(len(self.versions) - 1, -1, -1):
+            a = m.addAction(("● " if k == self.vidx else "    ") + self.labels[k])
+            a.triggered.connect(lambda checked=False, k=k: self.goto_version(k))
+
+    def goto_version(self, k):
+        if 0 <= k < len(self.versions) and k != self.vidx:
+            self.vidx = k
+            self.reload()
+            toast(self, f"Geçmişe dönüldü: {self.labels[k]}")
 
     def undo(self):
         if self.vidx > 0:
@@ -583,6 +725,7 @@ class DocumentTab(QWidget):
                 return False
             if r == QMessageBox.Save and not self.save():
                 return False
+        self.view.renderer.stop()
         if self.doc:
             self.doc.close()
         shutil.rmtree(self.workdir, ignore_errors=True)
@@ -594,6 +737,8 @@ class DocumentTab(QWidget):
 
     # ------------------------------------------------------------ araçlar
     def set_tool(self, tool):
+        if getattr(self, "_inline", None) and tool != "edit_text":
+            self._close_inline(commit=True)
         self.view.set_tool(tool, MARKUP_COLORS.get(tool, self.color))
         for b in self.ribbon.tool_group.buttons():
             if b.property("tool") == tool:
@@ -626,16 +771,23 @@ class DocumentTab(QWidget):
 
     # ---- metin düzenleme katmanı
     def _show_edit_overlay(self):
+        """Metin düzenleme modu: yalnızca görünen sayfaların paragraflarını çıkarır (tembel)."""
         self._edit_blocks = {}
-        for i in range(self.doc.page_count):
-            if i > 300:
-                break
+        self._ensure_edit_blocks()
+
+    def _ensure_edit_blocks(self, *_):
+        if self.view.tool != "edit_text" or not self.doc:
+            return
+        cur = self.view.current_page()
+        added = False
+        for i in range(max(0, cur - 2), min(self.doc.page_count, cur + 3)):
+            if i in self._edit_blocks:
+                continue
             try:
                 self._edit_blocks[i] = editing.text_blocks(self.path, i)
             except Exception:
                 self._edit_blocks[i] = []
-        for i, blocks in self._edit_blocks.items():
-            for b in blocks:
+            for b in self._edit_blocks[i]:
                 it = QGraphicsRectItem()
                 it.setPen(QPen(QColor(theme.C["primary"]), 1, Qt.DashLine))
                 c = QColor(theme.C["primary"])
@@ -644,7 +796,9 @@ class DocumentTab(QWidget):
                 it.setZValue(4)
                 self.view.scene().addItem(it)
                 self._edit_items.append((it, i, b["bounds"]))
-        self._reposition_overlays()
+                added = True
+        if added:
+            self._reposition_overlays()
 
     def _clear_edit_overlay(self):
         for it, _, _ in self._edit_items:
@@ -661,6 +815,7 @@ class DocumentTab(QWidget):
             it.setRect(self.view.pdf_rect_to_scene(page, (l - 2, b - 2, r + 2, t + 2)))
         if self.form_mode:
             self._position_form_proxies()
+        self._position_inline()
 
     def _edit_block_at(self, page, pt):
         x, y = pt
@@ -671,6 +826,52 @@ class DocumentTab(QWidget):
         return None
 
     def _open_text_editor(self, page, block):
+        """Yerinde düzenleme: paragrafın üzerine aynı boyutta bir düzenleyici yerleştirir."""
+        self._close_inline(commit=True)
+        ed = InlineTextEditor(self, page, block)
+        self._inline = ed
+        proxy = self.view.scene().addWidget(ed)
+        proxy.setZValue(30)
+        ed.proxy = proxy
+        self._position_inline()
+        ed.edit.setFocus()
+        cur = ed.edit.textCursor()
+        cur.movePosition(cur.MoveOperation.End)
+        ed.edit.setTextCursor(cur)
+
+    def _position_inline(self):
+        ed = getattr(self, "_inline", None)
+        if not ed or not ed.proxy.scene():
+            return
+        l, b, r, t = ed.block["bounds"]
+        sr = self.view.pdf_rect_to_scene(ed.page, (l - 3, b - 3, r + 3, t + 3))
+        ed.set_scale(sr.width() / max(1.0, (r - l + 6)))
+        w = max(sr.width(), 300)
+        h = max(sr.height(), ed.edit.document().size().height() + 8) + ed.bar.sizeHint().height()
+        ed.resize(int(w), int(h))
+        ed.proxy.setPos(sr.left(), sr.top() - ed.bar.sizeHint().height())
+
+    def _close_inline(self, commit: bool):
+        ed = getattr(self, "_inline", None)
+        if not ed:
+            return
+        self._inline = None
+        txt = ed.edit.toPlainText()
+        params = ed.params()
+        try:
+            if ed.proxy.scene():
+                self.view.scene().removeItem(ed.proxy)
+            ed.proxy.deleteLater()
+        except RuntimeError:
+            pass
+        b = ed.block
+        if commit and (txt != b["text"] or params["changed"]):
+            ratio = params["size"] / max(1, round(b["size"]))
+            self.apply("Metin düzenlendi", editing.edit_text_block, ed.page, b["bounds"], txt, float(params["size"]),
+                       b["first_baseline"], (b["leading"] or b["size"] * 1.2) * ratio, params["bold"], params["color"],
+                       "Sans", True, params["align"], _then=lambda: self.set_tool("edit_text"))
+
+    def _open_text_editor_dialog(self, page, block):
         d = QDialog(self)
         d.setWindowTitle("Metni düzenle")
         d.resize(560, 360)
@@ -714,8 +915,7 @@ class DocumentTab(QWidget):
             ratio = size.value() / max(1, round(block["size"]))
             self.apply("Metin düzenlendi", editing.edit_text_block, page, block["bounds"], txt, float(size.value()),
                        block["first_baseline"], (block["leading"] or block["size"] * 1.2) * ratio, bold.isChecked(),
-                       col[0], "Sans", True, align.currentData())
-            self.set_tool("edit_text")
+                       col[0], "Sans", True, align.currentData(), _then=lambda: self.set_tool("edit_text"))
 
     # ---- olaylar
     def on_point(self, page, pt):
@@ -730,6 +930,8 @@ class DocumentTab(QWidget):
             b = self._edit_block_at(page, pt)
             if b:
                 self._open_text_editor(page, b)
+            else:
+                self._close_inline(commit=True)
             return
         if tool == "note":
             t, ok = QInputDialog.getMultiLineText(self, "Not ekle", "Not:")
@@ -845,19 +1047,83 @@ class DocumentTab(QWidget):
             self.view.clear_selection()
             return
         self._selected = (page, rects, text)
-        m = QMenu(self)
-        m.addAction(theme.icon("mdi6.content-copy"), "Kopyala", self.copy_selection)
-        m.addAction(theme.icon("mdi6.table"), "Tablo olarak kopyala", lambda: self.copy_table(page, rect))
-        m.addSeparator()
-        m.addAction(theme.icon("mdi6.marker", "#F9A825"), "Vurgula", lambda: self._markup_sel("Highlight", "#FFEB3B"))
-        m.addAction(theme.icon("mdi6.format-underline"), "Altını çiz", lambda: self._markup_sel("Underline", "#1E88E5"))
-        m.addAction(theme.icon("mdi6.format-strikethrough"), "Üstünü çiz", lambda: self._markup_sel("StrikeOut", "#E53935"))
-        m.addAction(theme.icon("mdi6.comment-text-outline"), "Yorumla vurgula…", self._markup_comment)
-        m.addSeparator()
-        m.addAction(theme.icon("mdi6.square"), "Karart", lambda: self._redact_sel())
-        m.addAction(theme.icon("mdi6.magnify"), "Belgede ara", lambda: (self._show_panel(2), self.searchp.focus(text), self.searchp.search()))
-        m.addAction(theme.icon("mdi6.link-variant"), "Bağlantı ekle…", lambda: (setattr(self.view, "tool", "link"), self.on_rect(page, rect), self.set_tool("select")))
-        m.exec(self.cursor().pos())
+        self._selection_menu(page, rects, text, rect)
+
+    def _selection_menu(self, page, rects, text, rect=None):
+        """Seçimin üstünde beliren, engellemeyen mini araç çubuğu."""
+        if rect is None and rects:
+            rect = (min(r[0] for r in rects), min(r[1] for r in rects), max(r[2] for r in rects), max(r[3] for r in rects))
+        if not rect:
+            return
+        bar = self._sel_bar()
+        bar._ctx = (page, rects, text, rect)
+        sr = self.view.pdf_rect_to_scene(page, rect)
+        p = self.view.mapFromScene(sr.topLeft())
+        bar.adjustSize()
+        x = max(4, min(p.x(), self.view.viewport().width() - bar.width() - 4))
+        y = p.y() - bar.height() - 8
+        if y < 4:
+            y = self.view.mapFromScene(sr.bottomLeft()).y() + 8
+        bar.move(x, y)
+        bar.show()
+        bar.raise_()
+
+    def _sel_bar(self):
+        if getattr(self, "_selbar", None) is not None:
+            return self._selbar
+        bar = QFrame(self.view.viewport())
+        bar.setObjectName("SelBar")
+        bar.setStyleSheet(f"#SelBar {{ background: {theme.C['surface']}; border: 1px solid {theme.C['border_strong']}; border-radius: 9px; }}"
+                          f"#SelBar QToolButton {{ border: none; border-radius: 6px; padding: 4px; }}"
+                          f"#SelBar QToolButton:hover {{ background: {theme.C['primary_soft']}; }}")
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        sh = QGraphicsDropShadowEffect(bar)
+        sh.setBlurRadius(16)
+        sh.setOffset(0, 3)
+        sh.setColor(QColor(0, 0, 0, 60))
+        bar.setGraphicsEffect(sh)
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(4, 3, 4, 3)
+        h.setSpacing(1)
+
+        def ctx():
+            return bar._ctx
+
+        def add(ic, tip, fn, color=None):
+            b = QToolButton()
+            b.setIcon(theme.icon(ic, color))
+            b.setIconSize(QSize(18, 18))
+            b.setToolTip(tip)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda: (fn(), bar.hide()))
+            h.addWidget(b)
+        add("mdi6.content-copy", "Kopyala (Ctrl+C)", self.copy_selection)
+        add("mdi6.marker", "Vurgula", lambda: self._markup_sel("Highlight", "#FFEB3B"), "#F9A825")
+        add("mdi6.format-underline", "Altını çiz", lambda: self._markup_sel("Underline", "#1E88E5"), "#1E88E5")
+        add("mdi6.format-strikethrough", "Üstünü çiz", lambda: self._markup_sel("StrikeOut", "#E53935"), "#E53935")
+        add("mdi6.comment-text-outline", "Yorumla vurgula", self._markup_comment)
+        sep = QFrame()
+        sep.setFixedWidth(1)
+        sep.setStyleSheet(f"background:{theme.C['border']}")
+        h.addWidget(sep)
+        add("mdi6.text-box-edit-outline", "Bu metni düzenle", lambda: self._edit_at(ctx()[0], ctx()[3]))
+        add("mdi6.table", "Tablo olarak kopyala", lambda: self.copy_table(ctx()[0], ctx()[3]))
+        add("mdi6.square", "Karart", self._redact_sel)
+        add("mdi6.magnify", "Belgede ara", lambda: (self._show_panel(2), self.searchp.focus(ctx()[2]), self.searchp.search()))
+        add("mdi6.link-variant-plus", "Bağlantı ekle", lambda: (setattr(self.view, "tool", "link"), self.on_rect(ctx()[0], ctx()[3]), self.set_tool("select")))
+        bar.hide()
+        self._selbar = bar
+        # seçim temizlenince / kaydırınca gizle
+        self.view.verticalScrollBar().valueChanged.connect(lambda *_: bar.hide())
+        self.view.zoomChanged.connect(lambda *_: bar.hide())
+        return bar
+
+    def _edit_at(self, page, rect):
+        self.set_tool("edit_text")
+        cx, cy = (rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2
+        b = self._edit_block_at(page, (cx, cy))
+        if b:
+            self._open_text_editor(page, b)
 
     @staticmethod
     def _line_rects(rects):
@@ -870,6 +1136,10 @@ class DocumentTab(QWidget):
             else:
                 out.append(tuple(r))
         return out
+
+    def hide_selection_bar(self):
+        if getattr(self, "_selbar", None) is not None:
+            self._selbar.hide()
 
     def copy_selection(self):
         if self._selected:
@@ -931,10 +1201,57 @@ class DocumentTab(QWidget):
         self.pending_redactions = {}
         self.banner.hide()
 
+    def annotations_cached(self):
+        if self._annot_cache[0] != self.path:
+            try:
+                self._annot_cache = (self.path, ann.list_annotations(self.path))
+            except Exception:
+                self._annot_cache = (self.path, [])
+        return self._annot_cache[1]
+
+    def links_cached(self):
+        c = getattr(self, "_link_cache", (None, []))
+        if c[0] != self.path:
+            try:
+                c = (self.path, editing.list_links(self.path))
+            except Exception:
+                c = (self.path, [])
+            self._link_cache = c
+        return c[1]
+
+    def _open_link(self, d):
+        if d.get("uri"):
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            u = d["uri"]
+            if u.lower().startswith(("http://", "https://", "mailto:")):
+                QDesktopServices.openUrl(QUrl(u))
+            elif confirm(self, "Bağlantı", f"Bu bağlantı açılsın mı?\n{u}"):
+                QDesktopServices.openUrl(QUrl(u))
+        elif d.get("dest") is not None:
+            self.view.go_to(d["dest"])
+
+    def _edit_annotation(self, d):
+        t, ok = QInputDialog.getMultiLineText(self, f"{d['kind_tr']} – yorumu düzenle", "Metin:", d["contents"])
+        if ok:
+            self.apply("Yorum güncellendi", ann.edit_contents, d["objgen"], t)
+
+    def on_range_selected(self, page, rects, text):
+        """Akış seçimi (sürükle / çift / üçlü tıklama) sonrası işlem menüsü."""
+        rects = self._line_rects(rects)
+        tool = self.view.tool
+        if tool in ("highlight", "underline", "strike"):
+            kind = {"highlight": "Highlight", "underline": "Underline", "strike": "StrikeOut"}[tool]
+            self.apply("İşaretleme eklendi", ann.add_markup, page, rects, kind, MARKUP_COLORS[tool], self.author(), "")
+            self.view.clear_selection()
+            return
+        self._selected = (page, rects, text)
+        self._selection_menu(page, rects, text)
+
     def _annotation_at(self, page, pt):
         x, y = pt
         try:
-            for d in ann.list_annotations(self.path):
+            for d in self.annotations_cached():
                 if d["page"] == page:
                     l, b, r, t = d["rect"]
                     if l - 2 <= x <= r + 2 and b - 2 <= y <= t + 2:
@@ -1040,10 +1357,13 @@ class DocumentTab(QWidget):
         if not imgs:
             return
 
+        at = self.view.current_page() + 1
+        lang = Settings.get("ocr_lang")
+
         def op(src, out):
             tmp = out + ".scan.pdf"
-            ocrmod.ocr_images_to_pdf(imgs, tmp, Settings.get("ocr_lang"))
-            pg.insert_from(src, tmp, self.view.current_page() + 1, out)
+            ocrmod.ocr_images_to_pdf(imgs, tmp, lang)
+            pg.insert_from(src, tmp, at, out)
             return out
         self.apply_async("Taranan sayfalar ekleniyor…", "Taranan sayfalar eklendi", op)
 
@@ -1496,10 +1816,11 @@ class DocumentTab(QWidget):
         vals = dict(self.form_values)
         self.form_values = {}
         missing = []
-        self.apply("Form verileri kaydedildi", forms.fill, vals)
-        missing = forms.validate_required(self.path)
-        if missing:
-            toast(self, "Doldurulmamış zorunlu alanlar: " + ", ".join(missing[:5]), "warn")
+        def check():
+            missing = forms.validate_required(self.path)
+            if missing:
+                toast(self, "Doldurulmamış zorunlu alanlar: " + ", ".join(missing[:5]), "warn")
+        self.apply("Form verileri kaydedildi", forms.fill, vals, _then=check)
 
     def op_import_form(self):
         f = open_files(self, "Form verisi", "Form verisi (*.fdf *.json)", multi=False)
@@ -1626,9 +1947,11 @@ class DocumentTab(QWidget):
         for i in range(first - 1, last):
             if i > first - 1:
                 printer.newPage()
-            page = self.doc._doc[i]
-            img = page.render(scale=dpi / 72, draw_annots=v["annots"], may_draw_forms=True).to_pil()
-            page.close()
+            from ..core.document import PDFIUM_LOCK
+            with PDFIUM_LOCK:
+                page = self.doc._doc[i]
+                img = page.render(scale=dpi / 72, draw_annots=v["annots"], may_draw_forms=True).to_pil()
+                page.close()
             pm = pil_to_qpixmap(img)
             rect = painter.viewport()
             size = pm.size()

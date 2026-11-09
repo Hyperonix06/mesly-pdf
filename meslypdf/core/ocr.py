@@ -18,24 +18,7 @@ from PIL import Image
 from .preprocess import PreprocessOptions, preprocess, to_cv
 
 # ------------------------------------------------------------------ Tesseract konumu
-LANG_NAMES = {
-    "tur": "Türkçe", "eng": "İngilizce", "deu": "Almanca", "fra": "Fransızca", "spa": "İspanyolca",
-    "ita": "İtalyanca", "rus": "Rusça", "ara": "Arapça", "fas": "Farsça", "aze": "Azerbaycanca",
-    "kaz": "Kazakça", "uzb": "Özbekçe", "kur": "Kürtçe", "ell": "Yunanca", "bul": "Bulgarca",
-    "nld": "Felemenkçe", "por": "Portekizce", "pol": "Lehçe", "chi_sim": "Çince (Basit)",
-    "chi_tra": "Çince (Geleneksel)", "jpn": "Japonca", "kor": "Korece", "heb": "İbranice",
-    "hin": "Hintçe", "ukr": "Ukraynaca", "ron": "Romence", "swe": "İsveççe", "ces": "Çekçe",
-    "hun": "Macarca", "osd": "Yön algılama", "ind": "Endonezce", "vie": "Vietnamca", "tha": "Tayca",
-    "deu_latf": "Almanca (Gotik/Fraktur)", "ota": "Osmanlıca", "lat": "Latince", "frk": "Fraktur",
-}
-TESSDATA_URL = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/{lang}.traineddata"
-
-
-def app_data_dir() -> str:
-    base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
-    d = os.path.join(base, "MeslyPDF")
-    os.makedirs(d, exist_ok=True)
-    return d
+from .paths import LANG_NAMES, TESSDATA_URL, app_data_dir  # noqa: F401
 
 
 def _configure_tesseract():
@@ -71,6 +54,49 @@ def _configure_tesseract():
 
 
 _configure_tesseract()
+
+# Sayfalar paralel tanındığında her Tesseract süreci tek iş parçacığı kullansın (aşırı yüklemeyi önler)
+os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+
+
+def ocr_workers() -> int:
+    """Aynı anda tanınacak sayfa sayısı (her sayfa en fazla 2 Tesseract süreci çalıştırır)."""
+    n = os.cpu_count() or 2
+    return max(1, min(6, n // 2 if n > 2 else 1))
+
+
+def parallel_pages(fn, items, progress=None, cancel=None, workers: int | None = None):
+    """fn(item) çağrılarını iş parçacığı havuzunda çalıştırır; sonuçları girdi sırasıyla döndürür."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    items = list(items)
+    if not items:
+        return []
+    w = workers or ocr_workers()
+    if w <= 1 or len(items) == 1:
+        out = []
+        for n, it in enumerate(items):
+            if cancel and cancel():
+                raise InterruptedError("İşlem iptal edildi")
+            if progress:
+                progress(n, len(items))
+            out.append(fn(it))
+        if progress:
+            progress(len(items), len(items))
+        return out
+    res = [None] * len(items)
+    done = 0
+    with ThreadPoolExecutor(max_workers=w) as ex:
+        futs = {ex.submit(fn, it): k for k, it in enumerate(items)}
+        for f in as_completed(futs):
+            if cancel and cancel():
+                for g in futs:
+                    g.cancel()
+                raise InterruptedError("İşlem iptal edildi")
+            res[futs[f]] = f.result()
+            done += 1
+            if progress:
+                progress(done, len(items))
+    return res
 
 
 def available_languages() -> list[str]:
@@ -379,10 +405,16 @@ def _iou(a, b) -> float:
 def _ocr_words(img: Image.Image, lang: str, psm: int = 3) -> list[dict]:
     """Kelimeleri tanır. Türkçe başka dillerle birlikte seçildiğinde, karma modelin Türkçe harfleri
     (Ç Ğ İ Ö Ş Ü ı) kaybettiği kelimeler yalnızca-Türkçe geçişin sonucuyla düzeltilir."""
-    words = _raw_words(img, lang, psm)
     langs = lang.split("+")
     if "tur" in langs and len(langs) > 1:
-        tr = _raw_words(img, "tur", psm)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            f1 = ex.submit(_raw_words, img, lang, psm)
+            f2 = ex.submit(_raw_words, img, "tur", psm)
+            words, tr = f1.result(), f2.result()
+    else:
+        words, tr = _raw_words(img, lang, psm), None
+    if tr is not None:
         for w in words:
             best, score = None, 0.0
             for t in tr:
@@ -481,19 +513,32 @@ def recognize_image(img: Image.Image, lang: str = "tur+eng", dpi: int = 300, det
     for tb in tables:
         inside = [w for w in words if _inside(w["box"], tb["box"])]
         words = [w for w in words if not _inside(w["box"], tb["box"])]
-        # Tablo hücrelerini ayrı ayrı tanımak daha doğru
+        # Tablo bölgesini tek seferde tanı (hücre hücre süreç başlatmaktan çok daha hızlı);
+        # yalnızca boş kalan ama mürekkep içeren hücreleri ayrıca tanı
+        x0, y0, x1, y1 = tb["box"]
+        crop = img.crop((x0, y0, x1, y1))
         cell_words = []
+        for w in _ocr_words(crop, lang, 6):
+            b = w["box"]
+            w["box"] = (b[0] + x0, b[1] + y0, b[2] + x0, b[3] + y0)
+            cell_words.append(w)
         rows, cols = tb["rows"], tb["cols"]
+        gray = np.asarray(img.convert("L"))
+        retry = []
         for r in range(len(rows) - 1):
             for c in range(len(cols) - 1):
-                x0, y0, x1, y1 = cols[c] + 3, rows[r] + 3, cols[c + 1] - 3, rows[r + 1] - 3
-                if x1 - x0 < 8 or y1 - y0 < 8:
+                cx0, cy0, cx1, cy1 = cols[c] + 3, rows[r] + 3, cols[c + 1] - 3, rows[r + 1] - 3
+                if cx1 - cx0 < 8 or cy1 - cy0 < 8:
                     continue
-                crop = img.crop((x0, y0, x1, y1))
-                for w in _ocr_words(crop, lang, 6):
-                    b = w["box"]
-                    w["box"] = (b[0] + x0, b[1] + y0, b[2] + x0, b[3] + y0)
-                    cell_words.append(w)
+                if any(_inside(w["box"], (cx0, cy0, cx1, cy1), 0) for w in cell_words):
+                    continue
+                if (gray[cy0:cy1, cx0:cx1] < 128).mean() > 0.004:
+                    retry.append((cx0, cy0, cx1, cy1))
+        for (cx0, cy0, cx1, cy1) in retry[:24]:
+            for w in _ocr_words(img.crop((cx0, cy0, cx1, cy1)), lang, 6):
+                b = w["box"]
+                w["box"] = (b[0] + cx0, b[1] + cy0, b[2] + cx0, b[3] + cy0)
+                cell_words.append(w)
         table_blocks.append(_make_table(tb, cell_words or inside))
     for bc in barcodes:
         words = [w for w in words if not _inside(w["box"], bc["box"])]
@@ -646,21 +691,20 @@ def ocr_pdf(path: str, out: str, lang: str = "tur+eng", dpi: int = 300, pages: l
     results: dict[int, PageResult] = {}
     with PdfDocument(path, password) as doc:
         idx = list(range(doc.page_count) if pages is None else pages)
-        for n, i in enumerate(idx):
-            if cancel and cancel():
-                raise InterruptedError("İşlem iptal edildi")
-            if progress:
-                progress(n, len(idx))
-            if skip_text_pages and len(doc.page_text(i).strip()) > 20:
-                continue
+        if skip_text_pages:
+            idx = [i for i in idx if len(doc.page_text(i).strip()) <= 20]
+
+        def work(i):
             img = doc.render_dpi(i, dpi)
             if mode == "replace":
-                imgs, info = preprocess(img, opts, dpi)
-                img = imgs[0]
+                img = preprocess(img, opts, dpi)[0][0]
             lg = detect_language(img) if lang == "auto" else lang
-            results[i] = recognize_image(img, lg, dpi, detect_layout=False)
-    if progress:
-        progress(len(idx), len(idx))
+            r = recognize_image(img, lg, dpi, detect_layout=False)
+            if mode != "replace":
+                r.image = None  # belleği boşalt (orijinal sayfa görüntüsü korunuyor)
+            return r
+        for i, r in zip(idx, parallel_pages(work, idx, progress, cancel)):
+            results[i] = r
     if results_out is not None:
         results_out.update(results)
     if not results:
@@ -689,72 +733,66 @@ def ocr_pdf(path: str, out: str, lang: str = "tur+eng", dpi: int = 300, pages: l
 
 def ocr_images_to_pdf(images: list[str], out: str, lang: str = "tur+eng", opts: PreprocessOptions | None = None,
                       progress=None, cancel=None, page_size: str = "auto") -> str:
-    """Görüntülerden (tarama/fotoğraf) aranabilir PDF."""
+    """Görüntülerden (tarama/fotoğraf) aranabilir PDF. Sayfalar paralel tanınır."""
     import pikepdf
     opts = opts or PreprocessOptions()
-    dst = pikepdf.new()
-    total = len(images)
-    for n, path in enumerate(images):
-        if cancel and cancel():
-            raise InterruptedError("İşlem iptal edildi")
-        if progress:
-            progress(n, total)
+    frames = []
+    for path in images:
         src_img = Image.open(path)
         dpi = int((src_img.info.get("dpi") or (300, 300))[0] or 300)
-        frames = []
+        k = 0
         try:
-            k = 0
             while True:
                 src_img.seek(k)
-                frames.append(src_img.convert("RGB").copy())
+                frames.append((src_img.convert("RGB").copy(), dpi))
                 k += 1
         except EOFError:
             pass
-        for fr in frames:
-            pages_img, _ = preprocess(fr, opts, dpi)
-            for pim in pages_img:
-                eff_dpi = dpi * (pim.width / fr.width) if fr.width else dpi
-                eff_dpi = max(eff_dpi, 72)
-                if page_size == "a4":
-                    w, h = (595.28, 841.89) if pim.height >= pim.width else (841.89, 595.28)
-                else:
-                    w, h = pim.width * 72 / eff_dpi, pim.height * 72 / eff_dpi
-                lg = detect_language(pim) if lang == "auto" else lang
-                r = recognize_image(pim, lg, int(eff_dpi), detect_layout=False)
-                data = image_to_searchable_pdf_page(pim, w, h, lg, r)
-                with pikepdf.open(io.BytesIO(data)) as s:
-                    dst.pages.extend(s.pages)
-    if progress:
-        progress(total, total)
+
+    def work(item):
+        fr, dpi = item
+        out_pages = []
+        for pim in preprocess(fr, opts, dpi)[0]:
+            eff_dpi = max(dpi * (pim.width / fr.width) if fr.width else dpi, 72)
+            if page_size == "a4":
+                w, h = (595.28, 841.89) if pim.height >= pim.width else (841.89, 595.28)
+            else:
+                w, h = pim.width * 72 / eff_dpi, pim.height * 72 / eff_dpi
+            lg = detect_language(pim) if lang == "auto" else lang
+            r = recognize_image(pim, lg, int(eff_dpi), detect_layout=False)
+            out_pages.append(image_to_searchable_pdf_page(pim, w, h, lg, r))
+        return out_pages
+    dst = pikepdf.new()
+    for pages_data in parallel_pages(work, frames, progress, cancel):
+        for data in pages_data:
+            with pikepdf.open(io.BytesIO(data)) as s_:
+                dst.pages.extend(s_.pages)
     dst.save(out)
     return out
 
 
 def recognize_pdf(path: str, lang: str = "tur+eng", dpi: int = 300, pages: list[int] | None = None,
                   opts: PreprocessOptions | None = None, use_text_layer: bool = True, progress=None, cancel=None,
-                  password: str | None = None) -> list[PageResult]:
+                  password: str | None = None, keep_images: str = "auto") -> list[PageResult]:
     """Belgeyi düzen analiziyle tanır (dönüştürme ve OCR düzenleyici için).
     Metin katmanı olan sayfalarda OCR yerine PDF'in kendi metni kullanılır (daha doğru)."""
     from .document import PdfDocument
-    out = []
     with PdfDocument(path, password) as doc:
         idx = list(range(doc.page_count) if pages is None else pages)
-        for n, i in enumerate(idx):
-            if cancel and cancel():
-                raise InterruptedError("İşlem iptal edildi")
-            if progress:
-                progress(n, len(idx))
+
+        def work(i):
             img = doc.render_dpi(i, dpi)
             if use_text_layer and len(doc.page_text(i).strip()) > 20:
-                out.append(page_from_text_layer(doc, i, img, dpi))
+                r = page_from_text_layer(doc, i, img, dpi)
             else:
                 if opts:
                     img = preprocess(img, opts, dpi)[0][0]
                 lg = detect_language(img) if lang == "auto" else lang
-                out.append(recognize_image(img, lg, dpi))
-    if progress:
-        progress(len(idx), len(idx))
-    return out
+                r = recognize_image(img, lg, dpi)
+            if keep_images == "never" or (keep_images == "auto" and not any(b.kind == "picture" for b in r.blocks)):
+                r.image = None  # resim yoksa sayfa görüntüsünü bellekte tutma
+            return r
+        return parallel_pages(work, idx, progress, cancel)
 
 
 def page_from_text_layer(doc, i: int, img: Image.Image, dpi: int) -> PageResult:
@@ -825,6 +863,12 @@ def page_from_text_layer(doc, i: int, img: Image.Image, dpi: int) -> PageResult:
 
 
 def _pdf_image_boxes(doc, i, sc, ph) -> list[tuple]:
+    from .document import PDFIUM_LOCK
+    with PDFIUM_LOCK:
+        return _pdf_image_boxes_(doc, i, sc, ph)
+
+
+def _pdf_image_boxes_(doc, i, sc, ph) -> list[tuple]:
     import pypdfium2.raw as pdfium_c
     boxes = []
     page = doc._doc[i]

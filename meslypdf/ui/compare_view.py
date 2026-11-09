@@ -147,6 +147,18 @@ class CompareView(QWidget):
         self.list.setStyleSheet("QListWidget::item { border-bottom: 1px solid %s; padding: 8px; }" % theme.C["border"])
         self.list.currentRowChanged.connect(self._select)
         sv.addWidget(self.list, 1)
+        nav = QHBoxLayout()
+        self.prev_btn = button("Önceki", "mdi6.chevron-up", slot=lambda: self._step(-1), tip="Önceki fark (Shift+F3)")
+        self.next_btn = button("Sonraki", "mdi6.chevron-down", slot=lambda: self._step(1), tip="Sonraki fark (F3)")
+        self.pos_lbl = label("", "Muted")
+        nav.addWidget(self.prev_btn)
+        nav.addWidget(self.next_btn)
+        nav.addStretch()
+        nav.addWidget(self.pos_lbl)
+        sv.addLayout(nav)
+        from PySide6.QtGui import QShortcut, QKeySequence
+        QShortcut(QKeySequence("F3"), self, lambda: self._step(1))
+        QShortcut(QKeySequence("Shift+F3"), self, lambda: self._step(-1))
         self.sync = QCheckBox("Kaydırmayı eşitle")
         self.sync.setChecked(True)
         sv.addWidget(self.sync)
@@ -170,6 +182,8 @@ class CompareView(QWidget):
         return "Belge karşılaştırma"
 
     def close_tab(self):
+        self.va.renderer.stop()
+        self.vb.renderer.stop()
         return True
 
     def swap(self):
@@ -269,9 +283,17 @@ class CompareView(QWidget):
             it.setData(Qt.UserRole, k)
             self.list.addItem(it)
 
+    def _step(self, d):
+        n = self.list.count()
+        if not n or not self.result:
+            return
+        r = self.list.currentRow()
+        self.list.setCurrentRow((r + d) % n if r >= 0 else 0)
+
     def _select(self, row):
         if row < 0 or not self.result:
             return
+        self.pos_lbl.setText(f"{row + 1} / {self.list.count()}")
         d = self.result.diffs[self.list.item(row).data(Qt.UserRole)]
         self._syncing = True
         if d.old_tokens:

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QWidget, QLabel, QHBoxLayout, QVBoxLayout, QFrame
                                QProgressDialog, QPushButton, QToolButton, QMenu, QApplication, QGraphicsOpacityEffect,
                                QComboBox, QSizePolicy)
 
-from ..core.ocr import app_data_dir, available_languages, LANG_NAMES
+from ..core.paths import app_data_dir, LANG_NAMES
 from . import theme
 
 # ------------------------------------------------------------------ ayarlar
@@ -108,7 +108,8 @@ class _Receiver(QObject):
         self._err(msg)
 
 
-def run_task(parent: QWidget, title: str, fn, *args, on_done=None, on_error=None, modal: bool = True, **kwargs):
+def run_task(parent: QWidget, _title: str, fn, *args, on_done=None, on_error=None, _modal: bool = True, **kwargs):
+    title, modal = _title, _modal
     """fn'i arka planda çalıştırır; ilerleme penceresi gösterir. fn 'progress' ve 'cancel' parametreleri alabilir."""
     th = QThread()
     w = _Worker(fn, args, kwargs)
@@ -165,8 +166,19 @@ def run_task(parent: QWidget, title: str, fn, *args, on_done=None, on_error=None
 
 # ------------------------------------------------------------------ bildirim
 class Toast(QFrame):
+    _current = {}
+
     def __init__(self, parent, text, kind="info", ms=3200):
-        super().__init__(parent.window())
+        win = parent.window()
+        old = Toast._current.get(id(win))
+        if old is not None:
+            try:
+                old.hide()
+                old.deleteLater()
+            except RuntimeError:
+                pass
+        super().__init__(win)
+        Toast._current[id(win)] = self
         self.setObjectName("Toast")
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 10, 16, 10)
@@ -279,6 +291,7 @@ class LangPicker(QToolButton):
                            % (theme.C["border_strong"], theme.C["surface"]))
         self.menu_ = QMenu(self)
         self.setMenu(self.menu_)
+        from ..core.ocr import available_languages
         self._langs = available_languages()
         self._value = value or Settings.get("ocr_lang")
         self._build()
@@ -323,6 +336,7 @@ class LangPicker(QToolButton):
         else:
             names = [LANG_NAMES.get(l, l) for l in self._value.split("+")]
             self.setText("Dil: " + (", ".join(names) if len(names) <= 2 else f"{names[0]} +{len(names) - 1}"))
+        self.setMinimumWidth(self.fontMetrics().horizontalAdvance(self.text()) + 64)
 
 
 def confirm(parent, title, text) -> bool:

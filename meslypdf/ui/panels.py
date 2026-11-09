@@ -14,6 +14,20 @@ from . import theme
 from .common import button, label, toast, Settings, open_path
 
 
+def _framed(qimg):
+    """Küçük resmi ince kenarlık ve hafif gölgeyle sayfa gibi gösterir."""
+    from PySide6.QtGui import QPixmap, QPainter, QPen
+    pm = QPixmap(qimg.width() + 6, qimg.height() + 6)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.fillRect(3, 4, qimg.width(), qimg.height(), QColor(0, 0, 0, 35))
+    p.drawImage(2, 2, qimg)
+    p.setPen(QPen(QColor("#C9D0DD"), 1))
+    p.drawRect(2, 2, qimg.width() - 1, qimg.height() - 1)
+    p.end()
+    return pm
+
+
 def _hdr(title, *buttons):
     w = QWidget()
     h = QHBoxLayout(w)
@@ -49,41 +63,56 @@ class ThumbnailPanel(QWidget):
         self.list.setIconSize(QSize(120, 160))
         self.list.setSpacing(6)
         self.list.setResizeMode(QListWidget.Adjust)
-        self.list.setMovement(QListWidget.Static)
-        self.list.setStyleSheet("QListWidget { border: none; background: transparent; }")
+        self.list.setMovement(QListWidget.Snap)
+        self.list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.list.setDefaultDropAction(Qt.MoveAction)
+        self.list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.list.setStyleSheet("QListWidget { border: none; background: transparent; } "
+                                f"QListWidget::item:selected {{ background: {theme.C['primary_soft']}; border-radius: 8px; }}")
         self.list.currentRowChanged.connect(lambda r: r >= 0 and self.tab.view.go_to(r))
+        self.list.model().rowsMoved.connect(self._moved)
         self.list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list.customContextMenuRequested.connect(self._menu)
         v.addWidget(self.list)
-        self._todo = []
-        self._timer = QTimer(self, interval=15, timeout=self._render_next)
+        self._connected = False
 
     def reload(self):
+        from PySide6.QtGui import QPixmap
+        if not self._connected:
+            self.tab.view.renderer.rendered.connect(self._on_rendered, Qt.QueuedConnection)
+            self._connected = True
         self.list.blockSignals(True)
         self.list.clear()
         doc = self.tab.doc
-        ph = QIcon()
+        jobs = []
         for i in range(doc.page_count):
-            it = QListWidgetItem(ph, str(i + 1))
+            w, h = doc.page_size(i)
+            from PySide6.QtGui import QImage
+            ph = QImage(max(1, int(110 * w / max(w, h))), max(1, int(110 * h / max(w, h))), QImage.Format_RGB888)
+            ph.fill(QColor("#FFFFFF"))
+            it = QListWidgetItem(QIcon(_framed(ph)), str(i + 1))
             it.setTextAlignment(Qt.AlignHCenter)
             it.setSizeHint(QSize(140, 190))
             self.list.addItem(it)
+            jobs.append((i, 150 / max(w, h)))
         self.list.blockSignals(False)
-        self._todo = list(range(doc.page_count))
-        self._timer.start()
+        cur = self.tab.view.current_page()
+        jobs.sort(key=lambda j: abs(j[0] - cur))  # önce görünen sayfanın çevresi
+        self.tab.view.renderer.request_thumbs(jobs)
 
-    def _render_next(self):
-        if not self._todo:
-            self._timer.stop()
+    def _on_rendered(self, kind, gen, page, scale, qimg):
+        if kind != "thumb" or gen != self.tab.view._gen or page >= self.list.count():
             return
-        i = self._todo.pop(0)
-        try:
-            from .pageview import pil_to_qpixmap
-            w, h = self.tab.doc.page_size(i)
-            img = self.tab.doc.render(i, scale=150 / max(w, h))
-            self.list.item(i).setIcon(QIcon(pil_to_qpixmap(img)))
-        except Exception:
-            pass
+        self.list.item(page).setIcon(QIcon(_framed(qimg)))
+
+    def _moved(self, *a):
+        order = [int(self.list.item(r).text()) - 1 for r in range(self.list.count())]
+        if order != list(range(len(order))):
+            from ..core import pages as pg
+            self.tab.apply("Sayfa sırası değiştirildi", lambda s_, o: pg.reorder(s_, order, o))
+
+    def selected_pages(self):
+        return sorted(self.list.row(i) for i in self.list.selectedItems())
 
     def set_current(self, i):
         self.list.blockSignals(True)
@@ -95,11 +124,15 @@ class ThumbnailPanel(QWidget):
         if not it:
             return
         i = self.list.row(it)
+        sel = self.selected_pages() or [i]
+        if i not in sel:
+            sel = [i]
+        n = f" ({len(sel)} sayfa)" if len(sel) > 1 else ""
         m = QMenu(self)
-        m.addAction(theme.icon("mdi6.rotate-right"), "Sağa döndür", lambda: self.tab.op_rotate([i], 90))
-        m.addAction(theme.icon("mdi6.rotate-left"), "Sola döndür", lambda: self.tab.op_rotate([i], -90))
-        m.addAction(theme.icon("mdi6.delete-outline"), "Sil", lambda: self.tab.op_delete([i]))
-        m.addAction(theme.icon("mdi6.file-export-outline"), "Ayrı PDF olarak çıkar", lambda: self.tab.op_extract([i]))
+        m.addAction(theme.icon("mdi6.rotate-right"), "Sağa döndür" + n, lambda: self.tab.op_rotate(sel, 90))
+        m.addAction(theme.icon("mdi6.rotate-left"), "Sola döndür" + n, lambda: self.tab.op_rotate(sel, -90))
+        m.addAction(theme.icon("mdi6.delete-outline"), "Sil" + n, lambda: self.tab.op_delete(sel))
+        m.addAction(theme.icon("mdi6.file-export-outline"), "Ayrı PDF olarak çıkar" + n, lambda: self.tab.op_extract(sel))
         m.addAction(theme.icon("mdi6.file-plus-outline"), "Sonrasına boş sayfa ekle", lambda: self.tab.op_insert_blank(i + 1))
         m.addAction(theme.icon("mdi6.image-outline"), "Görüntü olarak kaydet…", lambda: self.tab.op_save_page_image(i))
         m.exec(self.list.mapToGlobal(pos))
@@ -303,11 +336,12 @@ class SearchPanel(QWidget):
                 if (old in ln["text"]) if self.case.isChecked() else (old.lower() in ln["text"].lower()):
                     targets.append((pg, ln))
 
+        import re
+        flags = 0 if self.case.isChecked() else re.I
+
         def op(src, out):
-            import re
             import shutil
             shutil.copyfile(src, out)
-            flags = 0 if self.case.isChecked() else re.I
             for pg, ln in targets:
                 txt = re.sub(re.escape(old), new.replace("\\", "\\\\"), ln["text"], flags=flags)
                 editing.edit_text_block(out, out, pg, ln["bounds"], txt, ln["size"], ln["baseline"], bold=ln["bold"])

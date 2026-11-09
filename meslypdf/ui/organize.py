@@ -220,13 +220,13 @@ class Organizer(QWidget):
         m.addAction(theme.icon("mdi6.file-export-outline"), "Ayrı PDF olarak kaydet…", self.extract)
         m.exec(self.list.mapToGlobal(pos))
 
-    def _build(self, out, items):
+    def _build(self, out, items, src_path=None):
         import pikepdf
-        src = pikepdf.open(self.tab.path)
+        src = pikepdf.open(src_path or self.tab.path)
         extras = {}
         dst = pikepdf.new()
         for it in items:
-            d = it.data(Qt.UserRole)
+            d = it if isinstance(it, dict) else it.data(Qt.UserRole)
             ref = d["ref"]
             if ref[0] == "src":
                 dst.pages.append(src.pages[ref[1]])
@@ -255,7 +255,8 @@ class Organizer(QWidget):
         if unchanged:
             self.tab.close_organizer()
             return
-        self.tab.apply("Sayfa düzeni güncellendi", lambda src, out: self._build(out, items))
+        specs = [dict(it.data(Qt.UserRole)) for it in items]  # Qt nesnelerini arka plana taşıma
+        self.tab.apply("Sayfa düzeni güncellendi", lambda src, out: self._build(out, specs, src))
         self.tab.close_organizer()
 
     def cancel(self):

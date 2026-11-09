@@ -8,6 +8,18 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QToolButton, Q
 from . import theme
 
 
+class _HScroll(QScrollArea):
+    """Dar pencerede şeridi fare tekerleğiyle yatay kaydırır (çubuk göstermeden)."""
+
+    def wheelEvent(self, e):
+        bar = self.horizontalScrollBar()
+        if bar.maximum() > 0:
+            bar.setValue(bar.value() - e.angleDelta().y())
+            e.accept()
+        else:
+            super().wheelEvent(e)
+
+
 class RibbonPage(QWidget):
     def __init__(self):
         super().__init__()
@@ -99,10 +111,10 @@ class Ribbon(QWidget):
 
     def page(self, title: str) -> RibbonPage:
         p = RibbonPage()
-        sc = QScrollArea()
+        sc = _HScroll()
         sc.setWidget(p)
         sc.setWidgetResizable(True)
-        sc.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        sc.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         sc.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         sc.setFrameShape(QFrame.NoFrame)
         self.stack.addWidget(sc)

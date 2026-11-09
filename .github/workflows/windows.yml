@@ -106,7 +106,7 @@ jobs:
       - name: Kurulum dosyası oluştur (Inno Setup)
         shell: pwsh
         run: |
-          $ver = "1.0.0"
+          $ver = "1.1.0"
           if ($env:GITHUB_REF -like "refs/tags/v*") { $ver = $env:GITHUB_REF_NAME.TrimStart("v") }
           $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }

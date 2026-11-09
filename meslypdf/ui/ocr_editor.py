@@ -29,6 +29,12 @@ AREA_COLORS = {"text": "#2E7D32", "table": "#1565C0", "picture": "#C62828", "bar
 AREA_TR = {"text": "Metin", "table": "Tablo", "picture": "Resim", "barcode": "Barkod"}
 
 
+def _overlap(a, b) -> bool:
+    ix = max(0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0, min(a[3], b[3]) - max(a[1], b[1]))
+    return ix * iy > 0.5 * min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1]))
+
+
 class OcrPage:
     def __init__(self, image: Image.Image, source: str, dpi: int):
         self.original = image
@@ -48,17 +54,97 @@ class OcrPage:
 
 
 class AreaItem(QGraphicsRectItem):
-    def __init__(self, kind, rect: QRectF, editor):
+    """Tanıma alanı: taşınabilir, kenar ve köşelerden boyutlandırılabilir, sağ tık menülü."""
+    M = 7  # tutamak hassasiyeti (piksel, ekranda)
+
+    def __init__(self, kind, rect: QRectF, editor, block_index=None):
         super().__init__(rect)
-        self.kind = kind
         self.editor = editor
+        self.block_index = block_index
+        self._resize = None
+        self.set_kind(kind)
+        self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemSendsGeometryChanges)
+        self.setAcceptHoverEvents(True)
+        self.setZValue(2)
+
+    def set_kind(self, kind):
+        self.kind = kind
         col = QColor(AREA_COLORS[kind])
-        self.setPen(QPen(col, 2))
+        pen = QPen(col, 2)
+        pen.setCosmetic(True)
+        self.setPen(pen)
         fill = QColor(col)
         fill.setAlpha(28)
         self.setBrush(QBrush(fill))
-        self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemSendsGeometryChanges)
-        self.setZValue(2)
+
+    def _edges(self, pos):
+        r = self.rect()
+        sc = self.scene().views()[0].transform().m11() if self.scene() and self.scene().views() else 1
+        m = self.M / max(sc, 0.05)
+        e = ""
+        if abs(pos.y() - r.top()) < m:
+            e += "t"
+        elif abs(pos.y() - r.bottom()) < m:
+            e += "b"
+        if abs(pos.x() - r.left()) < m:
+            e += "l"
+        elif abs(pos.x() - r.right()) < m:
+            e += "r"
+        return e
+
+    def hoverMoveEvent(self, ev):
+        e = self._edges(ev.pos())
+        cur = {"t": Qt.SizeVerCursor, "b": Qt.SizeVerCursor, "l": Qt.SizeHorCursor, "r": Qt.SizeHorCursor,
+               "tl": Qt.SizeFDiagCursor, "br": Qt.SizeFDiagCursor, "tr": Qt.SizeBDiagCursor, "bl": Qt.SizeBDiagCursor}.get(e, Qt.SizeAllCursor)
+        self.setCursor(cur)
+        super().hoverMoveEvent(ev)
+
+    def mousePressEvent(self, ev):
+        e = self._edges(ev.pos())
+        if e and ev.button() == Qt.LeftButton:
+            self._resize = (e, QRectF(self.rect()), ev.pos())
+            self.setSelected(True)
+            ev.accept()
+            return
+        super().mousePressEvent(ev)
+
+    def mouseMoveEvent(self, ev):
+        if self._resize:
+            e, r0, p0 = self._resize
+            d = ev.pos() - p0
+            r = QRectF(r0)
+            if "t" in e:
+                r.setTop(r0.top() + d.y())
+            if "b" in e:
+                r.setBottom(r0.bottom() + d.y())
+            if "l" in e:
+                r.setLeft(r0.left() + d.x())
+            if "r" in e:
+                r.setRight(r0.right() + d.x())
+            r = r.normalized()
+            if r.width() > 6 and r.height() > 6:
+                self.setRect(r)
+            return
+        super().mouseMoveEvent(ev)
+
+    def mouseReleaseEvent(self, ev):
+        if self._resize:
+            self._resize = None
+            self.editor.areas_changed()
+            return
+        super().mouseReleaseEvent(ev)
+
+    def contextMenuEvent(self, ev):
+        m = QMenu()
+        for k in ("text", "table", "picture", "barcode"):
+            a = m.addAction(theme.icon("mdi6.circle", AREA_COLORS[k]), f"Tür: {AREA_TR[k]}")
+            a.setCheckable(True)
+            a.setChecked(k == self.kind)
+            a.triggered.connect(lambda checked=False, k=k: (self.set_kind(k), self.editor.areas_changed()))
+        m.addSeparator()
+        m.addAction(theme.icon("mdi6.text-recognition"), "Yalnızca bu alanı tanı", lambda: self.editor.recognize_area(self))
+        m.addAction(theme.icon("mdi6.delete-outline"), "Alanı sil", lambda: self.editor.remove_area(self))
+        m.exec(ev.screenPos())
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionHasChanged:
@@ -133,10 +219,12 @@ class ImageView(QGraphicsView):
 
 class BlockCard(QFrame):
     changed = Signal()
+    focused = Signal(int)
 
     def __init__(self, block: Block, idx: int, low_conf=60):
         super().__init__()
         self.block = block
+        self.idx = idx
         self.setObjectName("Card")
         v = QVBoxLayout(self)
         v.setContentsMargins(10, 8, 10, 10)
@@ -153,6 +241,8 @@ class BlockCard(QFrame):
             self._mark_low(low_conf)
             self.edit.setMinimumHeight(min(260, 26 + 20 * max(1, len(block.lines))))
             self.edit.textChanged.connect(self._text_changed)
+            _fi = self.edit.focusInEvent
+            self.edit.focusInEvent = lambda e, _fi=_fi: (self.focused.emit(self.idx), _fi(e))
             v.addWidget(self.edit)
         elif block.kind == "table":
             rows = len(block.cells)
@@ -263,7 +353,7 @@ class OcrEditor(QWidget):
             b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
             b.setToolTip(tip or text)
             b.setCheckable(checkable)
-            b.setMinimumWidth(max(60, b.fontMetrics().horizontalAdvance(text) + 22))
+            b.setMinimumWidth(56)
             if fn:
                 b.clicked.connect(fn)
             h.addWidget(b)
@@ -289,7 +379,7 @@ class OcrEditor(QWidget):
             b.clicked.connect(lambda checked, k=kind, b=b: self._area_mode(k if checked else None, b))
             self.area_group.addButton(b)
         tb("Alanı sil", "mdi6.selection-remove", self.delete_area)
-        tb("Alanları temizle", "mdi6.selection-off", self.clear_areas)
+        tb("Temizle", "mdi6.selection-off", self.clear_areas, "Tüm alanları temizle")
         sep()
         tb("Doğrula", "mdi6.spellcheck", self.verify, "Şüpheli karakterleri tek tek kontrol et")
         tb("Sözlük", "mdi6.book-alphabet", self.edit_dictionary, "Kullanıcı sözlüğü ve düzeltme hafızası")
@@ -305,7 +395,15 @@ class OcrEditor(QWidget):
         b.setPopupMode(QToolButton.InstantPopup)
         tb("Word'de aç", "mdi6.file-word-outline", lambda: self.save_as("docx", open_after=True), color="#2B579A")
         h.addStretch()
-        v.addWidget(bar)
+        from .ribbon import _HScroll
+        sc = _HScroll()
+        sc.setWidget(bar)
+        sc.setWidgetResizable(True)
+        sc.setFrameShape(QFrame.NoFrame)
+        sc.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sc.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sc.setFixedHeight(bar.sizeHint().height())
+        v.addWidget(sc)
 
         split = QSplitter(Qt.Horizontal)
         left = QWidget()
@@ -321,6 +419,7 @@ class OcrEditor(QWidget):
         self.page_list.setWrapping(False)
         self.page_list.setMovement(QListWidget.Static)
         self.page_list.setSpacing(4)
+        self.page_list.setWordWrap(True)
         self.page_list.setStyleSheet("QListWidget { border: none; }")
         self.page_list.currentRowChanged.connect(self.show_page)
         self.page_list.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -334,9 +433,20 @@ class OcrEditor(QWidget):
         self.view = ImageView()
         self.view.areaDrawn.connect(self._area_drawn)
         mv.addWidget(self.view)
+        zb = QHBoxLayout()
+        zb.setContentsMargins(8, 2, 8, 2)
         self.img_info = label("", "Small")
-        self.img_info.setContentsMargins(10, 3, 10, 3)
-        mv.addWidget(self.img_info)
+        zb.addWidget(self.img_info, 1)
+        for ic, tip, fn in (("mdi6.magnify-minus-outline", "Uzaklaştır", lambda: self.view.scale(1 / 1.2, 1 / 1.2)),
+                            ("mdi6.fit-to-page-outline", "Sayfaya sığdır", lambda: self.view.fit()),
+                            ("mdi6.magnify-plus-outline", "Yakınlaştır", lambda: self.view.scale(1.2, 1.2))):
+            b = QToolButton()
+            b.setIcon(theme.icon(ic))
+            b.setToolTip(tip)
+            b.setAutoRaise(True)
+            b.clicked.connect(fn)
+            zb.addWidget(b)
+        mv.addLayout(zb)
         split.addWidget(mid)
 
         right = QWidget()
@@ -426,7 +536,8 @@ class OcrEditor(QWidget):
         for i, p in enumerate(self.pages):
             th = p.image.copy()
             th.thumbnail((180, 240))
-            it = QListWidgetItem(QIcon(pil_to_qpixmap(th)), f"{i + 1} · {p.status}")
+            it = QListWidgetItem(QIcon(pil_to_qpixmap(th)), f"{i + 1}\n{p.status}")
+            it.setToolTip(f"Sayfa {i + 1} · {p.status}")
             it.setSizeHint(QSize(150, 180))
             it.setTextAlignment(Qt.AlignHCenter)
             ic = "mdi6.check-circle" if p.result and not p.result.low_confidence() else ("mdi6.alert-circle-outline" if p.result else None)
@@ -487,11 +598,13 @@ class OcrEditor(QWidget):
 
     def _draw_areas(self):
         p = self.pages[self.cur]
-        areas = p.areas if p.areas is not None else ([{"kind": b.kind, "box": b.box} for b in p.result.blocks] if p.result else [])
+        areas = p.areas if p.areas is not None else ([{"kind": b.kind, "box": b.box, "i": k} for k, b in enumerate(p.result.blocks)] if p.result else [])
+        self._loading_areas = True
         for a in areas:
             x0, y0, x1, y1 = a["box"]
-            it = AreaItem(a["kind"], QRectF(x0, y0, x1 - x0, y1 - y0), self)
+            it = AreaItem(a["kind"], QRectF(x0, y0, x1 - x0, y1 - y0), self, a.get("i"))
             self.view.scene().addItem(it)
+        self._loading_areas = False
 
     def _fill_cards(self):
         p = self.pages[self.cur]
@@ -502,10 +615,13 @@ class OcrEditor(QWidget):
         low = len(p.result.low_confidence())
         words = sum(1 for _ in p.result.words())
         self.stats.setText(f"{words} kelime · {low} şüpheli · {ocrmod.LANG_NAMES.get(p.result.lang.split('+')[0], p.result.lang)}")
+        self._cards = []
         for k, b in enumerate(p.result.blocks):
             card = BlockCard(b, k)
             card.changed.connect(self._mark_dirty)
+            card.focused.connect(self._card_focused)
             self.cards.insertWidget(self.cards.count() - 1, card)
+            self._cards.append(card)
 
     def _mark_dirty(self):
         if not self.dirty:
@@ -529,14 +645,52 @@ class OcrEditor(QWidget):
         self.areas_changed()
 
     def areas_changed(self):
-        if self.cur < 0:
+        if self.cur < 0 or getattr(self, "_loading_areas", False):
             return
         items = [i for i in self.view.scene().items() if isinstance(i, AreaItem)]
         self.pages[self.cur].areas = [{"kind": i.kind, "box": i.scene_box()} for i in reversed(items)]
         self._mark_dirty()
 
     def area_selected(self, item):
-        pass
+        """Görüntüde alan seçilince metin kartını vurgula ve görünür yap."""
+        for c in getattr(self, "_cards", []):
+            on = c.idx == item.block_index
+            c.setStyleSheet(f"#Card {{ border: 2px solid {theme.C['primary']}; }}" if on else "")
+            if on:
+                self.scroll.ensureWidgetVisible(c, 0, 40)
+
+    def _card_focused(self, idx):
+        for it in self.view.scene().items():
+            if isinstance(it, AreaItem):
+                it.setSelected(it.block_index == idx)
+                if it.block_index == idx:
+                    self.view.ensureVisible(it, 40, 40)
+
+    def remove_area(self, item):
+        self.view.scene().removeItem(item)
+        self.areas_changed()
+
+    def recognize_area(self, item):
+        """Tek bir alanı tanıyıp sayfanın sonucundaki karşılık gelen bloğu günceller/ekler."""
+        p = self.pages[self.cur]
+        lang = self.lang.value()
+        box = item.scene_box()
+        kind = item.kind
+
+        def work():
+            return ocrmod.recognize_image(p.image, lang, p.dpi, areas=[{"kind": kind, "box": box}])
+
+        def done(r):
+            if p.result is None:
+                p.result = r
+            else:
+                blocks = [b for b in p.result.blocks if not _overlap(b.box, box)]
+                p.result.blocks = ocrmod.order_blocks(blocks + r.blocks, p.image.width)
+            p.areas = None
+            self.show_page(self.cur)
+            self._mark_dirty()
+            toast(self, "Alan tanındı", "ok")
+        run_task(self, "Alan tanınıyor…", work, on_done=done)
 
     def delete_area(self):
         for it in self.view.scene().selectedItems():
@@ -553,18 +707,12 @@ class OcrEditor(QWidget):
     # ------------------------------------------------------------ tanıma
     def _recognize(self, idxs, progress=None, cancel=None):
         lang = self.lang.value()
-        out = {}
-        for n, i in enumerate(idxs):
-            if cancel and cancel():
-                raise InterruptedError
-            if progress:
-                progress(n, len(idxs))
+
+        def work(i):
             p = self.pages[i]
-            areas = p.areas if p.areas else None
-            out[i] = ocrmod.recognize_image(p.image, lang, p.dpi, areas=areas)
-        if progress:
-            progress(len(idxs), len(idxs))
-        return out
+            return ocrmod.recognize_image(p.image, lang, p.dpi, areas=p.areas if p.areas else None)
+        res = ocrmod.parallel_pages(work, idxs, progress, cancel)
+        return dict(zip(idxs, res))
 
     def _apply_results(self, res):
         for i, r in res.items():

@@ -9,13 +9,10 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, Q
                                QButtonGroup, QSystemTrayIcon, QMenu, QMessageBox, QApplication, QTabBar)
 
 from .. import APP_NAME, __version__
-from ..core import convert, security, editing, pages as pg, ocr as ocrmod
-from ..core.document import is_encrypted
 from ..core.hotfolder import HotFolderService
 from . import theme
 from .common import (Settings, run_task, toast, open_files, save_file, ask_password, confirm, open_path, PDF_FILTER,
                      ALL_SUPPORTED, IMG_FILTER)
-from .dialogs import FormDialog
 from .start_page import StartPage
 
 
@@ -190,6 +187,8 @@ class MainWindow(QMainWindow):
         self.open_many(fs)
 
     def open_many(self, files):
+        from ..core import convert, editing, pages as pg, ocr as ocrmod  # noqa: F401
+        from .dialogs import FormDialog  # noqa: F401
         pdfs = [f for f in files if f.lower().endswith(".pdf")]
         projects = [f for f in files if f.lower().endswith(".meslyocr")]
         others = [f for f in files if f not in pdfs and f not in projects]
@@ -206,6 +205,8 @@ class MainWindow(QMainWindow):
                 self.open_any(f)
 
     def open_any(self, path):
+        from ..core import convert, editing, pages as pg, ocr as ocrmod  # noqa: F401
+        from .dialogs import FormDialog  # noqa: F401
         if not os.path.exists(path):
             toast(self, "Dosya bulunamadı", "err")
             return
@@ -222,6 +223,7 @@ class MainWindow(QMainWindow):
             run_task(self, "PDF'e dönüştürülüyor…", convert.any_to_pdf, [path], out, on_done=lambda _: self.open_document(out))
 
     def open_document(self, path):
+        from ..core.document import is_encrypted
         from .document_tab import DocumentTab
         path = os.path.abspath(path)
         for i in range(self.tabs.count()):
@@ -253,6 +255,8 @@ class MainWindow(QMainWindow):
         return self.add_tab(tab, "mdi6.file-pdf-box")
 
     def offer_open(self, path):
+        from ..core import convert, editing, pages as pg, ocr as ocrmod  # noqa: F401
+        from .dialogs import FormDialog  # noqa: F401
         if confirm(self, "Kaydedildi", f"{os.path.basename(path)} oluşturuldu. Açılsın mı?"):
             self.open_any(path)
 
@@ -287,6 +291,8 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------ başlangıç eylemleri
     def on_action(self, key):
+        from ..core import convert, editing, pages as pg, ocr as ocrmod  # noqa: F401
+        from .dialogs import FormDialog  # noqa: F401
         lang = Settings.get("ocr_lang")
         if key == "open_pdf":
             for f in open_files(self, "PDF aç", PDF_FILTER):
@@ -363,6 +369,8 @@ class MainWindow(QMainWindow):
             w.findChild(QTabWidget).setCurrentIndex(1)
 
     def _convert_flow(self, fmt):
+        from ..core import convert, editing, pages as pg, ocr as ocrmod  # noqa: F401
+        from .dialogs import FormDialog  # noqa: F401
         fs = open_files(self, "Dönüştürülecek dosyalar", ALL_SUPPORTED)
         if not fs:
             return
@@ -396,6 +404,8 @@ class MainWindow(QMainWindow):
                 run_task(self, "Dönüştürülüyor…", convert.batch_convert, fs, d, fmt, lang=v["lang"], mode=v.get("mode", "formatted"), on_done=done)
 
     def _make_pdfs(self, fs, ocr, lang, merge, fmt):
+        from ..core import convert, editing, pages as pg, ocr as ocrmod  # noqa: F401
+        from .dialogs import FormDialog  # noqa: F401
         if merge or len(fs) == 1:
             out = save_file(self, "PDF kaydet", os.path.splitext(os.path.basename(fs[0]))[0] + (".pdf" if fmt == "pdf" else "_PDFA.pdf"))
             if not out:
