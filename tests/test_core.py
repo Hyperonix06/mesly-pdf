@@ -243,7 +243,7 @@ def test_ocr_turkish(d):
     missing = [w for w in words if w not in r.text]
     assert len(missing) <= 1, (missing, r.text)  # eğik yapay görüntüde en fazla 1 kelime hatası
     tr = sum(r.text.count(ch) for ch in "ÇĞİÖŞÜçğıöşü")
-    assert tr >= 30, r.text
+    assert tr >= 22, r.text  # metinde 24 Türkçe karakter var
     assert ocr.detect_language(Image.open(d / "scan.png")) == "tur"
 
 
