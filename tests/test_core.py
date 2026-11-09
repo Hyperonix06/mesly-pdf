@@ -234,8 +234,13 @@ def test_preprocess_skew_orientation(d):
 @needs_ocr
 def test_ocr_turkish(d):
     from PIL import Image
-    r = ocr.recognize_image(Image.open(d / "scan_skew.png"), "tur+eng", 200, opts=preprocess.PreprocessOptions())
-    assert "Merhaba dünya" in r.text and "2026-0042" in r.text and "ÇĞİÖŞÜ" in r.text
+    make_scan_image(str(d / "tr_words.png"), ["Şirketimizin İstanbul şubesinde çalışan öğretmenler",
+                                              "ÇAĞDAŞ ÜLKELERİN GÜÇLÜ EKONOMİSİ ÖĞRENİLDİ",
+                                              "Fatura numarası 2026-0042 tarih 09.11.2026"], angle=4)
+    r = ocr.recognize_image(Image.open(d / "tr_words.png"), "tur+eng", 200, opts=preprocess.PreprocessOptions())
+    for word in ("TARANMIŞ", "Şirketimizin", "İstanbul", "şubesinde", "çalışan", "öğretmenler", "ÇAĞDAŞ",
+                 "ÜLKELERİN", "GÜÇLÜ", "EKONOMİSİ", "ÖĞRENİLDİ", "numarası", "2026-0042"):
+        assert word in r.text, (word, r.text)
     assert ocr.detect_language(Image.open(d / "scan.png")) == "tur"
 
 

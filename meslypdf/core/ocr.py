@@ -390,7 +390,9 @@ def _ocr_words(img: Image.Image, lang: str, psm: int = 3) -> list[dict]:
                 if sc > score:
                     best, score = t, sc
             if best and score > 0.5 and best["text"] != w["text"] and _TR_CHARS & set(best["text"]) \
-                    and _base(best["text"]) == _base(w["text"]):
+                    and (_base(best["text"]) == _base(w["text"])
+                         or (len(best["text"]) == len(w["text"]) and best["conf"] > w["conf"] + 10)
+                         or any(ch in w["text"] for ch in "¢§¥£¤©®°±µ¶")):
                 w["text"] = best["text"]
                 w["conf"] = max(w["conf"], best["conf"])
     corr = _corrections()
