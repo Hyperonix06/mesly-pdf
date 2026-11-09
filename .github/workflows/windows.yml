@@ -12,6 +12,8 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
   TESS_DIR: C:\Program Files\Tesseract-OCR
 
 jobs:
