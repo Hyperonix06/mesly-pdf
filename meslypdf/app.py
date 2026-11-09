@@ -87,10 +87,20 @@ def handle_args(win, args):
     win.show_normal()
 
 
+def _utf8_console():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if stream is not None:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def selftest(args) -> int:
     """Kurulum sonrası doğrulama: arayüzü açar, örnek belge üretip düzenleyicide açar, OCR ve dönüştürmeyi dener."""
     import tempfile
     import traceback
+    _utf8_console()
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication(sys.argv)
     report = []

@@ -33,7 +33,17 @@ def _progress(i, n):
         sys.stderr.flush()
 
 
+def _utf8_console():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if stream is not None:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main(argv=None):
+    _utf8_console()
     from .core import tasks as tk
     p = argparse.ArgumentParser(prog="meslypdf", description="Mesly PDF komut satırı", epilog=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
