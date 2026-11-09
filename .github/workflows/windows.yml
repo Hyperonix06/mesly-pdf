@@ -156,6 +156,18 @@ jobs:
           if ($r.ExitCode -ne 0) { throw "Kurulu uygulama öz testi başarısız" }
           $key = "HKCU:\Software\Classes\SystemFileAssociations\.pdf\shell\MeslyPDF"
           if (-not (Test-Path $key)) { throw "Sağ tık menüsü kaydı bulunamadı" }
+          # Uygulama açıkken üzerine kurulum (güncelleme) donmamalı
+          $running = Start-Process $app -PassThru
+          Start-Sleep 8
+          "Açık uygulama PID: $($running.Id), çalışıyor: $(-not $running.HasExited)"
+          $sw3 = [Diagnostics.Stopwatch]::StartNew()
+          $p2 = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/CURRENTUSER", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=contextmenu,openwith,sendto" -PassThru
+          if (-not $p2.WaitForExit(240000)) { $p2.Kill(); throw "Uygulama açıkken güncelleme kurulumu 4 dakikada bitmedi (dondu)" }
+          "GÜNCELLEME KURULUMU (uygulama açıkken): $([math]::Round($sw3.Elapsed.TotalSeconds)) saniye, çıkış kodu $($p2.ExitCode)"
+          if ($p2.ExitCode -ne 0) { throw "Güncelleme kurulumu başarısız" }
+          Get-ChildItem $env:TEMP -Filter "Setup Log*.txt" | Sort-Object LastWriteTime | Select-Object -Last 1 | ForEach-Object { Get-Content $_.FullName -Tail 15 }
+          $r2 = Start-Process $app -ArgumentList "--selftest", "$PWD\kurulum_test2.txt" -Wait -PassThru
+          if ($r2.ExitCode -ne 0) { throw "Güncelleme sonrası öz test başarısız" }
           $un = Get-ChildItem (Split-Path $app) -Filter "unins*.exe" | Select-Object -First 1
           Start-Process $un.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait
           Start-Sleep 3

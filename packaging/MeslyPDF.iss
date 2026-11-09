@@ -1,4 +1,4 @@
-; Mesly PDF – Inno Setup kurulum betiği (Windows 10 / 11, 64-bit)
+﻿; Mesly PDF – Inno Setup kurulum betiği (Windows 10 / 11, 64-bit)
 ; Derleme: iscc packaging\MeslyPDF.iss   (önce PyInstaller ile dist\MeslyPDF oluşturulmalı)
 
 #define AppName "Mesly PDF"
@@ -31,8 +31,10 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-ChangesAssociations=yes
+ChangesAssociations=NeedAssocRefresh
 CloseApplications=no
+SetupLogging=yes
+DisableReadyMemo=no
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
@@ -162,3 +164,37 @@ Filename: "{app}\{#AppExe}"; Description: "{#AppName} uygulamasını başlat"; F
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/c taskkill /f /im {#AppExe}"; Flags: runhidden; RunOnceId: "KillMesly"
+
+[Code]
+const
+  KillExe = 'MeslyPDF.exe';
+  KillCli = 'meslypdf-cli.exe';
+
+{ Yalnızca varsayılan uygulama/Birlikte aç seçiliyse Gezgin'e ilişkilendirme bildirimi gönder.
+  Bu bildirim bazı bilgisayarlarda kabuk eklentileri yüzünden kurulumun sonunu dakikalarca bekletebiliyor. }
+function NeedAssocRefresh: Boolean;
+begin
+  Result := WizardIsTaskSelected('defaultpdf') or WizardIsTaskSelected('openwith');
+end;
+
+procedure KillRunning;
+var
+  rc: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /t /im ' + KillExe, '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /t /im ' + KillCli, '', SW_HIDE, ewWaitUntilTerminated, rc);
+  Sleep(400);
+end;
+
+{ Eski sürüm (tepsideki Hot Folder dahil) açıksa dosyalar kilitli kalır ve kurulum takılır: önce kapat. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  KillRunning;
+  Result := '';
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  KillRunning;
+  Result := True;
+end;
