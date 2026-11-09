@@ -22,8 +22,9 @@ OutputDir=..\dist
 OutputBaseFilename=MeslyPDF-Kurulum-{#AppVersion}
 SetupIconFile=..\meslypdf\assets\icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
-Compression=lzma2/ultra64
-SolidCompression=yes
+Compression=lzma2/fast
+SolidCompression=no
+LZMANumBlockThreads=4
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -31,7 +32,7 @@ MinVersion=10.0.17763
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 ChangesAssociations=yes
-CloseApplications=yes
+CloseApplications=no
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"

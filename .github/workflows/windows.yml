@@ -75,7 +75,9 @@ jobs:
           $dst = "dist\MeslyPDF\tesseract"
           New-Item -ItemType Directory -Force -Path "$dst\tessdata\configs" | Out-Null
           Copy-Item "$env:TESS_DIR\tesseract.exe" $dst
-          Copy-Item "$env:TESS_DIR\*.dll" $dst
+          # Yalnızca tesseract.exe'nin gerçekten ihtiyaç duyduğu DLL'leri kopyala (eğitim araçlarınınkileri değil)
+          pip install pefile
+          python packaging/tess_deps.py "$env:TESS_DIR" $dst
           foreach ($l in @("tur", "eng", "osd")) { Copy-Item "$env:TESS_DIR\tessdata\$l.traineddata" "$dst\tessdata\" }
           Copy-Item "$env:TESS_DIR\tessdata\configs\*" "$dst\tessdata\configs\" -ErrorAction SilentlyContinue
           Copy-Item "$env:TESS_DIR\tessdata\pdf.ttf" "$dst\tessdata\" -ErrorAction SilentlyContinue
@@ -135,11 +137,19 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           $setup = Get-ChildItem MeslyPDF-Kurulum-*.exe | Select-Object -First 1
+          "Kurulum dosyası: $([math]::Round($setup.Length / 1MB)) MB"
+          $sw = [Diagnostics.Stopwatch]::StartNew()
           $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/CURRENTUSER", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=contextmenu,openwith,sendto" -Wait -PassThru
+          $sw.Stop()
+          "KURULUM SÜRESİ: $([math]::Round($sw.Elapsed.TotalSeconds)) saniye"
           if ($p.ExitCode -ne 0) { throw "Kurulum başarısız" }
+          $inst = Split-Path (Join-Path $env:LOCALAPPDATA "Programs\Mesly PDF\MeslyPDF.exe")
+          "Kurulan: $((Get-ChildItem $inst -Recurse -File).Count) dosya, $([math]::Round(((Get-ChildItem $inst -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB)) MB"
+          $sw2 = [Diagnostics.Stopwatch]::StartNew()
           $app = Join-Path $env:LOCALAPPDATA "Programs\Mesly PDF\MeslyPDF.exe"
           if (-not (Test-Path $app)) { $app = Join-Path ${env:ProgramFiles} "Mesly PDF\MeslyPDF.exe" }
           $r = Start-Process $app -ArgumentList "--selftest", "$PWD\kurulum_test.txt" -Wait -PassThru
+          "İLK AÇILIŞ + ÖZ TEST SÜRESİ: $([math]::Round($sw2.Elapsed.TotalSeconds)) saniye"
           Get-Content kurulum_test.txt
           if ($r.ExitCode -ne 0) { throw "Kurulu uygulama öz testi başarısız" }
           $key = "HKCU:\Software\Classes\SystemFileAssociations\.pdf\shell\MeslyPDF"

@@ -31,6 +31,27 @@ a = Analysis([os.path.join(ROOT, "run_app.py")], pathex=[ROOT], binaries=binarie
                        "PySide6.QtDataVisualization", "PySide6.QtCharts", "PySide6.QtBluetooth", "PySide6.QtSql",
                        "PySide6.QtDesigner", "PySide6.QtHelp", "PySide6.QtTest", "PySide6.QtLocation", "PySide6.QtPositioning"],
              noarchive=False)
+# Kurulum boyutunu ve dosya sayısını küçült: kullanılmayan büyük ikili dosyaları çıkar
+_DROP = ("opencv_videoio_ffmpeg", "opengl32sw", "Qt6Quick", "Qt6Qml", "Qt6Pdf", "Qt6VirtualKeyboard", "Qt6Designer",
+         "Qt6WebEngine", "Qt63D", "Qt6Multimedia", "Qt6Charts", "Qt6DataVisualization", "Qt6Positioning",
+         "_avif", "mfc140u", "Qt6ShaderTools", "Qt6Location", "Qt6OpenGL.dll", "QtOpenGL.pyd")
+_KEEP_TR = ("qt_tr", "qtbase_tr", "qt_en", "qtbase_en")
+
+
+def _keep(entry):
+    name = entry[0].replace("\\", "/")
+    base = os.path.basename(name)
+    if any(k in base for k in _DROP):
+        return False
+    if "/translations/" in name and base.endswith(".qm") and not base.startswith(_KEEP_TR):
+        return False
+    if "/qml/" in name or "/plugins/qmltooling" in name or "/plugins/sceneparsers" in name:
+        return False
+    return True
+
+
+a.binaries = [b for b in a.binaries if _keep(b)]
+a.datas = [d for d in a.datas if _keep(d)]
 pyz = PYZ(a.pure)
 
 common = dict(debug=False, bootloader_ignore_signals=False, strip=False, upx=False,
