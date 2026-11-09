@@ -1,0 +1,155 @@
+# Mesly PDF – Windows derleme, test ve kurulum paketi
+# Her push'ta: testler + PyInstaller + Inno Setup kurulum dosyası + Windows Server 2022/2025 üzerinde kurulum testi.
+# 'v*' etiketiyle push edilince GitHub Release oluşturulur.
+name: Windows
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  TESS_DIR: C:\Program Files\Tesseract-OCR
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Tesseract OCR ve Inno Setup kur
+        shell: pwsh
+        run: |
+          choco install tesseract -y --no-progress
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) { choco install innosetup -y --no-progress }
+          $td = Join-Path $env:TESS_DIR "tessdata"
+          foreach ($l in @("tur", "eng", "osd")) {
+            Invoke-WebRequest "https://github.com/tesseract-ocr/tessdata/raw/main/$l.traineddata" -OutFile (Join-Path $td "$l.traineddata")
+          }
+          echo "$env:TESS_DIR" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & (Join-Path $env:TESS_DIR "tesseract.exe") --list-langs
+
+      - name: Python bağımlılıkları
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest pyinstaller
+
+      - name: Birim testleri
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest tests -q -p no:cacheprovider
+
+      - name: Arayüz öz testi (kaynak koddan)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python run_app.py --selftest selftest_src.txt
+
+      - name: PyInstaller ile derle
+        run: pyinstaller packaging/meslypdf.spec --noconfirm --distpath dist --workpath build
+
+      - name: Tesseract'ı pakete ekle
+        shell: pwsh
+        run: |
+          $dst = "dist\MeslyPDF\tesseract"
+          New-Item -ItemType Directory -Force -Path "$dst\tessdata\configs" | Out-Null
+          Copy-Item "$env:TESS_DIR\tesseract.exe" $dst
+          Copy-Item "$env:TESS_DIR\*.dll" $dst
+          foreach ($l in @("tur", "eng", "osd")) { Copy-Item "$env:TESS_DIR\tessdata\$l.traineddata" "$dst\tessdata\" }
+          Copy-Item "$env:TESS_DIR\tessdata\configs\*" "$dst\tessdata\configs\" -ErrorAction SilentlyContinue
+          Copy-Item "$env:TESS_DIR\tessdata\pdf.ttf" "$dst\tessdata\" -ErrorAction SilentlyContinue
+          Get-ChildItem $dst | Select-Object Name, Length
+
+      - name: Derlenmiş uygulamayı test et
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $cli = "dist\MeslyPDF\meslypdf-cli.exe"
+          & $cli languages
+          & $cli task --list
+          python -c "import sys; sys.path.insert(0,'tests'); from samples import make_text_pdf, make_scan_image; make_text_pdf('ornek.pdf'); make_scan_image('tarama.png')"
+          & $cli info ornek.pdf
+          & $cli convert ornek.pdf -o ornek.docx
+          & $cli ocr tarama.png -o tarama.pdf
+          & $cli compress tarama.pdf -o tarama_kucuk.pdf --level high
+          if (-not (Test-Path ornek.docx) -or -not (Test-Path tarama_kucuk.pdf)) { throw "CLI testleri başarısız" }
+          $p = Start-Process "dist\MeslyPDF\MeslyPDF.exe" -ArgumentList "--selftest", "$PWD\selftest_exe.txt" -Wait -PassThru
+          Get-Content selftest_exe.txt
+          if ($p.ExitCode -ne 0) { throw "Öz test başarısız: $($p.ExitCode)" }
+
+      - name: Kurulum dosyası oluştur (Inno Setup)
+        shell: pwsh
+        run: |
+          $ver = "1.0.0"
+          if ($env:GITHUB_REF -like "refs/tags/v*") { $ver = $env:GITHUB_REF_NAME.TrimStart("v") }
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc /DAppVersion=$ver packaging\MeslyPDF.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup derlemesi başarısız" }
+          Compress-Archive -Path dist\MeslyPDF\* -DestinationPath "dist\MeslyPDF-Tasinabilir-$ver.zip"
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeslyPDF-Windows
+          path: |
+            dist/MeslyPDF-Kurulum-*.exe
+            dist/MeslyPDF-Tasinabilir-*.zip
+
+  install-test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MeslyPDF-Windows
+      - name: Sessiz kurulum, öz test ve kaldırma
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $setup = Get-ChildItem MeslyPDF-Kurulum-*.exe | Select-Object -First 1
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/CURRENTUSER", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=contextmenu,openwith,sendto" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Kurulum başarısız" }
+          $app = Join-Path $env:LOCALAPPDATA "Programs\Mesly PDF\MeslyPDF.exe"
+          if (-not (Test-Path $app)) { $app = Join-Path ${env:ProgramFiles} "Mesly PDF\MeslyPDF.exe" }
+          $r = Start-Process $app -ArgumentList "--selftest", "$PWD\kurulum_test.txt" -Wait -PassThru
+          Get-Content kurulum_test.txt
+          if ($r.ExitCode -ne 0) { throw "Kurulu uygulama öz testi başarısız" }
+          $key = "HKCU:\Software\Classes\SystemFileAssociations\.pdf\shell\MeslyPDF"
+          if (-not (Test-Path $key)) { throw "Sağ tık menüsü kaydı bulunamadı" }
+          $un = Get-ChildItem (Split-Path $app) -Filter "unins*.exe" | Select-Object -First 1
+          Start-Process $un.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait
+          Start-Sleep 3
+          if (Test-Path $key) { throw "Kaldırma sonrası kayıt kaldı" }
+          "Kurulum, öz test ve kaldırma başarılı ($env:RUNNER_OS / ${{ matrix.os }})"
+
+  release:
+    needs: [build, install-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MeslyPDF-Windows
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            MeslyPDF-Kurulum-*.exe
+            MeslyPDF-Tasinabilir-*.zip
+          generate_release_notes: true
