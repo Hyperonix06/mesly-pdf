@@ -1,5 +1,20 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.4.0 (11 Kasım 2026) — Aşama 3: gerçek PDF düzenleme
+
+### Yeni: Düzenle aracı ve Düzenle sekmesi
+* **Düzenle aracı (E):** sayfadaki metin paragraflarını, görselleri ve şekilleri seçin; sürükleyerek taşıyın, tutamaçlarla boyutlandırın, Delete ile silin, ok tuşlarıyla 1 pt (Shift: 10 pt) kaydırın. Ctrl ile çoklu seçim ve hizalama.
+* **Metin düzenleme:** paragrafa çift tıklayın (veya F2), metni yazın, Ctrl+Enter ile uygulayın. Eski metin nesneleri sayfadan gerçekten silinir; yeni metin aynı konumdan başlayıp kutu genişliğine göre satırlara akar, aranabilir ve kopyalanabilir.
+* **Biçim:** yazı tipi (bilgisayarınızda kurulu yazı tipleri), boyut, renk, kalın/eğik/altı çizili, hizalama, satır aralığı — sağdaki özellikler panelinden.
+* **Eklenebilenler:** metin kutusu, görsel (değiştirme dahil), dikdörtgen, elips, çizgi, ok, web bağlantısı; bağlantı kaldırma.
+* **Sayfa genelinde:** filigran, üstbilgi/altbilgi, sayfa numarası, arka plan rengi — eklenir ve tek tıkla kaldırılır.
+* Her düzenleme geri alınabilir; meşgul katmanı yalnızca uzun süren işlemlerde görünür.
+
+### Dürüst sınırlamalar
+* PDF'ye gömülü alt küme yazı tipleri yeni harfleri içermeyebileceğinden düzenlenen metin, adı eşlenen kurulu yazı tipiyle (ör. Arial-BoldMT → Arial Kalın) yazılır; bulunamazsa benzeri kullanılır ve durum çubuğunda söylenir.
+* Form nesnesi (gruplanmış içerik) içindeki metin düzenlenemez; nesne bütün olarak taşınabilir/silinebilir.
+* Belge içi sayfaya giden bağlantı ekleme henüz yok (web/e-posta bağlantıları eklenebilir).
+
 ## 0.3.0 (11 Kasım 2026)
 
 ### Yeni: Tarama

@@ -18,7 +18,7 @@
 
 * **Başlangıç** sekmesi: hızlı işlemler (PDF aç, PDF oluştur, birleştir, dönüştür, böl, boş PDF), son açılan belgeler (sabitleme, klasörde gösterme), dosya bırakma alanı.
 * **Belge sekmesi**: solda sayfa küçük resimleri / yer imleri / arama; ortada sayfa görüntüleyici ve alttaki gezinme çubuğu; sağda (isteğe bağlı) belge ve sayfa özellikleri; en altta durum çubuğu.
-* Üst menü: **Dosya**, **Ana Sayfa**, **Sayfalar**, **Dönüştür**, **Görünüm**.
+* Üst menü: **Dosya**, **Ana Sayfa**, **Düzenle**, **Sayfalar**, **Dönüştür**, **Görünüm**.
 
 ## Sık yapılan işler
 
@@ -42,7 +42,13 @@
 | PDF → görüntü | Dönüştür → PDF → Görüntü: PNG, JPG, TIFF (isteğe bağlı tek çok sayfalı dosya), BMP; DPI seçimi |
 | PDF → metin | Dönüştür → PDF → Metin (UTF-8, Türkçe karakterler korunur) |
 | Görüntülerden PDF | Dönüştür → Görüntü → PDF veya görüntüleri pencereye sürükleyin |
-| Geri al / yinele | Ctrl+Z / Ctrl+Y (sayfa işlemleri ve yer imleri, 25 adım) |
+| Metni düzenlemek | E tuşu (veya Düzenle → Düzenle aracı) → paragrafa çift tıklayın (F2) → yazın → Ctrl+Enter uygular, Esc vazgeçer. Paragraf genişliğini sağ/sol tutamaçla değiştirirseniz metin yeniden akar |
+| Metin biçimi | Paragrafı seçin → sağ panelde yazı tipi, boyut, renk, kalın/eğik/altı çizili, hizalama → “Biçimi uygula” |
+| Nesne taşımak / silmek | Düzenle aracında tıklayıp sürükleyin; ok tuşları 1 pt, Shift+ok 10 pt; Delete siler; Ctrl+tık çoklu seçim, Düzenle → Sola/Ortala/Sağa/Üste/Alta hizalar |
+| Metin, görsel, şekil eklemek | Düzenle → Metin ekle / Görsel ekle / Dikdörtgen / Elips / Çizgi / Ok → sayfada alan çizin |
+| Bağlantı | Düzenle → Bağlantı → alan çizin → adres (https://…, mailto:…). “Bağlantı kaldır” ile tıkladığınız bağlantı silinir |
+| Filigran, sayfa numarası, üst/altbilgi, arka plan | Düzenle sekmesi; her biri sayfa aralığıyla eklenir ve “… kaldır” düğmesiyle silinir |
+| Geri al / yinele | Ctrl+Z / Ctrl+Y (sayfa işlemleri, yer imleri ve düzenlemeler, 25 adım) |
 | Yazdırma | Ctrl+P: yazıcı, kopya, sayfa aralığı, kâğıt, ölçek, yön, renk; canlı önizleme |
 
 **Sayfa aralığı yazımı:** `1-3, 5, 8-son`, `tek`, `çift`, `tümü`.

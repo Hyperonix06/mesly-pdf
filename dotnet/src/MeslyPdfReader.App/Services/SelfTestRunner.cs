@@ -95,6 +95,9 @@ public sealed class SelfTestRunner
 
     private PdfViewer? Viewer => _vm.ActiveTab?.Viewer;
 
+    /// <summary>Satır sonlarını ve art arda boşlukları tek boşluğa indirir (satıra akan metni karşılaştırmak için).</summary>
+    private static string Flat(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ");
+
     private async Task<bool> WaitRendered(int timeoutMs = 20000)
     {
         await Task.Delay(150);
@@ -500,7 +503,7 @@ public sealed class SelfTestRunner
             var newText = "Bu sözleşme, Mesly PDF Reader ile gerçek içerik düzenlemesi yapılarak değiştirilmiştir: ödeme kırk beş gün içinde yapılır, gecikmede yıllık %12 faiz uygulanır. İĞÜŞÖÇ ığüşöç.";
             bool ok1 = await et.ReplaceTextAsync(0, para, newText);
             await WaitRendered();
-            var text = (await et.Document.GetPageTextAsync(0)).Text.Replace("\r\n", " ").Replace("\n", " ");
+            var text = Flat((await et.Document.GetPageTextAsync(0)).Text);
             var objs = await et.Document.GetPageObjectsAsync(0);
             bool noOverlay = !objs.Any(o => o.Kind == PageObjectKind.Path && o.FillRgb == 0xFFFFFF);
             bool ok = loaded && selected && ok1 && !text.Contains("otuz gün") && text.Contains("kırk beş gün") && text.Contains("İĞÜŞÖÇ ığüşöç") && noOverlay;
@@ -508,7 +511,7 @@ public sealed class SelfTestRunner
             Viewer!.SelectItemAt(0, 100, 715);
             await Idle();
             Shot("13-duzenleme-paragraf");
-            return (ok, $"öğe={Viewer.EditItemCount(0)}, değişti={ok1}, eski metin yok={!text.Contains("otuz gün")}, yeni metin var={text.Contains("kırk beş gün")}, beyaz kutu yok={noOverlay}; {et.StatusText}");
+            return (ok, $"metin: “{(text.Length > 160 ? text[..160] : text)}”; öğe={Viewer.EditItemCount(0)}, değişti={ok1}, eski metin yok={!text.Contains("otuz gün")}, yeni metin var={text.Contains("kırk beş gün")}, beyaz kutu yok={noOverlay}; {et.StatusText}");
         });
 
         await Step("Düzenleme", "Yerinde metin düzenleyici", "Seçili paragrafta düzenleyici açılır, Esc ile değişiklik yapılmadan kapanır", async () =>
@@ -557,15 +560,15 @@ public sealed class SelfTestRunner
             et.Tool = ViewerTool.Select;
             await WaitRendered();
             Shot("16-filigran-sayfa-no");
-            var t1 = (await et.Document.GetPageTextAsync(1)).Text;
+            var t1 = Flat((await et.Document.GetPageTextAsync(1)).Text);
             int wm = await et.Document.RemoveWatermarksAsync(new[] { 0, 1 });
             int bg = await et.Document.RemoveBackgroundAsync(new[] { 0, 1 });
             var t0 = (await et.Document.GetPageTextAsync(0)).Text;
             await et.Document.SaveAsync(editPath);
             using var re = await PdfDocument.OpenAsync(editPath);
-            var rt = (await re.GetPageTextAsync(0)).Text.Replace("\r\n", " ").Replace("\n", " ");
+            var rt = Flat((await re.GetPageTextAsync(0)).Text);
             bool ok = t1.Contains("Sayfa 2 / 2") && t1.Contains("GİZLİ") && wm == 2 && bg == 1 && !t0.Contains("GİZLİ") && rt.Contains("kırk beş gün") && rt.Contains("Sayfa 1 / 2");
-            return (ok, $"filigran silinen={wm}, arka plan silinen={bg}, kaydedilen dosyada yeni metin={rt.Contains("kırk beş gün")}, sayfa no={rt.Contains("Sayfa 1 / 2")}");
+            return (ok, $"sayfa 2 metni: “{(t1.Length > 120 ? t1[^120..] : t1)}”; filigran silinen={wm}, arka plan silinen={bg}, kaydedilen dosyada yeni metin={rt.Contains("kırk beş gün")}, sayfa no={rt.Contains("Sayfa 1 / 2")}");
         });
 
         // ── Büyük belge ──

@@ -514,14 +514,24 @@ public sealed partial class PdfViewer
     protected override int VisualChildrenCount => _editor is null ? 0 : 1;
     protected override Visual GetVisualChild(int index) => _editor ?? throw new ArgumentOutOfRangeException(nameof(index));
 
+    /// <summary>Düzenleyicinin görünüm dikdörtgeni (yükseklik: en az). Ölçme ve yerleştirme aynı genişliği kullanır ki yerleşim döngüsü oluşmasın.</summary>
+    private Rect? EditorRect()
+    {
+        if (_editor is null || _editorTarget is not { } t || !TryGetViewRect(t.Page, t.Rect, out var r)) return null;
+        double w = Math.Round(Math.Max(120, r.Width + t.FontPx * 1.5)), h = Math.Max(t.FontPx * 1.5, r.Height + t.FontPx * 0.8);
+        return new Rect(Math.Round(r.X - 3), Math.Round(r.Y - t.FontPx * 0.25), w, h);
+    }
+
+    private void MeasureEditor()
+    {
+        if (_editor is null) return;
+        _editor.Measure(new Size(EditorRect()?.Width ?? 200, double.PositiveInfinity));
+    }
+
     private void ArrangeEditor()
     {
-        if (_editor is null || _editorTarget is not { } t) return;
-        if (!TryGetViewRect(t.Page, t.Rect, out var r)) { _editor.Arrange(new Rect(-10000, -10000, 1, 1)); return; }
-        // Satır yüksekliği ve kenar için biraz pay: metin kutusu en az bir satır, en az 120 px genişlik.
-        double w = Math.Max(120, r.Width + t.FontPx * 1.5), h = Math.Max(t.FontPx * 1.5, r.Height + t.FontPx * 0.8);
-        var rect = new Rect(r.X - 3, r.Y - t.FontPx * 0.25, w, h);
-        _editor.Measure(new Size(rect.Width, double.PositiveInfinity));
+        if (_editor is null) return;
+        if (EditorRect() is not { } rect) { _editor.Arrange(new Rect(-10000, -10000, 1, 1)); return; }
         rect.Height = Math.Max(rect.Height, _editor.DesiredSize.Height);
         _editor.Arrange(rect);
     }

@@ -35,10 +35,10 @@ Sürüm 0.3.0 — Aşama 1 ve 2 tamamlandı; tarama (WIA) ve hızlı kurulum ekl
 | Ana ekran: OCR, belge karşılaştır | ⏳ 4 / 7 | Henüz çalışmadığı için düğmeleri gösterilmiyor |
 | Son belgeler, hızlı işlemler, bırakma alanı | ✅ Ö | Sabitleme, klasörde göster, listeden kaldır |
 | Editör: sol panel küçük resim / yer imi / arama | ✅ Ö | |
-| Editör: katmanlar paneli | ⏳ 3 | |
-| Üst menü: Dosya, Ana Sayfa, Sayfalar, Dönüştür, Görünüm | ✅ Ö | |
-| Üst menü: Düzenle, OCR, Açıklamalar, Formlar, Güvenlik | ⏳ 3–6 | Çalışmayan menü olmaması için gizli |
-| Sağ panel: özellikler | 🟡 | Belge ve sayfa özellikleri; nesne özellikleri Aşama 3 |
+| Editör: katmanlar paneli | ⏳ | Aşama 6 ile (açıklamalar) birlikte |
+| Üst menü: Dosya, Ana Sayfa, Düzenle, Sayfalar, Dönüştür, Görünüm | ✅ Ö | |
+| Üst menü: OCR, Açıklamalar, Formlar, Güvenlik | ⏳ 4–6 | Çalışmayan menü olmaması için gizli |
+| Sağ panel: özellikler | ✅ Ö | Belge, sayfa ve seçili nesne (metin biçimi, konum/boyut, şekil renkleri) |
 | Durum çubuğu: sayfa, toplam, yakınlaştırma, boyut, durum | ✅ Ö | |
 
 ## 4. PDF okuyucu
@@ -61,8 +61,29 @@ Sürüm 0.3.0 — Aşama 1 ve 2 tamamlandı; tarama (WIA) ve hızlı kurulum ekl
 | Parolalı PDF açma | ✅ | B |
 | Form alanlarının etkileşimli çizimi | ⏳ 6 | Görünüm akışları çizilir; doldurma Aşama 6 |
 
-## 5. PDF düzenleyici — ⏳ Aşama 3
-Gerçek PDF metin nesnesi yazma altyapısı hazır (`AddTextAsync`, gömülü yazı tipi, test edildi). Mevcut metni değiştirme, yazı tipi/biçim, görsel/şekil, üst-altbilgi, filigran, sayfa numarası Aşama 3'te.
+## 5. PDF düzenleyici — ✅ Aşama 3 (0.4.0)
+Tüm düzenlemeler sayfanın gerçek içerik akışına uygulanır: nesneler silinir/taşınır/yeniden yazılır, sayfa içeriği yeniden üretilir. **Hiçbir değişiklik üstüne beyaz kutu çizilerek yapılmaz** (birim testi ve öz test bunu ayrıca denetler).
+
+| Madde | Durum | Test |
+|---|---|---|
+| Metinleri paragraflara gruplama (satır ve paragraf algılama, hizalama, tire birleştirme) | ✅ | B (üçüncü taraf PDF: reportlab) |
+| Mevcut metni düzenleme (çift tıklama / F2, yerinde düzenleyici) | ✅ | B Ö |
+| Paragrafı yeniden akıtma (kutu genişliğine göre sözcük kaydırma; tutamaçla genişlik değiştirme) | ✅ | B Ö |
+| Yazı tipi, boyut, renk, kalın, eğik, altı çizili, hizalama, satır aralığı | ✅ | B Ö — kurulu Windows yazı tiplerinden; Türkçe karakter kapsamı denetlenir |
+| Özgün yazı tipini koruma | 🟡 | PDF'deki ad (ör. “Arial-BoldMT”) kurulu yazı tipine eşlenir. Gömülü **alt küme** yazı tipleri yeni karakterleri içermeyebileceği için yeniden kullanılmaz; yazı tipi kurulu değilse benzeri/yedek kullanılır ve kullanıcıya bildirilir |
+| Yeni metin kutusu ekleme | ✅ | B Ö |
+| Görsel ekleme, değiştirme, taşıma, boyutlandırma (orantılı / Shift ile serbest), silme | ✅ | B Ö |
+| Şekil: dikdörtgen, elips, çizgi, ok; çizgi/dolgu rengi, kalınlık | ✅ | B Ö |
+| Nesne taşıma (sürükleme, ok tuşları 1 pt / Shift 10 pt), silme, çoklu seçim, hizalama (6 yön) | ✅ | B Ö |
+| Konum/boyutu mm olarak girme | ✅ | Ö |
+| Bağlantı ekleme (http/https/mailto) ve kaldırma | ✅ | B Ö — belge içi sayfa bağlantısı ekleme ⏳ |
+| Filigran (metin, açı, opaklık, renk, sayfa aralığı; döndürülmüş sayfada doğru) ve kaldırma | ✅ | B Ö |
+| Üstbilgi/altbilgi (6 konum, {sayfa} {toplam} {tarih} {dosya}), sayfa numarası, kaldırma | ✅ | B Ö |
+| Sayfa arka plan rengi ve kaldırma | ✅ | B Ö |
+| Geri al / yinele (her düzenleme) | ✅ | B Ö |
+| Form nesnesi (XObject) içindeki metni düzenleme | ⛔ | Form nesnesi bütün olarak taşınır/boyutlandırılır/silinir; içindeki metin düzenlenemez — panelde açıkça yazılır |
+| Döndürülmüş metin | 🟡 | Seçilir, taşınır, silinir; yeniden yazılırsa yatay yazılır |
+| Katmanlar paneli | ⏳ | |
 
 ## 6. OCR — ⏳ Aşama 4
 Taranmış belgede metin bulunamazsa kullanıcıya açıkça söylenir (TXT dışa aktarımı).
@@ -120,6 +141,7 @@ Açıklamalar (9), imza ve güvenlik (10), formlar (11), karşılaştırma (12),
 Tema ✅, arayüz dili (yalnız Türkçe) 🟡, görüntüleme varsayılanları ✅, otomatik kayıt/kurtarma ✅, dosya geçmişi ✅, PDF çıktı kalitesi (DPI, JPG kalitesi) ✅, geçici dosyalar ✅, donanım hızlandırma ✅, kısayollar ✅, varsayılan klasörler ✅, hakkında / sürüm / lisanslar ✅, OCR ayarları ⏳ 4, güncelleme denetimi ⛔ (çevrimiçi servis gerektirir; açık izinle Aşama 9).
 
 ## Bilinen sınırlamalar
+* Düzenleme: metin değiştirildiğinde paragraf kurulu bir yazı tipiyle yeniden yazılır; satır içinde karışık biçim (tek sözcük kalın vb.) paragrafın baskın biçimine indirgenir. Her düzenleme geri alma için belgenin anlık görüntüsünü alır; çok büyük belgelerde (yüzlerce MB) düzenleme adımları birkaç saniye sürebilir.
 * Yer imi yazımı PDFsharp ile yapılır; çok bozuk yapılı bazı PDF'lerde yer imi kaydı başarısız olursa kullanıcıya hata gösterilir, belge kaybolmaz.
 * Sayfa boyutu değiştirmede açıklama (annotation) konumları ölçeklenmez.
 * Arayüzde ekran okuyucu (UI Automation) etiketleri henüz eksiksiz değil.

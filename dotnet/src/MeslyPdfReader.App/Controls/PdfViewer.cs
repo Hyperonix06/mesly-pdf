@@ -291,7 +291,7 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
         if (clearCache) { CancelAll(); _cache.Clear(); }
         if (LayoutMode is PageLayoutMode.SinglePage or PageLayoutMode.TwoPage) _singleRowPage = CurrentPage;
         BuildLayout();
-        if (_editor is not null) InvalidateArrange();
+        if (_editor is not null) { InvalidateMeasure(); InvalidateArrange(); }
         if (keepPage && Document is not null && keep < _pageRects.Length && _inLayout[keep])
         {
             var r = _pageRects[keep];
@@ -357,7 +357,7 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
     {
         var w = double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width;
         var h = double.IsInfinity(availableSize.Height) ? 600 : availableSize.Height;
-        _editor?.Measure(new Size(w, double.PositiveInfinity));
+        MeasureEditor();
         return new Size(w, h);
     }
 
@@ -1057,7 +1057,7 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
         if (changed)
         {
             ScrollOwner?.InvalidateScrollInfo();
-            if (_editor is not null) InvalidateArrange();
+            if (_editor is not null) { InvalidateMeasure(); InvalidateArrange(); }
             InvalidateVisual();
             QueueRender();
         }
