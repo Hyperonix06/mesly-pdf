@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>MeslyPdfReader.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MeslyPdfReader.Core\MeslyPdfReader.Core.csproj" />
+    <ProjectReference Include="..\..\src\MeslyPdfReader.Pdf\MeslyPdfReader.Pdf.csproj" />
+    <ProjectReference Include="..\..\src\MeslyPdfReader.Data\MeslyPdfReader.Data.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\DejaVuSans.ttf" Link="Fixtures\DejaVuSans.ttf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

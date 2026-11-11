@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <Product>Mesly PDF Reader</Product>
+    <Company>Mesly</Company>
+    <Authors>Mesly</Authors>
+    <Copyright>© 2026 Mesly</Copyright>
+    <Version>0.2.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1416;NU1701</NoWarn>
+    <SatelliteResourceLanguages>tr;en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- WPF projesinin Linux CI'da da derlenebilmesi için -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+</Project>

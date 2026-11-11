@@ -6,3 +6,9 @@ dist/
 .pytest_cache/
 *.egg-info/
 selftest*.txt
+# .NET
+dotnet/**/bin/
+dotnet/**/obj/
+dotnet/artifacts/
+*.user
+.vs/
