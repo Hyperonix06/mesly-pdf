@@ -46,7 +46,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
     public ZoomMode ZoomMode { get => (ZoomMode)GetValue(ZoomModeProperty); set => SetValue(ZoomModeProperty, value); }
 
     public static readonly DependencyProperty LayoutModeProperty = DependencyProperty.Register(nameof(LayoutMode), typeof(PageLayoutMode), typeof(PdfViewer),
-        new FrameworkPropertyMetadata(PageLayoutMode.Continuous, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, (d, e) => ((PdfViewer)d).Relayout(keepPage: true)));
+        new FrameworkPropertyMetadata(PageLayoutMode.Continuous, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, (d, e) => ((PdfViewer)d).OnLayoutModeChanged()));
     public PageLayoutMode LayoutMode { get => (PageLayoutMode)GetValue(LayoutModeProperty); set => SetValue(LayoutModeProperty, value); }
 
     public static readonly DependencyProperty ViewRotationProperty = DependencyProperty.Register(nameof(ViewRotation), typeof(int), typeof(PdfViewer),
@@ -179,6 +179,12 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         else Relayout(keepPage: true);
         if (CurrentPage != page) SetCurrentPageSilently(page);
     }, DispatcherPriority.Normal);
+
+    private void OnLayoutModeChanged()
+    {
+        if (ZoomMode != ZoomMode.Custom) ApplyZoomMode(keepPage: true);
+        else Relayout(keepPage: true);
+    }
 
     private void ClearAndRender()
     {

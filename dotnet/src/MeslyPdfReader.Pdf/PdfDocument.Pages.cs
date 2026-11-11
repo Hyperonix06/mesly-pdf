@@ -23,15 +23,43 @@ public sealed unsafe partial class PdfDocument
         Walk(_bookmarks);
     }
 
+    private static List<Bookmark> PruneDeleted(List<Bookmark> list)
+    {
+        var result = new List<Bookmark>();
+        foreach (var b in list)
+        {
+            var kids = PruneDeleted(b.Children);
+            if (b.PageIndex == -2 && b.Uri is null) { result.AddRange(kids); continue; }
+            b.Children.Clear(); b.Children.AddRange(kids);
+            result.Add(b);
+        }
+        return result;
+    }
+
     public Task DeletePagesAsync(IEnumerable<int> indices) => _engine.RunAsync(() =>
     {
         ThrowIfDisposed();
         var arr = Validate(indices, PageCount);
         if (arr.Length >= PageCount) throw new PdfException(PdfErrorKind.Unsupported, "Belgenin tüm sayfaları silinemez; en az bir sayfa kalmalı.");
+        var set = arr.ToHashSet();
+        // Silinen sayfalara işaret eden yer imleri kaldırılır (alt yer imleri bir üst düzeye taşınır).
+        // Şifreli belgelerde yer imi ağacı sahip parolası olmadan yeniden yazılamaz; o durumda dokunulmaz.
+        bool affected = false;
+        if (!IsEncrypted || _bookmarksDirty)
+        {
+            _bookmarks ??= ReadBookmarks();
+            void Check(List<Bookmark> l) { foreach (var b in l) { if (b.Uri is null && set.Contains(b.PageIndex)) affected = true; Check(b.Children); } }
+            Check(_bookmarks);
+        }
         ClosePages();
         for (int k = arr.Length - 1; k >= 0; k--) Native.FPDFPage_Delete(_doc, arr[k]);
-        var set = arr.ToHashSet();
-        RemapBookmarks(old => set.Contains(old) ? -1 : old - arr.Count(d => d < old));
+        if (affected)
+        {
+            _bookmarksDirty = true;
+            RemapBookmarks(old => set.Contains(old) ? -2 : old - arr.Count(d => d < old));
+            _bookmarks = PruneDeleted(_bookmarks);
+        }
+        else RemapBookmarks(old => old - arr.Count(d => d < old));
         MarkChanged();
     });
 

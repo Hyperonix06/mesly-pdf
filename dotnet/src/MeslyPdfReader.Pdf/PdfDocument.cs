@@ -371,8 +371,16 @@ public sealed unsafe partial class PdfDocument : IDisposable
     public bool BookmarksModified => _bookmarksDirty;
 
     /// <summary>Yer imi ağacını değiştirir; kaydetmede PDF'e yazılır.</summary>
+    public const string EncryptedBookmarkMessage =
+        "Parola korumalı belgelerde yer imi düzenleme bu sürümde desteklenmiyor: yer imi ağacını yeniden yazmak, belgenin parola korumasını kaldırabilir. " +
+        "Parola korumasını korumak için değişiklik yapılmadı. (Sayfa işlemleri şifreli belgelerde kullanılabilir.)";
+
+    /// <summary>Yer imleri düzenlenebilir mi (şifreli belgelerde hayır).</summary>
+    public bool CanEditBookmarks => !IsEncrypted;
+
     public Task SetBookmarksAsync(IEnumerable<Bookmark> items) => _engine.RunAsync(() =>
     {
+        if (IsEncrypted) throw new PdfException(PdfErrorKind.Unsupported, EncryptedBookmarkMessage);
         _bookmarks = items.Select(b => b.Clone()).ToList();
         _bookmarksDirty = true;
         IsModified = true;

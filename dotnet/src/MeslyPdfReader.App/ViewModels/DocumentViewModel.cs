@@ -130,9 +130,12 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     private void OnDocumentChanged(object? sender, EventArgs e) =>
         Application.Current?.Dispatcher.BeginInvoke(RefreshAfterChange);
 
+    private int _refreshedRevision = -1;
+
     private void RefreshAfterChange()
     {
-        if (_disposed) return;
+        if (_disposed || _refreshedRevision == Document.Revision) return;
+        _refreshedRevision = Document.Revision;
         Title = Document.DisplayName;
         IsModified = Document.IsModified;
         PageCount = Document.PageCount;
@@ -333,6 +336,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         _redo.Push(current);
         var snap = _undo.Pop();
         await Document.RestoreSnapshotAsync(snap, modified: true);
+        RefreshAfterChange();
         await LoadBookmarksAsync();
         StatusText = "Son işlem geri alındı.";
     });
@@ -345,6 +349,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         _undo.Push(current);
         var snap = _redo.Pop();
         await Document.RestoreSnapshotAsync(snap, modified: true);
+        RefreshAfterChange();
         await LoadBookmarksAsync();
         StatusText = "İşlem yinelendi.";
     });
@@ -355,7 +360,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     private Task<bool> EditAsync(string text, Func<Task> work, string status) => RunBusyAsync(text, async (_, _) =>
     {
         await CheckpointAsync();
-        try { await work(); }
+        try { await work(); RefreshAfterChange(); }
         catch
         {
             // Başarısız işlem: geri alma noktasını geri yükle ki belge yarım kalmasın.
@@ -395,6 +400,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     {
         await EditAsync("Sayfalar siliniyor…", () => Document.DeletePagesAsync(pages), $"{pages.Count} sayfa silindi. Geri almak için Ctrl+Z.");
         SelectedPages.Clear();
+        await LoadBookmarksAsync();
     }
 
     [RelayCommand]
@@ -540,12 +546,25 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         if (value is not null && value.PageIndex >= 0) CurrentPage = value.PageIndex;
     }
 
-    private Task CommitBookmarksAsync(string status) =>
-        EditAsync("Yer imleri güncelleniyor…", () => Document.SetBookmarksAsync(Bookmarks.Select(b => b.ToModel())), status);
+    public bool CanEditBookmarks => Document.CanEditBookmarks;
+
+    private async Task CommitBookmarksAsync(string status)
+    {
+        if (!await EditAsync("Yer imleri güncelleniyor…", () => Document.SetBookmarksAsync(Bookmarks.Select(b => b.ToModel())), status))
+            await LoadBookmarksAsync(); // başarısız olursa listeyi belgedeki hale döndür
+    }
+
+    private bool EnsureBookmarksEditable()
+    {
+        if (Document.CanEditBookmarks) return true;
+        MessageDialog.Show("Yer imi düzenlenemiyor", PdfDocument.EncryptedBookmarkMessage, MessageKind.Warning);
+        return false;
+    }
 
     [RelayCommand]
     private async Task AddBookmark()
     {
+        if (!EnsureBookmarksEditable()) return;
         string suggestion = $"Sayfa {CurrentPage + 1}";
         if (Viewer?.HasSelection == true)
         {
@@ -568,6 +587,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     [RelayCommand]
     private async Task AddChildBookmark()
     {
+        if (!EnsureBookmarksEditable()) return;
         if (SelectedBookmark is not { } parent) { await AddBookmark(); return; }
         var title = InputDialog.Ask("Alt yer imi ekle", $"“{parent.Title}” altında, sayfa {CurrentPage + 1}", $"Sayfa {CurrentPage + 1}",
             validate: s => string.IsNullOrWhiteSpace(s) ? "Yer imi adı boş olamaz." : null);
@@ -580,6 +600,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     [RelayCommand]
     private async Task RenameBookmark()
     {
+        if (!EnsureBookmarksEditable()) return;
         if (SelectedBookmark is not { } b) return;
         var title = InputDialog.Ask("Yer imini yeniden adlandır", "Yeni ad", b.Title, validate: s => string.IsNullOrWhiteSpace(s) ? "Yer imi adı boş olamaz." : null);
         if (title is null || title == b.Title) return;
@@ -590,6 +611,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     [RelayCommand]
     private async Task SetBookmarkToCurrentPage()
     {
+        if (!EnsureBookmarksEditable()) return;
         if (SelectedBookmark is not { } b) return;
         b.PageIndex = CurrentPage; b.Uri = null;
         await CommitBookmarksAsync($"Yer imi sayfa {CurrentPage + 1}'e yönlendirildi.");
@@ -598,6 +620,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     [RelayCommand]
     private async Task DeleteBookmark()
     {
+        if (!EnsureBookmarksEditable()) return;
         if (SelectedBookmark is not { } b) return;
         if (b.Children.Count > 0 && !MessageDialog.Confirm("Yer imini sil", $"“{b.Title}” ve {Bookmark.Count(b.ToModel().Children)} alt yer imi silinsin mi?", "Sil")) return;
         (b.Parent?.Children ?? Bookmarks).Remove(b);
@@ -608,6 +631,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     [RelayCommand]
     private async Task MoveBookmark(string direction)
     {
+        if (!EnsureBookmarksEditable()) return;
         if (SelectedBookmark is not { } b) return;
         var list = b.Parent?.Children ?? Bookmarks;
         int i = list.IndexOf(b), j = direction == "up" ? i - 1 : i + 1;

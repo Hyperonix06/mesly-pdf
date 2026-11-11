@@ -241,12 +241,13 @@ public sealed class SelfTestRunner
             await WaitRendered();
             Shot("05-cift-sayfa");
             var vis = Viewer!.VisiblePages();
+            bool sideBySide = Viewer.ExtentWidth <= Viewer.ViewportWidth + 1;
             tab.Layout = PageLayoutMode.SinglePage;
             await WaitRendered();
             var single = Viewer.VisiblePages();
             tab.Layout = PageLayoutMode.Continuous;
             await WaitRendered();
-            return (vis.Count >= 2 && single.Count == 1, $"çift: {vis.Count} sayfa görünür, tek: {single.Count}");
+            return (vis.Count >= 2 && single.Count == 1 && sideBySide, $"çift: {vis.Count} sayfa görünür, genişliğe sığdı={sideBySide}, tek: {single.Count}");
         });
 
         await Step("Görünüm", "Görünüm döndürme", "Görünüm 90° döner, belge değişmez", async () =>
@@ -312,7 +313,9 @@ public sealed class SelfTestRunner
             await Idle();
             using var re = await PdfDocument.OpenAsync(target);
             var bms = await re.GetBookmarksAsync();
-            return (re.PageCount == 39 && !tab.Document.IsModified && bms.Count >= 38, $"sayfa={re.PageCount}, yer imi={bms.Count}, değişti={tab.Document.IsModified}");
+            // Silinen 2 sayfanın (Bölüm 3, 4) yer imleri kaldırılmış olmalı; kalan 38 yer iminin hepsi geçerli bir sayfaya gitmeli.
+            bool valid = bms.All(b => b.PageIndex >= 0 && b.PageIndex < re.PageCount);
+            return (re.PageCount == 39 && !tab.Document.IsModified && bms.Count == 38 && valid, $"sayfa={re.PageCount}, yer imi={bms.Count}, hepsi geçerli={valid}, değişti={tab.Document.IsModified}");
         });
 
         // ── Dönüştürme ──
@@ -387,7 +390,7 @@ public sealed class SelfTestRunner
             return (n == tab.PageCount && new FileInfo(xps).Length > 10_000, $"{n} sayfa, {new FileInfo(xps).Length / 1024} KB");
         });
 
-        await Step("Yazdırma", "Yazdırma önizlemesi penceresi", "Önizleme açılır ve sayfa görüntüsü çizilir", async () =>
+        await Step("Yazdırma", "Yazdırma önizlemesi penceresi", "Önizleme açılır, yazıcı listelenir, Yazdır düğmesi etkin", async () =>
         {
             var win = PrintPreviewWindow.CreateForTest(tab);
             win.Show();
@@ -395,8 +398,10 @@ public sealed class SelfTestRunner
             await Idle();
             var path = Path.Combine(_dir, "10-yazdirma-onizleme.png");
             ImageCodec.CaptureVisual((FrameworkElement)win.Content, path);
+            bool ok = File.Exists(path) && (win.PrinterCount == 0 || win.CanPrint);
+            var info = $"yazıcı sayısı={win.PrinterCount}, seçili=“{win.PrinterName}”, Yazdır etkin={win.CanPrint}";
             win.Close();
-            return (File.Exists(path), "ekran görüntüsü alındı");
+            return (ok, info);
         });
 
         await Step("Ayarlar", "Ayarlar penceresi", "Açılır, tüm bölümler oluşturulur", async () =>

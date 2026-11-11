@@ -37,8 +37,13 @@ public sealed class PrintPreviewWindow : FluentWindow
     private readonly List<PrintQueue> _queues = new();
     private static readonly PaperSize[] Papers = PaperSize.Standard.ToArray();
 
+    /// <summary>Yazdır düğmesi etkin mi (öz test için).</summary>
+    public bool CanPrint => _print.IsEnabled;
+    public int PrinterCount => _queues.Count;
+    public string PrinterName => _printer.SelectedItem?.ToString() ?? "";
+
     /// <summary>Öz test için modsuz önizleme penceresi.</summary>
-    public static Window CreateForTest(DocumentViewModel vm) => new PrintPreviewWindow(vm);
+    public static PrintPreviewWindow CreateForTest(DocumentViewModel vm) => new PrintPreviewWindow(vm);
 
     public static void ShowFor(DocumentViewModel vm)
     {

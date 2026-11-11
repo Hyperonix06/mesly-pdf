@@ -100,7 +100,11 @@ public sealed unsafe partial class PdfDocument
             fs.Flush(true);
         }
         if (_bookmarksDirty && _bookmarks is not null)
+        {
+            // Savunma: şifreli belgede PDFsharp ile yeniden yazmak şifreyi kaldırabilir.
+            if (IsEncrypted) throw new PdfException(PdfErrorKind.Unsupported, EncryptedBookmarkMessage);
             BookmarkWriter.Write(target, Password, _bookmarks);
+        }
     }
 
     private static void VerifyFile(string path, int expectedPages)
@@ -180,7 +184,9 @@ internal static class BookmarkWriter
                 ? PdfSharp.Pdf.IO.PdfReader.Open(path, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify)
                 : PdfSharp.Pdf.IO.PdfReader.Open(path, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify))
             {
-                doc.Outlines.Clear();
+                // Eski ağaç okunmadan atılır: sayfa silme sonrası PDFium'un bıraktığı geçersiz (null) hedefler
+                // PDFsharp'ın ayrıştırıcısını bozabilir.
+                doc.Internals.Catalog.Elements.Remove("/Outlines");
                 void Add(PdfSharp.Pdf.PdfOutlineCollection into, Bookmark b)
                 {
                     var page = b.PageIndex >= 0 && b.PageIndex < doc.PageCount ? doc.Pages[b.PageIndex] : null;
@@ -205,6 +211,12 @@ internal static class BookmarkWriter
                 doc.Save(tmp);
             }
             File.Move(tmp, path, overwrite: true);
+        }
+        catch (PdfSharp.Pdf.IO.PdfReaderException ex) when (password is not null && ex.Message.Contains("owner", StringComparison.OrdinalIgnoreCase))
+        {
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+            throw new PdfException(PdfErrorKind.Save, "Şifreli belgelerde yer imi değişikliklerini kaydetmek için belgenin sahip (yetki) parolası gerekir. " +
+                "Belgeyi sahip parolasıyla yeniden açın veya yer imi değişikliklerini geri alıp (Ctrl+Z) kaydedin.", ex);
         }
         catch (Exception ex) when (ex is not PdfException)
         {

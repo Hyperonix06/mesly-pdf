@@ -304,3 +304,69 @@ public class CreateEditSaveTests
         Assert.Equal(new[] { "Sayfa 1", "Sayfa 2", "Sayfa 3", "Sayfa 4" }, await Fx.PageLabelsAsync(doc));
     }
 }
+
+public class BookmarkPruneTests
+{
+    [Fact]
+    public async Task DeletingPagesRemovesTheirBookmarksAndLiftsChildren()
+    {
+        var dir = Fx.TempDir();
+        var src = Path.Combine(dir, "kaynak.pdf");
+        using (var doc = await Fx.CreateNumberedAsync(5))
+        {
+            var b2 = new Bookmark { Title = "İki", PageIndex = 1 };
+            b2.Children.Add(new Bookmark { Title = "Dört (alt)", PageIndex = 3 });
+            await doc.SetBookmarksAsync(new[] { new Bookmark { Title = "Bir", PageIndex = 0 }, b2, new Bookmark { Title = "Beş", PageIndex = 4 } });
+            await doc.SaveAsync(src);
+        }
+        // Yer imleri değiştirilmeden (PDF'ten okunarak) sayfa 2 silinir.
+        using (var doc = await PdfDocument.OpenAsync(src))
+        {
+            await doc.DeletePagesAsync(new[] { 1 });
+            var now = await doc.GetBookmarksAsync();
+            Assert.Equal(new[] { "Bir", "Dört (alt)", "Beş" }, now.Select(b => b.Title));
+            Assert.Equal(new[] { 0, 2, 3 }, now.Select(b => b.PageIndex));
+            await doc.SaveAsync(src);
+        }
+        using var re = await PdfDocument.OpenAsync(src);
+        var bms = await re.GetBookmarksAsync();
+        Assert.Equal(3, bms.Count);
+        Assert.All(bms, b => Assert.InRange(b.PageIndex, 0, 3));
+    }
+
+    [Fact]
+    public async Task DeletingUnrelatedPagesKeepsOutlineUntouched()
+    {
+        using var doc = await PdfDocument.OpenAsync(Fx.F("links_outline.pdf"));
+        await doc.DeletePagesAsync(new[] { 4 }); // yalnız "Bölüm 5" etkilenir
+        var bms = await doc.GetBookmarksAsync();
+        Assert.Equal(4, bms.Count);
+        Assert.Equal("Alt başlık ığüşöç", bms[1].Children[0].Title);
+    }
+}
+
+public class EncryptedBookmarkTests
+{
+    [Theory]
+    [InlineData("açık şifre")]
+    [InlineData("sahip")]
+    public async Task BookmarkEditingIsRefusedToProtectEncryption(string password)
+    {
+        var dir = Fx.TempDir();
+        var path = Path.Combine(dir, "s.pdf");
+        File.Copy(Fx.F("encrypted_aes256.pdf"), path);
+        using (var doc = await PdfDocument.OpenAsync(path, password))
+        {
+            Assert.False(doc.CanEditBookmarks);
+            var ex = await Assert.ThrowsAsync<PdfException>(() => doc.SetBookmarksAsync(new[] { new Bookmark { Title = "Yeni", PageIndex = 0 } }));
+            Assert.Contains("parola", ex.Message);
+            // Sayfa işlemleri yapılabilir ve kayıt şifreyi korur.
+            await doc.DeletePagesAsync(new[] { 4 });
+            await doc.SaveAsync(path);
+        }
+        var locked = await Assert.ThrowsAsync<PdfException>(() => PdfDocument.OpenAsync(path));
+        Assert.Equal(PdfErrorKind.Password, locked.Kind);
+        using var re = await PdfDocument.OpenAsync(path, "açık şifre");
+        Assert.Equal(4, re.PageCount);
+    }
+}
