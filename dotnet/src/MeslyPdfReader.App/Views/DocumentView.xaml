@@ -1,0 +1,380 @@
+<UserControl x:Class="MeslyPdfReader.App.Views.DocumentView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:MeslyPdfReader.App.ViewModels"
+             xmlns:c="clr-namespace:MeslyPdfReader.App.Controls">
+    <UserControl.Resources>
+        <Style x:Key="PropLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{DynamicResource MeslyMutedTextBrush}" />
+            <Setter Property="Margin" Value="0,8,0,1" />
+        </Style>
+        <Style x:Key="PropValue" TargetType="TextBox">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="46" />
+            <ColumnDefinition x:Name="LeftCol" Width="250" MinWidth="0" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="RightCol" Width="0" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Panel şeridi -->
+        <Border Grid.Column="0" x:Name="Rail" Background="{DynamicResource MeslyChromeBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="0,0,1,0">
+            <StackPanel Margin="0,6,0,0">
+                <RadioButton Style="{StaticResource PanelTabStyle}" ToolTip="Sayfa küçük resimleri" GroupName="lp"
+                             IsChecked="{Binding LeftPanel, Converter={StaticResource EqualsToBool}, ConverterParameter=Thumbnails, Mode=OneWay}"
+                             Command="{Binding ShowPanelCommand}" CommandParameter="{x:Static vm:LeftPanelKind.Thumbnails}">
+                    <ui:SymbolIcon Symbol="SlideMultiple24" FontSize="19" />
+                </RadioButton>
+                <RadioButton Style="{StaticResource PanelTabStyle}" ToolTip="Yer imleri" GroupName="lp"
+                             IsChecked="{Binding LeftPanel, Converter={StaticResource EqualsToBool}, ConverterParameter=Bookmarks, Mode=OneWay}"
+                             Command="{Binding ShowPanelCommand}" CommandParameter="{x:Static vm:LeftPanelKind.Bookmarks}">
+                    <ui:SymbolIcon Symbol="Bookmark24" FontSize="19" />
+                </RadioButton>
+                <RadioButton Style="{StaticResource PanelTabStyle}" ToolTip="Arama sonuçları" GroupName="lp"
+                             IsChecked="{Binding LeftPanel, Converter={StaticResource EqualsToBool}, ConverterParameter=Search, Mode=OneWay}"
+                             Command="{Binding ShowPanelCommand}" CommandParameter="{x:Static vm:LeftPanelKind.Search}">
+                    <ui:SymbolIcon Symbol="Search24" FontSize="19" />
+                </RadioButton>
+            </StackPanel>
+        </Border>
+
+        <!-- Sol panel -->
+        <Border Grid.Column="1" x:Name="LeftPanelHost" Background="{DynamicResource MeslyPanelBrush}">
+            <Grid>
+                <!-- Küçük resimler -->
+                <Grid Visibility="{Binding LeftPanel, Converter={StaticResource EqualsToVis}, ConverterParameter=Thumbnails}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Margin="12,10,6,6">
+                        <TextBlock Text="Sayfalar" Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Sola döndür" Command="{Binding RotatePagesLeftCommand}"><ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" FontSize="15" /></Button>
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Sağa döndür" Command="{Binding RotatePagesRightCommand}"><ui:SymbolIcon Symbol="ArrowRotateClockwise24" FontSize="15" /></Button>
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Sil" Command="{Binding DeletePagesCommand}"><ui:SymbolIcon Symbol="Delete24" FontSize="15" /></Button>
+                        </StackPanel>
+                    </Grid>
+                    <ListBox Grid.Row="1" x:Name="ThumbList" ItemsSource="{Binding Thumbnails}" ItemContainerStyle="{StaticResource ThumbItemStyle}"
+                             SelectionMode="Extended" BorderThickness="0" Background="Transparent" AllowDrop="True"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             SelectionChanged="ThumbList_SelectionChanged" PreviewMouseLeftButtonDown="Thumb_PreviewMouseDown" PreviewMouseMove="Thumb_PreviewMouseMove"
+                             DragOver="Thumb_DragOver" Drop="Thumb_Drop" DragLeave="Thumb_DragLeave" KeyDown="ThumbList_KeyDown">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Sağa döndür" Command="{Binding RotatePagesRightCommand}" InputGestureText="Ctrl+R" />
+                                <MenuItem Header="Sola döndür" Command="{Binding RotatePagesLeftCommand}" InputGestureText="Ctrl+Shift+R" />
+                                <Separator />
+                                <MenuItem Header="Çoğalt" Command="{Binding DuplicatePagesCommand}" />
+                                <MenuItem Header="Ayıkla…" Command="{Binding ExtractPagesCommand}" />
+                                <MenuItem Header="Öne taşı" Command="{Binding MovePagesUpCommand}" />
+                                <MenuItem Header="Arkaya taşı" Command="{Binding MovePagesDownCommand}" />
+                                <Separator />
+                                <MenuItem Header="Boş sayfa ekle…" Command="{Binding InsertBlankCommand}" />
+                                <MenuItem Header="Dosyadan sayfa ekle…" Command="{Binding InsertFromFileCommand}" />
+                                <MenuItem Header="Kırp…" Command="{Binding CropPagesCommand}" />
+                                <Separator />
+                                <MenuItem Header="Sil" Command="{Binding DeletePagesCommand}" InputGestureText="Delete" />
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ThumbnailItem}">
+                                <StackPanel>
+                                    <Border Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}" Background="White" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1">
+                                        <Image Source="{Binding Image}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    </Border>
+                                    <Border HorizontalAlignment="Center" Margin="0,5,0,0" CornerRadius="9" Padding="8,1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource MeslyAccentBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding Label}" FontSize="11.5">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <!-- Bırakma göstergesi -->
+                    <Canvas Grid.Row="1" IsHitTestVisible="False">
+                        <Border x:Name="DropIndicator" Height="3" CornerRadius="1.5" Background="{DynamicResource MeslyAccentBrush}" Visibility="Collapsed" />
+                    </Canvas>
+                </Grid>
+
+                <!-- Yer imleri -->
+                <Grid Visibility="{Binding LeftPanel, Converter={StaticResource EqualsToVis}, ConverterParameter=Bookmarks}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Margin="12,10,6,6">
+                        <TextBlock Text="Yer imleri" Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Geçerli sayfaya yer imi ekle (Ctrl+D)" Command="{Binding AddBookmarkCommand}"><ui:SymbolIcon Symbol="BookmarkAdd24" FontSize="15" /></Button>
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Yeniden adlandır" Command="{Binding RenameBookmarkCommand}"><ui:SymbolIcon Symbol="Rename24" FontSize="15" /></Button>
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Sil" Command="{Binding DeleteBookmarkCommand}"><ui:SymbolIcon Symbol="Delete24" FontSize="15" /></Button>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Margin="14,4,14,0" TextWrapping="Wrap" Style="{StaticResource MutedText}"
+                               Text="Bu belgede yer imi yok. Geçerli sayfaya yer imi eklemek için + düğmesini veya Ctrl+D'yi kullanın."
+                               Visibility="{Binding Bookmarks.Count, Converter={StaticResource ZeroToVisible}}" />
+                    <TreeView Grid.Row="1" x:Name="BookmarkTree" ItemsSource="{Binding Bookmarks}" BorderThickness="0" Background="Transparent"
+                              SelectedItemChanged="BookmarkTree_SelectedItemChanged" MouseDoubleClick="BookmarkTree_DoubleClick" KeyDown="BookmarkTree_KeyDown"
+                              VirtualizingPanel.IsVirtualizing="True">
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                        <TreeView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Yer imi ekle" Command="{Binding AddBookmarkCommand}" InputGestureText="Ctrl+D" />
+                                <MenuItem Header="Alt yer imi ekle" Command="{Binding AddChildBookmarkCommand}" />
+                                <MenuItem Header="Yeniden adlandır" Command="{Binding RenameBookmarkCommand}" InputGestureText="F2" />
+                                <MenuItem Header="Geçerli sayfaya yönlendir" Command="{Binding SetBookmarkToCurrentPageCommand}" />
+                                <MenuItem Header="Yukarı taşı" Command="{Binding MoveBookmarkCommand}" CommandParameter="up" />
+                                <MenuItem Header="Aşağı taşı" Command="{Binding MoveBookmarkCommand}" CommandParameter="down" />
+                                <Separator />
+                                <MenuItem Header="Sil" Command="{Binding DeleteBookmarkCommand}" InputGestureText="Delete" />
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate DataType="{x:Type vm:BookmarkNode}" ItemsSource="{Binding Children}">
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}" MaxWidth="170" />
+                                    <TextBlock Grid.Column="1" Text="{Binding PageLabel}" Margin="8,0,0,0" Style="{StaticResource MutedText}" FontSize="11" />
+                                </Grid>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </Grid>
+
+                <!-- Arama -->
+                <Grid Visibility="{Binding LeftPanel, Converter={StaticResource EqualsToVis}, ConverterParameter=Search}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Belgede ara" Style="{StaticResource SectionTitle}" Margin="12,12,12,6" />
+                    <Grid Grid.Row="1" Margin="10,0,10,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:TextBox x:Name="SearchBox" PlaceholderText="Aranacak metin" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" KeyDown="SearchBox_KeyDown" />
+                        <ui:Button Grid.Column="1" Margin="6,0,0,0" Appearance="Primary" Command="{Binding SearchCommand}" ToolTip="Ara (Enter)">
+                            <ui:SymbolIcon Symbol="Search24" FontSize="16" />
+                        </ui:Button>
+                    </Grid>
+                    <StackPanel Grid.Row="2" Margin="12,8,12,4">
+                        <CheckBox Content="Büyük/küçük harf duyarlı" IsChecked="{Binding MatchCase}" />
+                        <CheckBox Content="Tam sözcük" IsChecked="{Binding WholeWord}" />
+                        <CheckBox Content="Türkçe karakterleri yok say (ş=s, ı=i…)" IsChecked="{Binding IgnoreDiacritics}" />
+                        <Grid Margin="0,6,0,0">
+                            <TextBlock Text="{Binding SearchStatus}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,64,0" VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Önceki sonuç (Shift+F3)" Command="{Binding PreviousHitCommand}"><ui:SymbolIcon Symbol="ChevronUp24" FontSize="15" /></Button>
+                                <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Sonraki sonuç (F3)" Command="{Binding NextHitCommand}"><ui:SymbolIcon Symbol="ChevronDown24" FontSize="15" /></Button>
+                            </StackPanel>
+                        </Grid>
+                        <ProgressBar IsIndeterminate="True" Height="3" Margin="0,6,0,0" Visibility="{Binding IsSearching, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                    <ListBox Grid.Row="3" ItemsSource="{Binding SearchResults}" SelectedItem="{Binding SelectedResult}" ItemContainerStyle="{StaticResource ListItemPlain}"
+                             BorderThickness="0" Background="Transparent" Margin="4,4,4,4" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:SearchResultItem}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PageLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource MeslyAccentBrush}" />
+                                    <TextBlock Text="{Binding Context}" FontSize="12" TextWrapping="Wrap" MaxHeight="48" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <GridSplitter Grid.Column="2" x:Name="LeftSplitter" Width="4" HorizontalAlignment="Stretch" Background="{DynamicResource MeslyBorderBrush}" ResizeBehavior="PreviousAndNext" />
+
+        <!-- Görüntüleyici -->
+        <Grid Grid.Column="3" Background="{DynamicResource MeslyCanvasBrush}">
+            <ScrollViewer x:Name="Scroller" CanContentScroll="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Focusable="False">
+                <c:PdfViewer x:Name="Viewer"
+                             Document="{Binding Document, Mode=OneWay}"
+                             Zoom="{Binding Zoom, Mode=TwoWay}"
+                             ZoomMode="{Binding ZoomMode, Mode=TwoWay}"
+                             LayoutMode="{Binding Layout, Mode=TwoWay}"
+                             ViewRotation="{Binding ViewRotation, Mode=TwoWay}"
+                             DarkMode="{Binding DarkMode}"
+                             Tool="{Binding Tool}"
+                             CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
+                             SearchHits="{Binding SearchHits}"
+                             ActiveHit="{Binding ActiveHit}">
+                    <c:PdfViewer.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Kopyala" Command="{Binding CopySelectionCommand}" InputGestureText="Ctrl+C" />
+                            <MenuItem Header="Tümünü seç" Command="{Binding SelectAllCommand}" InputGestureText="Ctrl+A" />
+                            <MenuItem Header="Seçimden yer imi oluştur" Command="{Binding AddBookmarkCommand}" InputGestureText="Ctrl+D" />
+                            <Separator />
+                            <MenuItem Header="Yakınlaştır" Command="{Binding ZoomInCommand}" InputGestureText="Ctrl++" />
+                            <MenuItem Header="Uzaklaştır" Command="{Binding ZoomOutCommand}" InputGestureText="Ctrl+-" />
+                            <MenuItem Header="Genişliğe sığdır" Command="{Binding FitWidthCommand}" InputGestureText="Ctrl+2" />
+                            <MenuItem Header="Sayfaya sığdır" Command="{Binding FitPageCommand}" InputGestureText="Ctrl+0" />
+                            <Separator />
+                            <MenuItem Header="Sayfayı sağa döndür" Command="{Binding RotatePagesRightCommand}" InputGestureText="Ctrl+R" />
+                            <MenuItem Header="Yazdır…" Command="{Binding PrintCommand}" InputGestureText="Ctrl+P" />
+                        </ContextMenu>
+                    </c:PdfViewer.ContextMenu>
+                </c:PdfViewer>
+            </ScrollViewer>
+
+            <!-- Yüzen gezinme çubuğu -->
+            <Border x:Name="NavBar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" CornerRadius="12" Padding="6,4"
+                    Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.18" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="İlk sayfa (Ctrl+Home)" Command="{Binding FirstPageCommand}"><ui:SymbolIcon Symbol="ChevronDoubleLeft20" FontSize="15" /></Button>
+                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Önceki sayfa" Command="{Binding PreviousPageCommand}"><ui:SymbolIcon Symbol="ChevronLeft24" FontSize="15" /></Button>
+                    <TextBox x:Name="PageBox" Width="54" Height="28" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Margin="4,0" Padding="2,0"
+                             Text="{Binding PageNumber, Mode=OneWay}" KeyDown="PageBox_KeyDown" GotKeyboardFocus="PageBox_GotFocus" ToolTip="Sayfa numarası yazıp Enter'a basın" />
+                    <TextBlock VerticalAlignment="Center" Margin="2,0,6,0" FontSize="12.5" Foreground="{DynamicResource MeslyMutedTextBrush}">
+                        <Run Text="/" /> <Run Text="{Binding PageCount, Mode=OneWay}" />
+                    </TextBlock>
+                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Sonraki sayfa" Command="{Binding NextPageCommand}"><ui:SymbolIcon Symbol="ChevronRight24" FontSize="15" /></Button>
+                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Son sayfa (Ctrl+End)" Command="{Binding LastPageCommand}"><ui:SymbolIcon Symbol="ChevronDoubleRight20" FontSize="15" /></Button>
+                    <Border Width="1" Margin="6,6" Background="{DynamicResource MeslyBorderBrush}" />
+                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Uzaklaştır (Ctrl+-)" Command="{Binding ZoomOutCommand}"><ui:SymbolIcon Symbol="ZoomOut24" FontSize="15" /></Button>
+                    <ComboBox x:Name="ZoomCombo" Width="92" Height="30" IsEditable="True" Text="{Binding ZoomPercent, Mode=OneWay}" KeyDown="ZoomCombo_KeyDown"
+                              SelectionChanged="ZoomCombo_SelectionChanged" ToolTip="Yakınlaştırma düzeyi">
+                        <ComboBoxItem Content="Genişliğe sığdır" Tag="fitwidth" />
+                        <ComboBoxItem Content="Sayfaya sığdır" Tag="fitpage" />
+                        <ComboBoxItem Content="%50" Tag="50" />
+                        <ComboBoxItem Content="%75" Tag="75" />
+                        <ComboBoxItem Content="%100" Tag="100" />
+                        <ComboBoxItem Content="%125" Tag="125" />
+                        <ComboBoxItem Content="%150" Tag="150" />
+                        <ComboBoxItem Content="%200" Tag="200" />
+                        <ComboBoxItem Content="%300" Tag="300" />
+                        <ComboBoxItem Content="%400" Tag="400" />
+                        <ComboBoxItem Content="%800" Tag="800" />
+                    </ComboBox>
+                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Yakınlaştır (Ctrl++)" Command="{Binding ZoomInCommand}"><ui:SymbolIcon Symbol="ZoomIn24" FontSize="15" /></Button>
+                    <Border Width="1" Margin="6,6" Background="{DynamicResource MeslyBorderBrush}" />
+                    <ToggleButton Style="{StaticResource ToolButtonStyle}" ToolTip="El aracı (H)" IsChecked="{Binding Tool, Converter={StaticResource EqualsToBool}, ConverterParameter=Hand}"
+                                  Click="HandTool_Click"><ui:SymbolIcon Symbol="HandLeft24" FontSize="15" /></ToggleButton>
+                    <ToggleButton Style="{StaticResource ToolButtonStyle}" ToolTip="Karanlık okuma (Ctrl+Shift+N)" IsChecked="{Binding DarkMode}"><ui:SymbolIcon Symbol="WeatherMoon24" FontSize="15" /></ToggleButton>
+                    <ToggleButton Style="{StaticResource ToolButtonStyle}" ToolTip="Özellikler paneli" IsChecked="{Binding ShowProperties}"><ui:SymbolIcon Symbol="PanelRight24" FontSize="15" /></ToggleButton>
+                </StackPanel>
+            </Border>
+
+            <!-- Belge meşgul katmanı -->
+            <Border Background="#55000000" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+                <Border Background="{DynamicResource MeslyPanelBrush}" CornerRadius="12" Padding="26,20" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="340">
+                    <StackPanel>
+                        <TextBlock Text="{Binding BusyText}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <ProgressBar Margin="0,14,0,0" Height="4" Value="{Binding BusyProgress}" IsIndeterminate="{Binding BusyIndeterminate}" />
+                        <Button Content="İptal" HorizontalAlignment="Right" Margin="0,14,0,0" Command="{Binding CancelBusyCommand}" />
+                    </StackPanel>
+                </Border>
+            </Border>
+        </Grid>
+
+        <!-- Sağ panel: özellikler -->
+        <Border Grid.Column="4" x:Name="RightPanel" Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1,0,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="16,12,14,16">
+                    <TextBlock Text="Sayfa" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Numara" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}">
+                        <TextBox.Text>
+                            <MultiBinding StringFormat="{}{0} / {1}" Mode="OneWay">
+                                <Binding Path="PageNumber" Mode="OneWay" />
+                                <Binding Path="PageCount" Mode="OneWay" />
+                            </MultiBinding>
+                        </TextBox.Text>
+                    </TextBox>
+                    <TextBlock Text="Boyut" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding PageInfo, Mode=OneWay}" />
+
+                    <TextBlock Text="Belge" Style="{StaticResource SectionTitle}" Margin="0,20,0,4" />
+                    <TextBlock Text="Dosya" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding FilePath, Mode=OneWay, TargetNullValue='(kaydedilmedi)'}" />
+                    <TextBlock Text="Başlık" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Title, Mode=OneWay, TargetNullValue='—'}" />
+                    <TextBlock Text="Yazar" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Author, Mode=OneWay, TargetNullValue='—'}" />
+                    <TextBlock Text="Konu" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Subject, Mode=OneWay, TargetNullValue='—'}" />
+                    <TextBlock Text="Anahtar sözcükler" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Keywords, Mode=OneWay, TargetNullValue='—'}" />
+                    <TextBlock Text="Oluşturan uygulama" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Creator, Mode=OneWay, TargetNullValue='—'}" />
+                    <TextBlock Text="PDF üreticisi" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Producer, Mode=OneWay, TargetNullValue='—'}" />
+                    <TextBlock Text="Oluşturma / değiştirme" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}">
+                        <TextBox.Text>
+                            <MultiBinding StringFormat="{}{0} / {1}" Mode="OneWay" TargetNullValue="—">
+                                <Binding Path="Info.CreationDate" Mode="OneWay" TargetNullValue="—" />
+                                <Binding Path="Info.ModDate" Mode="OneWay" TargetNullValue="—" />
+                            </MultiBinding>
+                        </TextBox.Text>
+                    </TextBox>
+                    <TextBlock Text="Sürüm" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.VersionText, Mode=OneWay}" />
+                    <TextBlock Text="Dosya boyutu" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding FileSizeText, Mode=OneWay}" />
+                    <TextBlock Text="Şifreleme" Style="{StaticResource PropLabel}" />
+                    <TextBox Style="{StaticResource PropValue}" Text="{Binding EncryptionText, Mode=OneWay}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>

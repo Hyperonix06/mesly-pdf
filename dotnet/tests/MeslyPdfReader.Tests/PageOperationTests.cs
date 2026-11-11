@@ -205,3 +205,30 @@ public class ExportTests
         Assert.True(Fx.InkRatio(r) > 0.005, "Mavi çerçeve görünmeli");
     }
 }
+
+public class GeometryTests
+{
+    [Theory]
+    [InlineData(0, 0)] [InlineData(1, 0)] [InlineData(2, 0)] [InlineData(3, 0)]
+    [InlineData(0, 1)] [InlineData(1, 3)] [InlineData(2, 2)]
+    public async Task MatchesPdfiumDisplayMatrix(int pageRotation, int viewTurns)
+    {
+        using var doc = await Fx.CreateNumberedAsync(1);
+        await doc.CropPagesAsync(new[] { 0 }, new Margins(30, 50, 10, 20)); // köken (0,0) olmasın
+        if (pageRotation > 0) await doc.RotatePagesAsync(new[] { 0 }, pageRotation);
+        var g = await doc.GetGeometryAsync(0);
+        Assert.Equal(pageRotation, g.Rotation);
+        var size = doc.GetPageSize(0);
+        bool swap = viewTurns % 2 == 1;
+        int w = (int)Math.Round(swap ? size.Height : size.Width), h = (int)Math.Round(swap ? size.Width : size.Height);
+        foreach (var (x, y) in new[] { (g.Box.Left + 15, g.Box.Bottom + 40), (g.Box.Right - 60, g.Box.Top - 5), (300.0, 400.0) })
+        {
+            var (dx, dy) = await doc.PageToDeviceAsync(0, w, h, viewTurns, x, y);
+            var (u, v) = g.ToUnit(x, y, viewTurns);
+            Assert.InRange(u * w, dx - 1.5, dx + 1.5);
+            Assert.InRange(v * h, dy - 1.5, dy + 1.5);
+            var (bx, by) = g.FromUnit(u, v, viewTurns);
+            Assert.Equal(x, bx, 3); Assert.Equal(y, by, 3);
+        }
+    }
+}

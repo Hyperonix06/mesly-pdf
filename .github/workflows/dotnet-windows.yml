@@ -1,0 +1,191 @@
+# Mesly PDF Reader (.NET 10 / WPF) — Windows derleme, test, öz test ve kurulum paketi
+# Her push'ta: birim testleri + self-contained yayın + gerçek pencerede arayüz öz testi (ekran görüntüleriyle)
+# + Inno Setup kurulum dosyası + Windows Server 2022 (Windows 10 çekirdeği) ve 2025 (Windows 11 çekirdeği)
+# üzerinde sessiz kurulum, kurulu uygulamada öz test ve kaldırma.
+name: Mesly PDF Reader (Windows)
+
+on:
+  push:
+    branches: [dotnet-wpf]
+    tags: ["mpr-v*"]
+    paths: ["dotnet/**", ".github/workflows/dotnet-windows.yml"]
+  pull_request:
+    paths: ["dotnet/**"]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: dotnet
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Sürüm
+        id: ver
+        run: |
+          [xml]$p = Get-Content Directory.Build.props
+          $v = $p.Project.PropertyGroup.Version
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Sürüm: $v"
+
+      - name: Birim testleri (Windows)
+        run: dotnet test tests/MeslyPdfReader.Tests -c Release --logger "trx;LogFileName=unit-tests.trx" --logger "console;verbosity=normal" --results-directory ../test-results
+
+      - name: Self-contained yayın (win-x64)
+        run: dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -o ../publish
+
+      - name: Arayüz öz testi (yayınlanmış exe, gerçek pencere)
+        id: selftest
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE "selftest-publish"
+          $p = Start-Process -FilePath "..\publish\MeslyPdfReader.exe" -ArgumentList "--selftest", "`"$out`"" -PassThru
+          if (-not $p.WaitForExit(600000)) { $p.Kill(); throw "Öz test zaman aşımına uğradı" }
+          Write-Host "Çıkış kodu: $($p.ExitCode)"
+          if (Test-Path "$out\selftest.md") { Get-Content "$out\selftest.md" -Encoding utf8 | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8; Get-Content "$out\selftest.md" -Encoding utf8 }
+          Get-ChildItem "$out\appdata\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName -Tail 80 }
+          if ($p.ExitCode -ne 0) { throw "Öz test başarısız (çıkış kodu $($p.ExitCode))" }
+
+      - name: Öz test çıktıları
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-publish
+          path: |
+            selftest-publish/*.png
+            selftest-publish/*.json
+            selftest-publish/*.md
+            selftest-publish/appdata/logs/*
+            test-results/*.trx
+
+      - name: Inno Setup
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+            if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          }
+
+      - name: Kurulum dosyası
+        run: |
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DPublishDir=..\..\publish" installer\MeslyPdfReader.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC başarısız" }
+          Compress-Archive -Path ..\publish\* -DestinationPath "artifacts\MeslyPdfReader-Portable-${{ steps.ver.outputs.version }}-win-x64.zip"
+          Get-ChildItem artifacts | Format-Table Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeslyPdfReader-${{ steps.ver.outputs.version }}
+          path: dotnet/artifacts/*
+
+  install-test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: MeslyPdfReader-*
+          merge-multiple: true
+          path: setup
+
+      - name: Sessiz kurulum
+        run: |
+          $setup = Get-ChildItem setup\MeslyPdfReader-Setup-*.exe | Select-Object -First 1
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/TASKS=desktopicon,assocpdf","/LOG=install.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 50; throw "Kurulum başarısız: $($p.ExitCode)" }
+          $exe = "$env:LOCALAPPDATA\Programs\Mesly PDF Reader\MeslyPdfReader.exe"
+          if (-not (Test-Path $exe)) { throw "Kurulu exe bulunamadı: $exe" }
+          "EXE=$exe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Kuruldu: $exe ($([math]::Round((Get-Item $exe).Length/1MB,1)) MB)"
+
+      - name: Windows entegrasyonunu doğrula
+        run: |
+          $checks = @(
+            "HKCU:\Software\Classes\MeslyPdfReader.Document\shell\open\command",
+            "HKCU:\Software\Classes\SystemFileAssociations\.pdf\shell\MeslyPdfReader.Open\command",
+            "HKCU:\Software\Mesly\PdfReader\Capabilities\FileAssociations"
+          )
+          foreach ($k in $checks) { if (-not (Test-Path $k)) { throw "Kayıt anahtarı yok: $k" }; Write-Host "✔ $k" }
+          $owp = Get-ItemProperty "HKCU:\Software\Classes\.pdf\OpenWithProgids"
+          if (-not ($owp.PSObject.Properties.Name -contains "MeslyPdfReader.Document")) { throw "OpenWithProgids kaydı yok" }
+          $cmd = (Get-ItemProperty "HKCU:\Software\Classes\MeslyPdfReader.Document\shell\open\command").'(default)'
+          Write-Host "Açma komutu: $cmd"
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Mesly PDF Reader.lnk")) { throw "Başlat menüsü kısayolu yok" }
+          if (-not (Test-Path "$([Environment]::GetFolderPath('Desktop'))\Mesly PDF Reader.lnk")) { throw "Masaüstü kısayolu yok" }
+          Write-Host "✔ Başlat menüsü ve masaüstü kısayolları"
+
+      - name: Kurulu uygulamada öz test
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE "selftest-installed"
+          $p = Start-Process -FilePath $env:EXE -ArgumentList "--selftest", "`"$out`"" -PassThru
+          if (-not $p.WaitForExit(600000)) { $p.Kill(); throw "Öz test zaman aşımı" }
+          if (Test-Path "$out\selftest.md") { Get-Content "$out\selftest.md" -Encoding utf8 | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+          if ($p.ExitCode -ne 0) { Get-ChildItem "$out\appdata\logs" | ForEach-Object { Get-Content $_.FullName -Tail 60 }; throw "Öz test başarısız: $($p.ExitCode)" }
+
+      - name: Dosya ilişkilendirmesiyle açılış (komut satırından PDF)
+        run: |
+          $pdf = Get-ChildItem "selftest-installed\dosyalar\*.pdf" | Select-Object -First 1
+          $p = Start-Process -FilePath $env:EXE -ArgumentList "`"$($pdf.FullName)`"" -PassThru
+          Start-Sleep -Seconds 8
+          $p.Refresh()
+          if ($p.HasExited) { throw "Uygulama PDF ile açılırken kapandı (çıkış: $($p.ExitCode))" }
+          Write-Host "✔ $($pdf.Name) ile açıldı, pencere: '$($p.MainWindowTitle)'"
+          Stop-Process -Id $p.Id -Force
+
+      - name: Sessiz kaldırma
+        run: |
+          $un = Get-ChildItem "$env:LOCALAPPDATA\Programs\Mesly PDF Reader\unins*.exe" | Select-Object -First 1
+          $p = Start-Process $un.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          Start-Sleep -Seconds 3
+          if (Test-Path $env:EXE) { throw "Kaldırma sonrası exe hâlâ var" }
+          if (Test-Path "HKCU:\Software\Classes\MeslyPdfReader.Document") { throw "Kaldırma sonrası ProgID kaldı" }
+          Write-Host "✔ Kaldırıldı ve kayıtlar temizlendi"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selftest-installed-${{ matrix.os }}
+          path: |
+            selftest-installed/*.png
+            selftest-installed/*.json
+            selftest-installed/*.md
+            selftest-installed/appdata/logs/*
+            install.log
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/mpr-v')
+    needs: [build, install-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: MeslyPdfReader-*
+          merge-multiple: true
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          name: Mesly PDF Reader ${{ github.ref_name }}
+          generate_release_notes: true

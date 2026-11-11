@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>MeslyPdfReader</AssemblyName>
+    <RootNamespace>MeslyPdfReader.App</RootNamespace>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyTitle>Mesly PDF Reader</AssemblyTitle>
+    <Description>Mesly PDF Reader — PDF görüntüleme, düzenleme ve dönüştürme</Description>
+    <NeutralLanguage>tr-TR</NeutralLanguage>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <TieredPGO>true</TieredPGO>
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+    <PublishReadyToRun Condition="'$(RuntimeIdentifier)' != ''">true</PublishReadyToRun>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MeslyPdfReader.Core\MeslyPdfReader.Core.csproj" />
+    <ProjectReference Include="..\MeslyPdfReader.Pdf\MeslyPdfReader.Pdf.csproj" />
+    <ProjectReference Include="..\MeslyPdfReader.Data\MeslyPdfReader.Data.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\icon_256.png" />
+    <Resource Include="Assets\icon.ico" />
+    <None Include="..\..\assets\DejaVuSans.ttf" Link="Assets\DejaVuSans.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\LICENSE-DejaVu.txt" Link="Licenses\LICENSE-DejaVu.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\THIRD_PARTY_NOTICES.md" Link="Licenses\THIRD_PARTY_NOTICES.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

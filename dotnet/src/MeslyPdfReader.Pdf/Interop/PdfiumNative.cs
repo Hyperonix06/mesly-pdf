@@ -79,6 +79,7 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial void FPDFBitmap_Destroy(nint bitmap);
     [LibraryImport(Lib)] public static partial void FPDF_RenderPageBitmap(nint bitmap, nint page, int startX, int startY, int sizeX, int sizeY, int rotate, int flags);
     [LibraryImport(Lib)] public static partial int FPDF_DeviceToPage(nint page, int startX, int startY, int sizeX, int sizeY, int rotate, int deviceX, int deviceY, out double pageX, out double pageY);
+    [LibraryImport(Lib)] public static partial int FPDF_PageToDevice(nint page, int startX, int startY, int sizeX, int sizeY, int rotate, double pageX, double pageY, out int deviceX, out int deviceY);
     [LibraryImport(Lib)] public static partial CULong FPDF_GetMetaText(nint doc, byte* tag, void* buffer, CULong buflen);
     [LibraryImport(Lib)] public static partial CULong FPDF_GetPageLabel(nint doc, int index, void* buffer, CULong buflen);
 

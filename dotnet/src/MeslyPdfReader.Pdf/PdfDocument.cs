@@ -151,6 +151,13 @@ public sealed unsafe partial class PdfDocument : IDisposable
         }
     }
 
+    /// <summary>Kaydetme hedefini değiştirir (ör. kurtarılan belge özgün dosyasına kaydedilsin).</summary>
+    public void SetSaveTarget(string? path, bool markModified)
+    {
+        FilePath = path is null ? null : Path.GetFullPath(path);
+        if (markModified) IsModified = true;
+    }
+
     // ───────────────────────────── Sayfa önbelleği ─────────────────────────────
 
     private void ThrowIfDisposed() { if (_disposed || _doc == 0) throw new ObjectDisposedException(nameof(PdfDocument), "Belge kapatıldı."); }
@@ -233,6 +240,18 @@ public sealed unsafe partial class PdfDocument : IDisposable
     }
 
     public IReadOnlyList<SizeF> PageSizes => _sizes;
+
+    /// <summary>Sayfa kutusu (CropBox) ve /Rotate değeri — ekran ↔ sayfa dönüşümü için.</summary>
+    public Task<PageGeometry> GetGeometryAsync(int index, CancellationToken ct = default)
+        => _engine.RunAsync(() => { var p = Page(index); return new PageGeometry(GetEffectiveBox(p), Native.FPDFPage_GetRotation(p)); }, ct);
+
+    /// <summary>PDFium'un kendi dönüşümü (doğrulama ve testler için).</summary>
+    public Task<(int X, int Y)> PageToDeviceAsync(int index, int width, int height, int quarterTurns, double x, double y)
+        => _engine.RunAsync(() =>
+        {
+            Native.FPDF_PageToDevice(Page(index), 0, 0, width, height, quarterTurns, x, y, out var dx, out var dy);
+            return (dx, dy);
+        });
 
     public Task<int> GetRotationAsync(int index) => _engine.RunAsync(() => Native.FPDFPage_GetRotation(Page(index)));
 

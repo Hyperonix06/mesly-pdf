@@ -1,0 +1,23 @@
+<Application x:Class="MeslyPdfReader.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:MeslyPdfReader.App"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Light" />
+                <ui:ControlsDictionary />
+                <ResourceDictionary Source="Themes/Mesly.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <local:BoolInvertConverter x:Key="BoolInvert" />
+            <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
+            <local:ZeroToVisibleConverter x:Key="ZeroToVisible" />
+            <local:PositiveToVisibleConverter x:Key="PositiveToVisible" />
+            <local:EqualsToBoolConverter x:Key="EqualsToBool" />
+            <local:EqualsToVisibilityConverter x:Key="EqualsToVis" />
+            <local:BoolToCollapsedConverter x:Key="BoolInvertVis" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
