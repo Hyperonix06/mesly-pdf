@@ -17,6 +17,7 @@ public partial class DocumentView : UserControl
     private Point _dragStart;
     private bool _dragArmed;
     private double _savedLeftWidth = 250;
+    private bool _zoomTextUpdating;
 
     public DocumentView()
     {
@@ -36,6 +37,7 @@ public partial class DocumentView : UserControl
         if (vm is null) return;
         vm.Viewer = Viewer;
         vm.PropertyChanged += OnVmChanged;
+        SetZoomText();
         if (App.Services.GetService(typeof(Data.AppSettings)) is Data.AppSettings s) Viewer.CacheBudgetBytes = s.RenderCacheMb * 1024L * 1024L;
         ApplyPanels();
     }
@@ -44,6 +46,9 @@ public partial class DocumentView : UserControl
     {
         switch (e.PropertyName)
         {
+            case nameof(DocumentViewModel.ZoomPercent):
+                if (!ZoomCombo.IsKeyboardFocusWithin) SetZoomText();
+                break;
             case nameof(DocumentViewModel.LeftPanel):
             case nameof(DocumentViewModel.ShowProperties):
                 ApplyPanels();
@@ -212,16 +217,28 @@ public partial class DocumentView : UserControl
         else if (e.Key == Key.Escape) { PageBox.Text = _vm.PageNumber.ToString(); Viewer.Focus(); e.Handled = true; }
     }
 
+    /// <summary>
+    /// Yakınlaştırma metnini korumalı olarak yazar. (Düzenlenebilir açılır liste metni bir öğeyle eşleşince
+    /// öğeyi kendiliğinden seçer; koruma olmadan seçim → metin → seçim sonsuz döngüsü oluşur.)
+    /// </summary>
+    private void SetZoomText()
+    {
+        if (_vm is null) return;
+        _zoomTextUpdating = true;
+        try { ZoomCombo.SelectedIndex = -1; ZoomCombo.Text = _vm.ZoomPercent; }
+        finally { _zoomTextUpdating = false; }
+    }
+
     private void ZoomCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_vm is null || ZoomCombo.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
+        if (_zoomTextUpdating || _vm is null || ZoomCombo.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
         switch (tag)
         {
             case "fitwidth": _vm.FitWidthCommand.Execute(null); break;
             case "fitpage": _vm.FitPageCommand.Execute(null); break;
             default: Viewer.ZoomTo(double.Parse(tag, CultureInfo.InvariantCulture) / 100.0, null); break;
         }
-        Dispatcher.BeginInvoke(() => { ZoomCombo.SelectedIndex = -1; ZoomCombo.Text = _vm.ZoomPercent; Viewer.Focus(); });
+        Dispatcher.BeginInvoke(() => { SetZoomText(); Viewer.Focus(); }, System.Windows.Threading.DispatcherPriority.Input);
     }
 
     private void ZoomCombo_KeyDown(object sender, KeyEventArgs e)
@@ -229,7 +246,7 @@ public partial class DocumentView : UserControl
         if (_vm is null || e.Key != Key.Enter) return;
         var t = ZoomCombo.Text.Replace("%", "").Replace(",", ".").Trim();
         if (double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out var p) && p > 0) Viewer.ZoomTo(p / 100.0, null);
-        ZoomCombo.Text = _vm.ZoomPercent;
+        SetZoomText();
         Viewer.Focus();
         e.Handled = true;
     }

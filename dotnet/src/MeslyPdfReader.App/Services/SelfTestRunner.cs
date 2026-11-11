@@ -60,6 +60,7 @@ public sealed class SelfTestRunner
             }
         }
         catch (Exception ex) { status = "BAŞARISIZ"; actual = $"istisna: {ex.GetType().Name}: {ex.Message}"; Log.Error($"Öz test {name}", ex); }
+        if (_starvation is not null) { status = "BAŞARISIZ"; actual += " | " + _starvation; _starvation = null; }
         if (_unexpectedDialogs.Count > dialogsBefore)
         {
             status = "BAŞARISIZ";
@@ -69,14 +70,23 @@ public sealed class SelfTestRunner
         Log.Info($"Öz test [{status}] {area} / {name}: {actual}");
     }
 
-    private static Task Idle() => Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task;
+    private string? _starvation;
 
-    private static async Task<bool> WaitUntil(Func<bool> cond, int timeoutMs = 20000)
+    /// <summary>Arayüz iş parçacığının boşta kalmasını bekler. 5 sn'de boşta kalmazsa (sonsuz döngü belirtisi) kaydedilir.</summary>
+    private async Task<bool> Idle()
+    {
+        var t = Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task;
+        if (await Task.WhenAny(t, Task.Delay(5000)) == t) return true;
+        _starvation = "arayüz iş parçacığı 5 sn boyunca boşta kalmadı (sürekli iş kuyruğu)";
+        return false;
+    }
+
+    private async Task<bool> WaitUntil(Func<bool> cond, int timeoutMs = 20000)
     {
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)
         {
-            await Idle();
+            if (!await Idle()) return false;
             if (cond()) return true;
             await Task.Delay(60);
         }

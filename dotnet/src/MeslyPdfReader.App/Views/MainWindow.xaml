@@ -70,9 +70,10 @@
         </Grid>
 
         <!-- 2: Şerit içeriği -->
-        <Border Grid.Row="2" x:Name="RibbonBody" Height="74" Margin="8,0,8,6" CornerRadius="10" Background="{DynamicResource MeslyPanelBrush}"
+        <Border Grid.Row="2" x:Name="RibbonBody" MinHeight="74" Margin="8,0,8,6" CornerRadius="10" Background="{DynamicResource MeslyPanelBrush}"
                 BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1">
-            <Grid>
+            <ScrollViewer x:Name="RibbonScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" PreviewMouseWheel="Ribbon_MouseWheel" Focusable="False">
+            <Grid MinHeight="72">
                 <!-- Dosya -->
                 <StackPanel Style="{StaticResource RibbonPanel}" Visibility="{Binding Ribbon, Converter={StaticResource EqualsToVis}, ConverterParameter=File}">
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding OpenCommand}" ToolTip="PDF veya görüntü aç (Ctrl+O)">
@@ -268,6 +269,7 @@
                     </Button>
                 </StackPanel>
             </Grid>
+            </ScrollViewer>
         </Border>
 
         <!-- 3: Belge sekmeleri -->

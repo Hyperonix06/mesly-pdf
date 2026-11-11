@@ -161,6 +161,13 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
 
+    private void Ribbon_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (RibbonScroll.ScrollableWidth <= 0) return;
+        RibbonScroll.ScrollToHorizontalOffset(RibbonScroll.HorizontalOffset - e.Delta / 2.0);
+        e.Handled = true;
+    }
+
     public void ToggleFullScreen()
     {
         bool full = !_vm.IsFullScreen;

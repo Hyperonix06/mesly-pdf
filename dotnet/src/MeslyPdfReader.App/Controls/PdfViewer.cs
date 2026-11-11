@@ -238,8 +238,8 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         finally { _applyingZoomMode = false; }
     }
 
-    public void ZoomIn() => ZoomTo(ZoomSteps.FirstOrDefault(s => s > Zoom + 0.001, MaxZoom), null);
-    public void ZoomOut() => ZoomTo(ZoomSteps.LastOrDefault(s => s < Zoom - 0.001, MinZoom), null);
+    public void ZoomIn() => ZoomTo(ZoomSteps.FirstOrDefault(s => s >= Zoom * 1.05, MaxZoom), null);
+    public void ZoomOut() => ZoomTo(ZoomSteps.LastOrDefault(s => s <= Zoom / 1.05, MinZoom), null);
 
     /// <summary>Verilen noktayı (görünüm koordinatı) sabit tutarak yakınlaştırır.</summary>
     public void ZoomTo(double zoom, Point? anchor)

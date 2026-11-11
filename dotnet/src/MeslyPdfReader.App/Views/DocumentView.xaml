@@ -291,7 +291,7 @@
                     <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Son sayfa (Ctrl+End)" Command="{Binding LastPageCommand}"><ui:SymbolIcon Symbol="ChevronDoubleRight20" FontSize="15" /></Button>
                     <Border Width="1" Margin="6,6" Background="{DynamicResource MeslyBorderBrush}" />
                     <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Uzaklaştır (Ctrl+-)" Command="{Binding ZoomOutCommand}"><ui:SymbolIcon Symbol="ZoomOut24" FontSize="15" /></Button>
-                    <ComboBox x:Name="ZoomCombo" Width="92" Height="30" IsEditable="True" Text="{Binding ZoomPercent, Mode=OneWay}" KeyDown="ZoomCombo_KeyDown"
+                    <ComboBox x:Name="ZoomCombo" Width="118" Height="32" IsEditable="True" IsTextSearchEnabled="False" KeyDown="ZoomCombo_KeyDown"
                               SelectionChanged="ZoomCombo_SelectionChanged" ToolTip="Yakınlaştırma düzeyi">
                         <ComboBoxItem Content="Genişliğe sığdır" Tag="fitwidth" />
                         <ComboBoxItem Content="Sayfaya sığdır" Tag="fitpage" />
