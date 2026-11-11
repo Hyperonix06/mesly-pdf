@@ -91,3 +91,14 @@ right = 'Sağ sütun metni ikinci bölüm. ' * 6
 Frame(60, 140, 225, 200, showBoundary=0).addFromList([RLPara(left, colstyle)], c)
 Frame(310, 140, 225, 200, showBoundary=0).addFromList([RLPara(right, colstyle)], c)
 c.showPage(); c.save()
+
+# 8) masked_image.pdf — yumuşak maskeli (SMask) yoğun görsel: sıkıştırma saydamlığı bozmamalı
+rgba = Image.new('RGBA', (1000, 750), (0, 0, 0, 0))
+d = ImageDraw.Draw(rgba)
+for r in range(370, 0, -10):
+    d.ellipse((500 - r, 375 - r * 0.9, 500 + r, 375 + r * 0.9), fill=(200 - r // 3, 80 + r // 4, 160, 255))
+rgba.save('/tmp/mesly_masked.png')
+c = canvas.Canvas(os.path.join(out, 'masked_image.pdf'), pagesize=A4)
+c.setFillColorRGB(0.95, 0.85, 0.2); c.rect(60, 500, 300, 220, fill=1, stroke=0)
+c.drawImage('/tmp/mesly_masked.png', 80, 520, width=120, height=90, mask='auto')
+c.showPage(); c.save()

@@ -39,9 +39,13 @@
 | Birleştirme | Sayfalar/Dönüştür → Birleştir: dosyaları ekleyin, sıralayın, isterseniz her dosya için sayfa aralığı yazın |
 | Bölme | Sayfalar → Böl: her N sayfa, aralıklar (1-3; 4-10; 11-son), her sayfa ayrı, tek/çift |
 | Kırpma, sayfa boyutu | Sayfalar → Kırp (mm) / Sayfa boyutu (A4, A3, A5, Letter, Legal, özel) |
-| PDF → görüntü | Dönüştür → PDF → Görüntü: PNG, JPG, TIFF (isteğe bağlı tek çok sayfalı dosya), BMP; DPI seçimi |
-| PDF → metin | Dönüştür → PDF → Metin (UTF-8, Türkçe karakterler korunur) |
-| Görüntülerden PDF | Dönüştür → Görüntü → PDF veya görüntüleri pencereye sürükleyin |
+| PDF → Word | Belge sekmesi → Dönüştür → Microsoft Word'e (veya Dosya → Dışa aktar). Başlıklar, paragraflar, çizgili tablolar ve resimler düzenlenebilir DOCX olur; taranmış sayfalar önce otomatik tanınır (açık belge değişmez) |
+| PDF → Excel | Dönüştür → Microsoft Excel'e: tablolar hücrelere, “1.250,50”, “%18”, “3.437,50 TL” gibi değerler gerçek sayıya dönüşür |
+| Office belgesinden PDF | Dosya → Office belgesinden PDF, ya da Word/Excel/PowerPoint dosyasını pencereye sürükleyin. Bilgisayarda Microsoft Office veya LibreOffice kurulu olmalıdır |
+| PDF'yi küçültmek | Dönüştür → PDF'yi sıkıştır: Yüksek kalite (220 DPI) / Dengeli (150 DPI) / En küçük (100 DPI), isteğe bağlı gri ton. Sonuç yeni dosyaya yazılır |
+| PDF → görüntü | Dönüştür → Görüntüye: PNG, JPG, TIFF (isteğe bağlı tek çok sayfalı dosya), BMP; DPI seçimi |
+| PDF → metin | Dönüştür → Metne (UTF-8, Türkçe karakterler korunur) |
+| Görüntülerden PDF | Dosya → Görüntülerden PDF veya görüntüleri pencereye sürükleyin |
 | Metni düzenlemek | **Düzenle** sekmesine geçin (veya E tuşu) → paragrafa çift tıklayın (F2) → yazın → Ctrl+Enter uygular, Esc vazgeçer. Paragraf genişliğini sağ/sol tutamaçla değiştirirseniz metin yeniden akar |
 | Metin biçimi | Paragrafı seçin → sağ panelde yazı tipi, boyut, renk, kalın/eğik/altı çizili, hizalama → “Biçimi uygula” |
 | Nesne taşımak / silmek | Düzenle aracında tıklayıp sürükleyin; ok tuşları 1 pt, Shift+ok 10 pt; Delete siler; Ctrl+tık çoklu seçim, Düzenle → Sola/Ortala/Sağa/Üste/Alta hizalar |

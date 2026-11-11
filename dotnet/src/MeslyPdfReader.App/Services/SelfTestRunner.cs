@@ -668,6 +668,157 @@ public sealed class SelfTestRunner
             return (overflow == 0 && organizeOk && editOk && back, $"taşan sekme: {overflow}, sayfa ızgarası={organizeOk}, düzenleme kipi={editOk}, Belge'ye dönüş={back}");
         });
 
+        // ── Aşama 5: Word / Excel dönüştürme, sıkıştırma, Office → PDF ──
+        string reportPdf = Path.Combine(work, "Satış Raporu.pdf");
+        string reportDocx = Path.Combine(work, "Satış Raporu.docx"), reportXlsx = Path.Combine(work, "Satış Raporu.xlsx");
+        await Step("Dönüştürme", "PDF → Word: başlık, paragraf, çizgili tablo, fotoğraf", "DOCX açılır; Başlık1, tablo 3×3 + birleşik başlık, JPEG resim, Türkçe metin birebir", async () =>
+        {
+            using (var doc = await PdfDocument.CreateAsync(PaperSize.A4.ToPoints(), 1))
+            {
+                await doc.AddTextAsync(0, "Satış Raporu 2026", 72, 770, 26, font);
+                await doc.AddTextAsync(0, "Bu rapor İstanbul, İzmir ve Çanakkale şubelerinin üç aylık sonuçlarını özetler.", 72, 735, 11, font);
+                await doc.AddTextAsync(0, "Güçlü büyüme özellikle öğrenci ürünlerinde görüldü.", 72, 720, 11, font);
+                double[] xs = { 72, 252, 372, 522 }, ys = { 680, 655, 630, 605, 580 };
+                var line = new ShapeStyle(0x000000, 1);
+                foreach (var y in ys) await doc.AddShapeAsync(0, ShapeKind.Line, new RectF(xs[0], y, xs[^1], y), line);
+                foreach (var x in new[] { xs[0], xs[^1] }) await doc.AddShapeAsync(0, ShapeKind.Line, new RectF(x, ys[0], x, ys[^1]), line);
+                foreach (var x in xs[1..^1]) await doc.AddShapeAsync(0, ShapeKind.Line, new RectF(x, ys[1], x, ys[^1]), line); // ilk satır birleşik
+                await doc.AddTextAsync(0, "Aylık Satışlar", 250, 663, 11, font);
+                string[][] rows = { new[] { "Ürün", "Adet", "Tutar" }, new[] { "Kalem", "1.250", "3.437,50" }, new[] { "Defter", "320", "12.800,00" }, new[] { "Çanta", "45", "8.775,00" } };
+                for (int r = 0; r < rows.Length; r++)
+                    for (int c = 0; c < 3; c++) await doc.AddTextAsync(0, rows[r][c], xs[c] + 6, ys[r + 1] - 17, 10, font);
+                var photo = new BgraImage { Width = 800, Height = 500, Stride = 3200, Pixels = new byte[800 * 500 * 4] };
+                for (int y = 0; y < 500; y++) for (int x = 0; x < 800; x++)
+                {
+                    int o = (y * 800 + x) * 4;
+                    photo.Pixels[o] = (byte)(60 + x * 150 / 800); photo.Pixels[o + 1] = (byte)(120 + y * 100 / 500); photo.Pixels[o + 2] = (byte)(200 - (x + y) * 100 / 1300); photo.Pixels[o + 3] = 255;
+                }
+                await doc.AddImageAsync(0, new JpegImageSource(ImageCodec.EncodeJpeg(photo, 90)), new RectF(72, 380, 312, 530));
+                await doc.SaveAsync(reportPdf);
+            }
+            await _vm.OpenFilesAsync(new[] { reportPdf });
+            var st = _vm.ActiveTab!;
+            await WaitRendered();
+            var req = new ConvertRequest(ConvertFormat.Word, new[] { 0 }, true, OcrRunOptions.From(_settings));
+            var sw = Stopwatch.StartNew();
+            var res = await st.ConvertAsync(ConvertFormat.Word, req, reportDocx);
+            long ms = sw.ElapsedMilliseconds;
+            if (res is null || !File.Exists(reportDocx)) return (false, "DOCX oluşmadı: " + st.StatusText);
+            using var w = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(reportDocx, false);
+            var body = w.MainDocumentPart!.Document.Body!;
+            var text = body.InnerText;
+            bool heading = body.Descendants<DocumentFormat.OpenXml.Wordprocessing.ParagraphStyleId>().Any(x => x.Val == "Heading1");
+            var tbl = body.Descendants<DocumentFormat.OpenXml.Wordprocessing.Table>().FirstOrDefault();
+            int trs = tbl?.Elements<DocumentFormat.OpenXml.Wordprocessing.TableRow>().Count() ?? 0;
+            bool span = tbl?.Descendants<DocumentFormat.OpenXml.Wordprocessing.GridSpan>().Any(g => g.Val == 3) ?? false;
+            var jpeg = w.MainDocumentPart.ImageParts.Any(i => i.ContentType == "image/jpeg");
+            bool tr = text.Contains("İstanbul, İzmir ve Çanakkale") && text.Contains("öğrenci") && text.Contains("12.800,00");
+            bool ok = heading && trs == 5 && span && jpeg && tr && !st.Document.IsModified;
+            return (ok, $"{ms} ms; Başlık1={heading}, tablo satırı={trs}, birleşik başlık={span}, JPEG resim={jpeg}, Türkçe metin={tr}; {ConvertWorkflow.Summarize(res)}");
+        });
+
+        await Step("Dönüştürme", "PDF → Excel: sayılar gerçek sayı", "Hücreler sayısal (1250, 3437,5); birleşik başlık hücresi", async () =>
+        {
+            var st = _vm.ActiveTab!;
+            var res = await st.ConvertAsync(ConvertFormat.Excel, new ConvertRequest(ConvertFormat.Excel, new[] { 0 }, false, OcrRunOptions.From(_settings)), reportXlsx);
+            if (res is null || !File.Exists(reportXlsx)) return (false, "XLSX oluşmadı: " + st.StatusText);
+            using var x = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(reportXlsx, false);
+            var sheet = x.WorkbookPart!.WorksheetParts.First().Worksheet;
+            var cells = sheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.Cell>().ToList();
+            var nums = cells.Where(c => c.DataType?.Value == DocumentFormat.OpenXml.Spreadsheet.CellValues.Number && c.CellValue is not null).Select(c => double.Parse(c.CellValue!.Text, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+            bool merged = sheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.MergeCell>().Any();
+            bool ok = nums.Contains(1250) && nums.Contains(3437.5) && nums.Contains(12800) && merged;
+            return (ok, $"{cells.Count} hücre, sayısal: {string.Join(", ", nums.Take(8))}; birleşik hücre={merged}");
+        });
+
+        await Step("Dönüştürme", "Taranmış PDF → Word (önce OCR)", "Tanıma geçici kopyada yapılır; Word'de Türkçe metin var, özgün PDF değişmez", async () =>
+        {
+            using var doc = await PdfDocument.OpenAsync(scanPdf);
+            long before = new FileInfo(scanPdf).Length;
+            var outDocx = Path.Combine(work, "Taranmış.docx");
+            var sw = Stopwatch.StartNew();
+            var res = await ConvertWorkflow.ConvertAsync(doc, outDocx, new ConvertRequest(ConvertFormat.Word, new[] { 0 }, true, OcrRunOptions.From(_settings)));
+            long ms = sw.ElapsedMilliseconds;
+            using var w = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(outDocx, false);
+            var text = Flat(w.MainDocumentPart!.Document.Body!.InnerText);
+            int okLines = ocrLines.Count(l => text.Contains(l.TrimEnd('.')));
+            bool unchanged = !doc.IsModified && await doc.CountRealTextCharsAsync(0) <= 40 && new FileInfo(scanPdf).Length == before
+                && Directory.GetFiles(AppPaths.Temp, "convert-*.pdf").Length == 0;
+            return (res.RecognizedPages == 1 && text.Contains("İstanbul") && okLines >= 3 && unchanged,
+                $"{ms} ms; tanınan sayfa={res.RecognizedPages}, birebir satır {okLines}/4, “İstanbul”={text.Contains("İstanbul")}, özgün değişmedi={unchanged}");
+        });
+
+        await Step("Sıkıştırma", "Yoğun fotoğraflı PDF'yi sıkıştır", "600 DPI JPEG → 150 DPI; dosya en az 3 kat küçülür, görünüm ve metin korunur", async () =>
+        {
+            var dense = Path.Combine(work, "Yoğun Fotoğraf.pdf");
+            var small = Path.Combine(work, "Yoğun Fotoğraf (sıkıştırılmış).pdf");
+            var photo = new BgraImage { Width = 2400, Height = 1800, Stride = 9600, Pixels = new byte[2400 * 1800 * 4] };
+            var rnd = new Random(3);
+            for (int y = 0; y < 1800; y++) for (int x = 0; x < 2400; x++)
+            {
+                int o = (y * 2400 + x) * 4;
+                photo.Pixels[o] = (byte)Math.Clamp(80 + 120 * Math.Sin(x / 140.0) + rnd.Next(-8, 9), 0, 255);
+                photo.Pixels[o + 1] = (byte)Math.Clamp(100 + y * 120 / 1800 + rnd.Next(-8, 9), 0, 255);
+                photo.Pixels[o + 2] = (byte)Math.Clamp(140 + 90 * Math.Cos(y / 170.0) + rnd.Next(-8, 9), 0, 255);
+                photo.Pixels[o + 3] = 255;
+            }
+            using (var doc = await PdfDocument.CreateAsync(PaperSize.A4.ToPoints(), 1))
+            {
+                await doc.AddImageAsync(0, new JpegImageSource(ImageCodec.EncodeJpeg(photo, 95)), new RectF(72, 400, 360, 616));
+                await doc.AddTextAsync(0, "Fotoğraf altyazısı: Çanakkale Boğazı", 72, 380, 12, font);
+                await doc.SaveAsync(dense);
+            }
+            var sw = Stopwatch.StartNew();
+            var rep = await PdfTools.CompressFileAsync(dense, small, CompressOptions.Medium);
+            long ms = sw.ElapsedMilliseconds;
+            if (!rep.Written) return (false, $"yazılmadı: {rep.BytesBefore} → {rep.BytesAfter}");
+            double diff;
+            string text;
+            using (var a = await PdfDocument.OpenAsync(dense))
+            using (var b = await PdfDocument.OpenAsync(small))
+            {
+                var ia = await PdfTools.RenderAtDpiAsync(a, 0, 40); var ib = await PdfTools.RenderAtDpiAsync(b, 0, 40);
+                long sum = 0;
+                for (int i = 0; i < ia.Pixels.Length; i += 4) sum += Math.Abs(ia.Pixels[i] - ib.Pixels[i]) + Math.Abs(ia.Pixels[i + 1] - ib.Pixels[i + 1]) + Math.Abs(ia.Pixels[i + 2] - ib.Pixels[i + 2]);
+                diff = sum / (ia.Pixels.Length / 4 * 3.0);
+                text = (await b.GetPageTextAsync(0)).Text;
+            }
+            bool ok = rep.Ratio < 1 / 3.0 && diff < 6 && text.Contains("Çanakkale Boğazı");
+            return (ok, $"{ms} ms; {CompressDialog.FormatSize(rep.BytesBefore)} → {CompressDialog.FormatSize(rep.BytesAfter)} (oran {rep.Ratio:0.00}), ort. piksel farkı {diff:0.0}, metin korundu={text.Contains("Çanakkale Boğazı")}");
+        });
+
+        await Step("Dönüştürme", "Office belgesinden PDF", "Kurulu Office/LibreOffice ile DOCX → PDF; araç yoksa anlaşılır hata", async () =>
+        {
+            var engine = OfficeExport.EngineFor(reportDocx);
+            var outPdf = Path.Combine(work, "Word'den PDF.pdf");
+            if (engine == OfficeEngine.None)
+            {
+                try { await OfficeExport.ConvertAsync(reportDocx, outPdf); return (false, "araç yokken hata verilmedi"); }
+                catch (InvalidOperationException ex) { return (ex.Message == OfficeExport.NoEngineMessage && !File.Exists(outPdf), "Office/LibreOffice kurulu değil → anlaşılır hata: " + ex.Message.Split('\n')[0]); }
+            }
+            var sw = Stopwatch.StartNew();
+            await OfficeExport.ConvertAsync(reportDocx, outPdf);
+            long ms = sw.ElapsedMilliseconds;
+            using var d = await PdfDocument.OpenAsync(outPdf);
+            var t = Flat((await d.GetPageTextAsync(0)).Text);
+            bool ok = d.PageCount >= 1 && t.Contains("Satış Raporu") && t.Contains("Çanakkale");
+            return (ok, $"{engine} ile {ms} ms; {d.PageCount} sayfa, metin korundu={ok}");
+        });
+
+        await Step("Arayüz", "Dönüştürme ve sıkıştırma pencereleri", "Word, Excel ve sıkıştırma seçenek pencereleri oluşturulur", async () =>
+        {
+            int before = _unexpectedDialogs.Count;
+            var a = ConvertDialog.Ask(ConvertFormat.Word, 3, "1-3", 1, _settings);
+            var b = ConvertDialog.Ask(ConvertFormat.Excel, 3, "1-3", 0, _settings);
+            var c = CompressDialog.Ask("Örnek", 1_500_000, _settings);
+            await Idle();
+            List<string> seen;
+            lock (_unexpectedDialogs) { seen = _unexpectedDialogs.Skip(before).ToList(); _unexpectedDialogs.RemoveRange(before, seen.Count); }
+            bool ok = a is null && b is null && c is null && seen.Count == 3
+                && seen[0].Contains("Word") && seen[0].Contains("taranmış") && seen[1].Contains("Excel") && seen[2].Contains("sıkıştır");
+            return (ok, string.Join(" / ", seen.Select(x => x.Length > 70 ? x[..70] + "…" : x)));
+        });
+
         // ── Büyük belge ──
         string big = Path.Combine(work, "bin-sayfa.pdf");
         await Step("Performans", "1.000 sayfalık belge", "Hızlı açılır, son sayfaya gidilir, bellek sınırlı", async () =>

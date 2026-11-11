@@ -17,6 +17,8 @@ Mesly PDF Reader yalnızca ticari dağıtıma izin veren, kaynak kodu açma zoru
 | Leptonica | 1.82.0 | Tesseract'ın görüntü kitaplığı | BSD-2-Clause benzeri Leptonica lisansı | http://www.leptonica.org |
 | tessdata_best (tur, eng) ve tessdata (osd) | — | OCR dil modelleri ve yön algılama verisi | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_best · https://github.com/tesseract-ocr/tessdata |
 | Microsoft Visual C++ 2015–2022 çalışma zamanı (vcruntime140, vcruntime140_1, msvcp140) | 14.x | Tesseract DLL'lerinin bağımlılığı; yalnızca sistemde yoksa yüklenir | Microsoft Visual Studio yeniden dağıtılabilir dosya lisansı (uygulama yanında dağıtıma izin verilir) | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
+| DocumentFormat.OpenXml + DocumentFormat.OpenXml.Framework | 3.5.1 | Word (.docx) ve Excel (.xlsx) dosyası yazma | MIT | https://github.com/dotnet/Open-XML-SDK |
+| System.IO.Packaging | 10.0.2 | OpenXml paket (ZIP) altyapısı | MIT | https://github.com/dotnet/runtime |
 | DejaVu Sans yazı tipi | 2.37 | Türkçe karakterli metin gömme | Bitstream Vera / Kamu malı (bkz. LICENSE-DejaVu.txt) | https://dejavu-fonts.github.io |
 
 ## Yalnızca geliştirme/test aşamasında
@@ -27,13 +29,14 @@ Mesly PDF Reader yalnızca ticari dağıtıma izin veren, kaynak kodu açma zoru
 | Inno Setup 6 | Kurulum paketi oluşturma | Inno Setup Lisansı (ücretsiz, ticari kullanım serbest) |
 | reportlab, pikepdf, Pillow (Python) | Test fikstürü üretimi (`tests/.../generate_fixtures.py`) | BSD / MPL-2.0 / HPND — uygulamayla dağıtılmaz |
 
-## Sonraki aşamalarda eklenecek (henüz pakette yok)
+## Pakette olmayan, kullanıcının bilgisayarında kuruluysa kullanılanlar
 
-| Bileşen | Kullanım | Lisans |
+| Bileşen | Kullanım | Not |
 |---|---|---|
-| DocumentFormat.OpenXml | DOCX/XLSX/PPTX üretimi (Aşama 5) | MIT |
+| Microsoft Office (Word, Excel, PowerPoint) | Office belgesi → PDF | COM otomasyonu; uygulamayla dağıtılmaz, kullanıcının kendi lisansıyla çalışır |
+| LibreOffice | Office belgesi → PDF (Office yoksa) | Ayrı bir program olarak çağrılır (MPL-2.0); uygulamayla dağıtılmaz |
 
-Görüntü düzeltme (eğiklik ölçümü, döndürme, kenar ve arka plan temizleme) kendi yönetilen kodumuzla yapılır; OpenCV kullanılmaz.
+Görüntü düzeltme (eğiklik ölçümü, döndürme, kenar ve arka plan temizleme), sayfa düzeni çözümleme (paragraf, sütun, tablo algılama) ve PDF görsel sıkıştırma kendi yönetilen kodumuzla yapılır; OpenCV kullanılmaz.
 
 ## Bilerek kullanılmayanlar
 

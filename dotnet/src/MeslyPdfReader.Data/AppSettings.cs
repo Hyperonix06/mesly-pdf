@@ -52,5 +52,14 @@ public sealed class AppSettings
     public bool OcrCleanBorders { get => GetBool("ocr.cleanBorders", true); set => Set("ocr.cleanBorders", value ? "1" : "0"); }
     public bool OcrWhiten { get => GetBool("ocr.whiten", false); set => Set("ocr.whiten", value ? "1" : "0"); }
     public int OcrDpi { get => Math.Clamp(GetInt("ocr.dpi", 300), 150, 600); set => Set("ocr.dpi", value.ToString(CultureInfo.InvariantCulture)); }
+    public bool ConvertOcr { get => GetBool("convert.ocr", true); set => Set("convert.ocr", value ? "1" : "0"); }
+    public bool ConvertTables { get => GetBool("convert.tables", true); set => Set("convert.tables", value ? "1" : "0"); }
+    public bool ConvertImages { get => GetBool("convert.images", true); set => Set("convert.images", value ? "1" : "0"); }
+    public bool ConvertSheetPerPage { get => GetBool("convert.sheetPerPage", true); set => Set("convert.sheetPerPage", value ? "1" : "0"); }
+    public bool ConvertTablesOnly { get => GetBool("convert.tablesOnly", false); set => Set("convert.tablesOnly", value ? "1" : "0"); }
+    public bool ConvertOpenAfter { get => GetBool("convert.openAfter", true); set => Set("convert.openAfter", value ? "1" : "0"); }
+    /// <summary>0 = yüksek kalite, 1 = dengeli, 2 = en küçük dosya.</summary>
+    public int CompressLevel { get => Math.Clamp(GetInt("compress.level", 1), 0, 2); set => Set("compress.level", value.ToString(CultureInfo.InvariantCulture)); }
+    public bool CompressGray { get => GetBool("compress.gray", false); set => Set("compress.gray", value ? "1" : "0"); }
     public bool ConfirmExternalLinks { get => GetBool("security.confirmLinks", true); set => Set("security.confirmLinks", value ? "1" : "0"); }
 }

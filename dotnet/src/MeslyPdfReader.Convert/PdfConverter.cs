@@ -20,9 +20,9 @@ public static class PdfConverter
     }
 
     public static async Task ToDocxAsync(PdfDocument doc, string path, IReadOnlyList<int> pages, string? title = null,
-        IProgress<double>? progress = null, CancellationToken ct = default)
+        LayoutAnalyzer.Options? layout = null, IProgress<double>? progress = null, CancellationToken ct = default)
     {
-        var layouts = await AnalyzeAsync(doc, pages, null, progress, ct);
+        var layouts = await AnalyzeAsync(doc, pages, layout, progress, ct);
         await Task.Run(() => WriteAtomic(path, tmp => DocxWriter.Write(tmp, layouts, title)), ct);
     }
 

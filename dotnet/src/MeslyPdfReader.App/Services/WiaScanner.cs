@@ -222,7 +222,7 @@ public sealed class WiaScanner : IScannerBackend
 
     private static int ToInt(object? v, int def = 0)
     {
-        try { return v is null ? def : Convert.ToInt32(v); } catch { return def; }
+        try { return v is null ? def : System.Convert.ToInt32(v); } catch { return def; }
     }
 
     private static bool IsFormatProblem(COMException ex) => ex.HResult is unchecked((int)0x80070057) or unchecked((int)0x80004001) or unchecked((int)0x8021000B);

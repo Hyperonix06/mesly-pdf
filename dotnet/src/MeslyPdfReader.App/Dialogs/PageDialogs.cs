@@ -371,8 +371,10 @@ public sealed class ConvertChoiceDialog : DialogBase
         s.Children.Add(Paragraph($"“{docName}” ne olarak dışa aktarılsın?"));
         foreach (var (key, title, desc, icon) in new[]
         {
+            ("word", "Microsoft Word (.docx)", "Başlıklar, paragraflar, tablolar ve resimler düzenlenebilir Word belgesi olur.", SymbolRegular.DocumentText24),
+            ("excel", "Microsoft Excel (.xlsx)", "Tablolar hücrelere, sayılar hesaplanabilir sayılara dönüşür.", SymbolRegular.Table24),
             ("images", "Görüntü (PNG, JPG, TIFF, BMP)", "Her sayfa seçtiğiniz çözünürlükte bir görüntü dosyası olur.", SymbolRegular.ImageMultiple24),
-            ("text", "Düz metin (TXT)", "Belgedeki seçilebilir metin UTF-8 metin dosyasına yazılır.", SymbolRegular.DocumentText24),
+            ("text", "Düz metin (TXT)", "Belgedeki seçilebilir metin UTF-8 metin dosyasına yazılır.", SymbolRegular.TextT24),
         })
         {
             var b = new Wpf.Ui.Controls.Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 10, 0, 0) };
@@ -387,7 +389,7 @@ public sealed class ConvertChoiceDialog : DialogBase
             b.Click += (_, _) => { choice = k; d.DialogResult = true; };
             s.Children.Add(b);
         }
-        s.Children.Add(Hint("Word, Excel ve PowerPoint dönüşümleri sonraki sürümde eklenecek."));
+        s.Children.Add(Hint("Taranmış sayfalar Word/Excel dönüşümünde önce tanınır (OCR). PowerPoint (.pptx) dönüşümü henüz yok."));
         d.Body = s;
         d.AddButton("İptal", () => d.DialogResult = false, isCancel: true);
         return d.ShowDialog() == true ? choice : null;

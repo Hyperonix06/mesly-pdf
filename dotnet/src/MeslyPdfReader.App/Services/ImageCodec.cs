@@ -63,7 +63,7 @@ public static class ImageCodec
         try
         {
             if (f.Metadata is BitmapMetadata md && md.ContainsQuery("System.Photo.Orientation"))
-                return Convert.ToInt32(md.GetQuery("System.Photo.Orientation")) switch { 6 => 90, 3 => 180, 8 => 270, _ => 0 };
+                return System.Convert.ToInt32(md.GetQuery("System.Photo.Orientation")) switch { 6 => 90, 3 => 180, 8 => 270, _ => 0 };
         }
         catch { }
         return 0;
@@ -77,11 +77,11 @@ public static class ImageCodec
         return FromBitmapSource(frame);
     }
 
-    public static byte[] EncodeJpeg(BgraImage img, int quality = 90, double dpi = 300)
+    public static byte[] EncodeJpeg(BgraImage img, int quality = 90, double dpi = 300, bool gray = false)
     {
         var enc = new JpegBitmapEncoder { QualityLevel = Math.Clamp(quality, 10, 100) };
-        // JPEG saydamlık taşımaz: BGR24'e çevir (saydam alanlar beyaz olur).
-        var bgr = new FormatConvertedBitmap(BitmapSource.Create(img.Width, img.Height, dpi, dpi, PixelFormats.Bgra32, null, img.Pixels, img.Stride), PixelFormats.Bgr24, null, 0);
+        // JPEG saydamlık taşımaz: BGR24'e (veya gri) çevir.
+        var bgr = new FormatConvertedBitmap(BitmapSource.Create(img.Width, img.Height, dpi, dpi, PixelFormats.Bgra32, null, img.Pixels, img.Stride), gray ? PixelFormats.Gray8 : PixelFormats.Bgr24, null, 0);
         enc.Frames.Add(BitmapFrame.Create(bgr));
         using var ms = new MemoryStream();
         enc.Save(ms);

@@ -145,6 +145,18 @@
 
                     <TextBlock Text="Dönüştürme ve birleştirme" Style="{StaticResource GroupTitle}" Margin="0,14,0,10" />
                     <WrapPanel>
+                        <Button Style="{StaticResource TaskTile}" Command="{Binding ConvertToWordHomeCommand}">
+                            <DockPanel><Border Style="{StaticResource TileIcon}"><ui:SymbolIcon Symbol="DocumentText24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                                <StackPanel VerticalAlignment="Center"><TextBlock Text="Microsoft Word'e Dönüştür" Style="{StaticResource TileTitle}" /><TextBlock Text="Düzenlenebilir DOCX: başlık, paragraf, tablo, resim; taramalar tanınır" Style="{StaticResource TileDesc}" /></StackPanel></DockPanel>
+                        </Button>
+                        <Button Style="{StaticResource TaskTile}" Command="{Binding ConvertToExcelHomeCommand}">
+                            <DockPanel><Border Style="{StaticResource TileIcon}"><ui:SymbolIcon Symbol="Table24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                                <StackPanel VerticalAlignment="Center"><TextBlock Text="Microsoft Excel'e Dönüştür" Style="{StaticResource TileTitle}" /><TextBlock Text="Tablolar hücrelere, sayılar hesaplanabilir değerlere" Style="{StaticResource TileDesc}" /></StackPanel></DockPanel>
+                        </Button>
+                        <Button Style="{StaticResource TaskTile}" Command="{Binding OfficeToPdfCommand}">
+                            <DockPanel><Border Style="{StaticResource TileIcon}"><ui:SymbolIcon Symbol="DocumentPdf24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                                <StackPanel VerticalAlignment="Center"><TextBlock Text="Office Belgesinden PDF" Style="{StaticResource TileTitle}" /><TextBlock Text="Word, Excel, PowerPoint, OpenDocument → PDF" Style="{StaticResource TileDesc}" /></StackPanel></DockPanel>
+                        </Button>
                         <Button Style="{StaticResource TaskTile}" Command="{Binding OcrPdfCommand}">
                             <DockPanel><Border Style="{StaticResource TileIcon}"><ui:SymbolIcon Symbol="DocumentSearch24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
                                 <StackPanel VerticalAlignment="Center"><TextBlock Text="Aranabilir PDF'ye Dönüştür" Style="{StaticResource TileTitle}" /><TextBlock Text="Taranmış PDF'nin metnini tanı (OCR); yön ve eğiklik düzelir" Style="{StaticResource TileDesc}" /></StackPanel></DockPanel>
@@ -156,6 +168,10 @@
                         <Button Style="{StaticResource TaskTile}" Command="{Binding ConvertPdfCommand}">
                             <DockPanel><Border Style="{StaticResource TileIcon}"><ui:SymbolIcon Symbol="ArrowExportLtr24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
                                 <StackPanel VerticalAlignment="Center"><TextBlock Text="PDF'yi Görüntüye veya Metne" Style="{StaticResource TileTitle}" /><TextBlock Text="Sayfaları PNG, JPG, TIFF, BMP veya TXT olarak kaydet" Style="{StaticResource TileDesc}" /></StackPanel></DockPanel>
+                        </Button>
+                        <Button Style="{StaticResource TaskTile}" Command="{Binding CompressHomeCommand}">
+                            <DockPanel><Border Style="{StaticResource TileIcon}"><ui:SymbolIcon Symbol="ArrowMinimize24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                                <StackPanel VerticalAlignment="Center"><TextBlock Text="PDF'yi Sıkıştır" Style="{StaticResource TileTitle}" /><TextBlock Text="Görselleri küçülterek dosya boyutunu azalt; özgün dosya korunur" Style="{StaticResource TileDesc}" /></StackPanel></DockPanel>
                         </Button>
                         <Button Style="{StaticResource TaskTile}" Command="{Binding MergeCommand}">
                             <DockPanel><Border Style="{StaticResource TileIcon}"><ui:SymbolIcon Symbol="Merge24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
@@ -174,7 +190,7 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <ui:SymbolIcon Symbol="ArrowUpload24" FontSize="24" Foreground="{DynamicResource MeslyAccentBrush}" />
                             <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13">
-                                <Run Text="Dosyaları buraya sürükleyip bırakın" FontWeight="SemiBold" /><Run Text="  ·  PDF'ler açılır, görüntülerden PDF oluşturulur" Foreground="{DynamicResource MeslyMutedTextBrush}" />
+                                <Run Text="Dosyaları buraya sürükleyip bırakın" FontWeight="SemiBold" /><Run Text="  ·  PDF'ler açılır; görüntü ve Office belgelerinden PDF oluşturulur" Foreground="{DynamicResource MeslyMutedTextBrush}" />
                             </TextBlock>
                         </StackPanel>
                     </Border>

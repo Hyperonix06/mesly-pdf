@@ -8,7 +8,8 @@ public static class FileDialogs
 {
     public const string PdfFilter = "PDF belgeleri (*.pdf)|*.pdf";
     public const string ImageFilter = "Görüntüler (*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp)|*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp";
-    public const string OpenFilter = "Desteklenen dosyalar (*.pdf;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp)|*.pdf;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp|" + PdfFilter + "|" + ImageFilter;
+    private const string OfficeMask = "*.doc;*.docx;*.docm;*.rtf;*.odt;*.xls;*.xlsx;*.xlsm;*.xlsb;*.ods;*.csv;*.ppt;*.pptx;*.pptm;*.pps;*.ppsx;*.odp";
+    public const string OpenFilter = "Desteklenen dosyalar|*.pdf;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;" + OfficeMask + "|" + PdfFilter + "|" + ImageFilter + "|Office belgeleri (PDF'ye dönüştürülür)|" + OfficeMask;
     public static readonly string[] ImageExtensions = { ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp" };
 
     public static AppSettings? Settings { get; set; }

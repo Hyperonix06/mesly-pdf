@@ -164,10 +164,12 @@ public sealed partial class MainViewModel : BusyViewModel
             if (doc is null) continue;
             AddTab(doc);
         }
-        var unsupported = list.Where(p => !FileDialogs.IsPdf(p) && !FileDialogs.IsImage(p)).ToList();
+        var office = list.Where(OfficeExport.IsOfficeFile).ToList();
+        var unsupported = list.Where(p => !FileDialogs.IsPdf(p) && !FileDialogs.IsImage(p) && !OfficeExport.IsOfficeFile(p)).ToList();
         if (unsupported.Count > 0)
-            MessageDialog.Show("Desteklenmeyen dosya", "Şu dosyalar açılamadı (yalnızca PDF ve JPG/PNG/TIFF/BMP desteklenir):\n" + string.Join("\n", unsupported.Select(Path.GetFileName)), MessageKind.Warning);
+            MessageDialog.Show("Desteklenmeyen dosya", "Şu dosyalar açılamadı (PDF, JPG/PNG/TIFF/BMP ve Office belgeleri desteklenir):\n" + string.Join("\n", unsupported.Select(Path.GetFileName)), MessageKind.Warning);
         if (images.Count > 0) await CreateFromImagesAsync(images);
+        if (office.Count > 0) await ConvertOfficeFilesAsync(office);
     }
 
     /// <summary>Gerekirse parola sorarak açar. Kullanıcı vazgeçerse null.</summary>
@@ -370,7 +372,9 @@ public sealed partial class MainViewModel : BusyViewModel
         var vm = ActiveTab ?? await PickAndOpenAsync("Dönüştürülecek PDF'yi seçin");
         if (vm is null) return;
         var choice = ConvertChoiceDialog.Ask(vm.Title);
-        if (choice == "images") vm.ExportImagesCommand.Execute(null);
+        if (choice == "word") await vm.ConvertAsync(ConvertFormat.Word);
+        else if (choice == "excel") await vm.ConvertAsync(ConvertFormat.Excel);
+        else if (choice == "images") vm.ExportImagesCommand.Execute(null);
         else if (choice == "text") vm.ExportTextCommand.Execute(null);
     }
 
@@ -399,6 +403,96 @@ public sealed partial class MainViewModel : BusyViewModel
         if (vm is null) return;
         Ribbon = RibbonTab.Document;
         await vm.RunOcrAsync(ocr: true, pages: null);
+    }
+
+    // ─────────────── Aşama 5: dönüştürme ───────────────
+
+    [RelayCommand]
+    private async Task OfficeToPdf()
+    {
+        var files = FileDialogs.OpenFiles(OfficeExport.Filter, true, "PDF'ye dönüştürülecek Office belgelerini seçin");
+        if (files.Length > 0) await ConvertOfficeFilesAsync(files);
+    }
+
+    /// <summary>
+    /// Office belgelerini PDF'ye çevirip açar. Tek dosyada hedef sorulur; birden çoksa PDF'ler özgün dosyaların yanına
+    /// (ad çakışırsa “(2)” eklenerek) kaydedilir. Kurulu Office/LibreOffice yoksa açıklayıcı ileti gösterilir.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ConvertOfficeFilesAsync(IReadOnlyList<string> files, IReadOnlyList<string>? targets = null)
+    {
+        var done = new List<string>();
+        if (files.Count == 0) return done;
+        if (files.All(f => OfficeExport.EngineFor(f) == OfficeEngine.None))
+        {
+            MessageDialog.Show("Office veya LibreOffice bulunamadı", OfficeExport.NoEngineMessage, MessageKind.Error);
+            return done;
+        }
+        var outs = targets?.ToList();
+        if (outs is null)
+        {
+            if (files.Count == 1)
+            {
+                var t = FileDialogs.SaveFile(Path.GetFileNameWithoutExtension(files[0]) + ".pdf", FileDialogs.PdfFilter, Path.GetDirectoryName(files[0]), "PDF olarak kaydet");
+                if (t is null) return done;
+                outs = new() { t };
+            }
+            else
+            {
+                if (DialogBase.Automation is null && !MessageDialog.Confirm("Office belgelerini PDF'ye dönüştür",
+                    $"{files.Count} dosya PDF'ye dönüştürülecek. PDF'ler özgün dosyaların bulunduğu klasörlere kaydedilir; özgün dosyalar değişmez.", "Dönüştür", "İptal", MessageKind.Info))
+                    return done;
+                outs = files.Select(f => PdfTools.UniquePath(Path.ChangeExtension(f, ".pdf"))).ToList();
+            }
+        }
+        var errors = new List<string>();
+        await RunBusyAsync(files.Count == 1 ? $"{Path.GetFileName(files[0])} PDF'ye dönüştürülüyor…" : $"{files.Count} Office belgesi PDF'ye dönüştürülüyor…", async (progress, ct) =>
+        {
+            for (int i = 0; i < files.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    await OfficeExport.ConvertAsync(files[i], outs[i], ct);
+                    done.Add(outs[i]);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    Log.Error("Office → PDF: " + files[i], ex);
+                    errors.Add($"{Path.GetFileName(files[i])}: {ex.Message}");
+                }
+                progress.Report((i + 1.0) / files.Count);
+            }
+        }, "office-pdf", string.Join("; ", files.Select(Path.GetFileName)), () => string.Join("; ", done));
+        if (errors.Count > 0)
+            MessageDialog.Show(done.Count == 0 ? "Dönüştürülemedi" : "Bazı dosyalar dönüştürülemedi", string.Join("\n\n", errors), MessageKind.Error);
+        if (done.Count > 0)
+        {
+            StatusText = done.Count == 1 ? $"PDF oluşturuldu: {Path.GetFileName(done[0])}" : $"{done.Count} PDF oluşturuldu.";
+            await OpenFilesAsync(done.Take(10));
+        }
+        return done;
+    }
+
+    [RelayCommand]
+    private async Task ConvertToWordHome()
+    {
+        var vm = ActiveTab ?? await PickAndOpenAsync("Word'e dönüştürülecek PDF'yi seçin");
+        if (vm is not null) await vm.ConvertAsync(ConvertFormat.Word);
+    }
+
+    [RelayCommand]
+    private async Task ConvertToExcelHome()
+    {
+        var vm = ActiveTab ?? await PickAndOpenAsync("Excel'e dönüştürülecek PDF'yi seçin");
+        if (vm is not null) await vm.ConvertAsync(ConvertFormat.Excel);
+    }
+
+    [RelayCommand]
+    private async Task CompressHome()
+    {
+        var vm = ActiveTab ?? await PickAndOpenAsync("Sıkıştırılacak PDF'yi seçin");
+        if (vm is not null) await vm.CompressAsync();
     }
 
     private async Task<DocumentViewModel?> PickAndOpenAsync(string title)

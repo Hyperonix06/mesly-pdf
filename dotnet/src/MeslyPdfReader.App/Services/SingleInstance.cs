@@ -10,7 +10,7 @@ namespace MeslyPdfReader.App.Services;
 /// </summary>
 public sealed class SingleInstance : IDisposable
 {
-    private readonly string _name = "Mesly.PdfReader." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(Environment.UserDomainName + "\\" + Environment.UserName)))[..16];
+    private readonly string _name = "Mesly.PdfReader." + System.Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(Environment.UserDomainName + "\\" + Environment.UserName)))[..16];
     private Mutex? _mutex;
     private CancellationTokenSource? _cts;
 

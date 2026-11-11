@@ -30,6 +30,11 @@ public static class OcrWorkflow
     public static void Init()
     {
         PdfDocument.JpegEncoder = img => ImageCodec.EncodeJpeg(img, 90);
+        PdfDocument.JpegEncoderWithQuality = (img, q, gray) => ImageCodec.EncodeJpeg(img, q, 150, gray);
+        // Word'e dönüşümde fotoğraflar JPEG (küçük dosya), çizimler/şemalar PNG (keskin) yazılır.
+        Convert.DocxWriter.ImageEncoder = (img, preferJpeg) => preferJpeg
+            ? (ImageCodec.EncodeJpeg(img, 88, 150), "image/jpeg")
+            : (ImageCodec.EncodePng(img, 150), "image/png");
     }
 
     public static async Task<IReadOnlyList<OcrPageResult>> RecognizeAsync(PdfDocument doc, IReadOnlyList<int> pages, OcrRunOptions o,

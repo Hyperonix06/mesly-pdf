@@ -62,6 +62,12 @@ jobs:
       - name: Self-contained yayın (win-x64)
         run: dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -o ../publish "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR"
 
+      - name: LibreOffice (Office → PDF yolunu sınamak için)
+        run: |
+          choco install libreoffice-fresh -y --no-progress --timeout 1200
+          $so = "C:\Program Files\LibreOffice\program\soffice.exe"
+          if (Test-Path $so) { Write-Host "✔ LibreOffice kuruldu: $so" } else { Write-Warning "LibreOffice kurulamadı; öz test 'araç yok' yolunu sınayacak" }
+
       - name: Arayüz öz testi (yayınlanmış exe, gerçek pencere)
         id: selftest
         run: |

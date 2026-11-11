@@ -106,14 +106,21 @@ Tanıma tamamen bu bilgisayarda yapılır (Tesseract 5, tessdata_best Türkçe +
 
 **Sınırlama (dürüst):** OCR doğruluğu tarama kalitesine bağlıdır; 300 DPI ve üzeri önerilir. Tesseract kendi dil modeliyle sözcükleri düzeltir; ek olarak güveni %60'ın altındaki sözcükler “Doğrula” penceresinde kullanıcıya gösterilir. Otomatik “yazım düzeltme” ile anlamı değiştirme riski alınmaz.
 
-## 7. Dönüştürme
+## 7. Dönüştürme — ✅ Aşama 5 (0.6.0)
 | Madde | Durum | Test |
 |---|---|---|
 | PDF → PNG / JPG / TIFF (tek ve çok sayfalı) / BMP | ✅ | B Ö |
 | PDF → TXT (UTF-8) | ✅ | B Ö |
 | JPG / PNG / TIFF / BMP → PDF, çoklu görsel → tek PDF | ✅ | B Ö (JPEG yeniden sıkıştırılmaz, EXIF yönü uygulanır) |
-| PDF → DOCX / XLSX / PPTX / HTML | ⏳ 5 | |
-| Word / Excel / PowerPoint → PDF | ⏳ 5 | |
+| PDF → DOCX: başlık (Başlık 1/2), paragraf, hizalama (sol/orta/sağ/iki yana), yazı tipi, boyut, kalın/eğik, renk, satır aralığı, girinti | ✅ | B Ö |
+| PDF → DOCX: çizgili tablolar (birleşik hücreler dahil), resimler (fotoğraf JPEG, çizim PNG), sayfa boyutu/yönü ve sayfa sonları | ✅ | B Ö |
+| PDF → DOCX: çok sütunlu sayfalar doğru okuma sırasıyla | 🟡 | B — sütunlar sırayla akar; Word sütun bölümü olarak yazılmaz |
+| PDF → XLSX: tablolar hücrelere, birleşik hücreler, Türkçe/İngilizce sayılar, %, TL/₺/€/$ gerçek sayı | ✅ | B Ö |
+| Taranmış PDF → DOCX/XLSX (önce OCR, geçici kopyada; özgün belge değişmez) | ✅ | B Ö |
+| Çizgisiz (boşlukla hizalanmış) tabloların algılanması | ⏳ | Excel'de 3+ boşluk/sekmeyle ayrılmış satırlar sütunlara bölünür; Word'de paragraf olarak kalır |
+| PDF → PPTX / HTML | ⏳ | Sonraki sürüm |
+| Word / Excel / PowerPoint / OpenDocument → PDF | ✅ | Ö — kurulu Microsoft Office (COM) veya LibreOffice ile; ikisi de yoksa açık hata. CI'de LibreOffice ile sınandı |
+| PDF sıkıştırma (görselleri hedef DPI'ya küçültme + JPEG, gri ton seçeneği; maskeli ve CCITT/JBIG2 görsellere dokunulmaz; kazanç yoksa yazılmaz; özgün dosya korunur) | ✅ | B Ö |
 
 ## 8. Sayfa yönetimi
 | Madde | Durum | Test |

@@ -123,16 +123,20 @@ public sealed unsafe partial class PdfDocument
         return best is { CoverRatio: >= 0.5 } ? best : null;
     });
 
-    private static bool IsJpeg(nint imageObj)
+    private static bool IsJpeg(nint imageObj) => ImageFilters(imageObj).Contains("DCTDecode");
+
+    /// <summary>Görüntü akışının sıkıştırma süzgeçleri (DCTDecode, FlateDecode, CCITTFaxDecode…).</summary>
+    internal static List<string> ImageFilters(nint imageObj)
     {
+        var list = new List<string>();
         int n = Native.FPDFImageObj_GetImageFilterCount(imageObj);
         for (int k = 0; k < n; k++)
         {
-            var buf = stackalloc byte[32];
-            var len = Native.FPDFImageObj_GetImageFilter(imageObj, k, buf, new CULong(32u));
-            if (len.Value > 1 && Marshal.PtrToStringAnsi((nint)buf) == "DCTDecode") return true;
+            var buf = stackalloc byte[64];
+            var len = Native.FPDFImageObj_GetImageFilter(imageObj, k, buf, new CULong(64u));
+            if (len.Value > 1 && len.Value <= 64) list.Add(Marshal.PtrToStringAnsi((nint)buf) ?? "");
         }
-        return false;
+        return list;
     }
 
     /// <summary>Görüntü nesnesinin piksellerini (kendi çözünürlüğünde, BGRA) okur.</summary>

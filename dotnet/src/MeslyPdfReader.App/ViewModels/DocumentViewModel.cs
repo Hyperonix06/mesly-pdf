@@ -750,7 +750,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
             empty = new FileInfo(target).Length <= 3 + PageCount * 4;
         }, "export-text", Title, () => target);
         if (!ok) return;
-        if (empty) MessageDialog.Show("Metin bulunamadı", "Belgede seçilebilir metin yok; taranmış bir belge olabilir. Taranmış belgelerden metin çıkarma (OCR) sonraki sürümde eklenecek.", MessageKind.Warning);
+        if (empty) MessageDialog.Show("Metin bulunamadı", "Belgede seçilebilir metin yok; taranmış bir belge olabilir. Önce Belge sekmesindeki “Metni tanı” ile metni tanıyın, sonra yeniden dışa aktarın.", MessageKind.Warning);
         else StatusText = $"Metin kaydedildi: {Path.GetFileName(target)}";
     }
 

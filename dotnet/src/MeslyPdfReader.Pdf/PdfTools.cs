@@ -97,6 +97,36 @@ public static class PdfTools
         }
     }
 
+    /// <summary>
+    /// PDF'yi sıkıştırıp <paramref name="destination"/> yoluna yazar. Kaynak dosya değiştirilmez. Sonuç kaynaktan
+    /// en az %1 küçük değilse hiçbir şey yazılmaz (<see cref="CompressReport.Written"/> = false).
+    /// </summary>
+    public static async Task<CompressReport> CompressFileAsync(string source, string destination, CompressOptions options,
+        string? password = null, IProgress<double>? progress = null, CancellationToken ct = default)
+    {
+        source = Path.GetFullPath(source); destination = Path.GetFullPath(destination);
+        if (PathsEqualStatic(source, destination)) throw new PdfException(PdfErrorKind.Save, "Sıkıştırılmış dosya, özgün dosyanın üzerine yazılamaz; başka bir ad seçin.");
+        long before = new FileInfo(source).Length;
+        using var doc = await PdfDocument.OpenAsync(source, password, ct).ConfigureAwait(false);
+        var (seen, changed) = await doc.CompressImagesAsync(options, progress, ct).ConfigureAwait(false);
+        var dir = Path.GetDirectoryName(destination)!;
+        Directory.CreateDirectory(dir);
+        var tmp = Path.Combine(dir, $".{Guid.NewGuid():N}.mesly-tmp");
+        try
+        {
+            await doc.SaveCopyAsync(tmp).ConfigureAwait(false);
+            long after = new FileInfo(tmp).Length;
+            if (after >= before * 0.99) return new CompressReport(seen, changed, before, after, false);
+            File.Move(tmp, destination, overwrite: true);
+            return new CompressReport(seen, changed, before, after, true);
+        }
+        finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
+    }
+
+    private static bool PathsEqualStatic(string a, string b) =>
+        string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'), Path.GetFullPath(b).TrimEnd('\\', '/'),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
     /// <summary>Sayfayı verilen DPI'da çizer (sayfa sınırları 20.000 pikselle sınırlıdır).</summary>
     public static Task<BgraImage> RenderAtDpiAsync(PdfDocument doc, int page, double dpi, CancellationToken ct = default, bool printing = false)
     {

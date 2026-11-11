@@ -1,5 +1,33 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.6.0 (11 Kasım 2026) — Aşama 5: Word, Excel, Office → PDF, sıkıştırma
+
+### PDF → Microsoft Word (.docx)
+* Sayfa düzeni çözümlenir: **başlıklar** (Word'ün Başlık 1/2 stilleriyle, gezinti bölmesinde görünür), paragraflar, hizalama (iki yana yaslı dahil), yazı tipi, boyut, kalın/eğik ve renkler, satır aralığı ve girinti korunur.
+* **Tablolar** gerçek Word tablosu olur; birleşik başlık hücreleri korunur. **Resimler** yerinde eklenir (fotoğraflar JPEG, çizimler PNG). Her PDF sayfası kendi boyutu ve yönüyle (dikey/yatay) ayrı bölüm olur.
+* İki sütunlu sayfalarda metin doğru okuma sırasıyla (önce sol sütun, sonra sağ) aktarılır.
+
+### PDF → Microsoft Excel (.xlsx)
+* Tablolar hücrelere, birleşik hücreler birleşik hücrelere dönüşür. **Sayılar gerçek sayıdır:** “1.250”, “3.437,50”, “%18”, “12.800,00 TL” doğrudan toplanabilir. Her sayfa ayrı çalışma sayfası veya hepsi tek sayfada; istenirse yalnız tablolar.
+
+### Taranmış belgeler de dönüşür
+* Metni olmayan taranmış sayfalar dönüştürmeden önce **otomatik tanınır** (OCR). Tanıma belgenin geçici bir kopyasında yapılır; açık belge ve diskteki dosya değişmez.
+
+### Office belgesinden PDF
+* Word, Excel, PowerPoint ve OpenDocument dosyaları PDF'ye çevrilir: bilgisayarınızda **Microsoft Office** varsa o kullanılır (görünmez), yoksa ücretsiz **LibreOffice**. Office dosyalarını pencereye sürükleyip bırakabilir veya “Aç” ile seçebilirsiniz. İkisi de kurulu değilse ne yapmanız gerektiği açıkça söylenir. Dosyalar hiçbir çevrim içi hizmete gönderilmez.
+
+### PDF'yi sıkıştır
+* Görseller seçilen çözünürlüğe (220 / 150 / 100 DPI) küçültülüp yeniden kodlanır; isteğe bağlı gri tonlama. Metin, yazı tipleri, bağlantılar ve yer imleri olduğu gibi kalır. Saydam görseller ve siyah-beyaz taramalar bozulmasın diye değiştirilmez. Sonuç yeni bir dosyaya yazılır; özgün dosya korunur, kazanç yoksa hiçbir şey yazılmaz.
+
+### Nerede?
+* **Dosya → Dışa aktar → Word / Excel**, **Dosya → Office belgesinden PDF**, **Dosya → PDF'yi sıkıştır**; Belge sekmesinde **Dönüştür** menüsü; Yeni Görev ekranında dört yeni görev kutusu.
+
+### Dürüst sınırlamalar
+* Yalnız **çizgili** tablolar Word tablosuna dönüşür; çizgisiz (boşlukla hizalanmış) tablolar Word'de paragraf olarak kalır.
+* Çok sütunlu sayfalar Word'ün sütun özelliğiyle değil, sırayla akan metin olarak yazılır.
+* PDF → PowerPoint ve PDF → HTML henüz yok.
+* Office → PDF için Microsoft Office veya LibreOffice kurulu olmalıdır (uygulamayla dağıtılmaz). Parola korumalı Office belgeleri çevrilemez; açık bir hata verilir.
+
 ## 0.5.1 (11 Kasım 2026) — FineReader düzeni ve yeni logo
 * Arayüz ABBYY FineReader PDF 16 düzeninde: “Dosya” menüsü; **Belge · Sayfaları Düzenle · İçeriği Düzenle** sekmeleri; tek satır araç çubuğu; Sayfaları Düzenle'de sayfa ızgarası; açılışta **Yeni Görev** ekranı (Aç · Tara · Son Kullanılanlar, belge dilleri). Ctrl+E İçeriği Düzenle, Ctrl+N yeni PDF.
 * Yeni Mesly PDF Reader logosu ve uygulama simgesi (küçük boyutlarda yalnız PDF-M işareti, büyük boyutlarda tam logo); PDF dosyaları ve kısayollar yeni simgeyle görünür.
