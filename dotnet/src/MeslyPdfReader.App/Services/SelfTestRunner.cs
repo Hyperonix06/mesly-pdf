@@ -628,7 +628,7 @@ public sealed class SelfTestRunner
         await Step("Tanıma", "Taranmış sayfada metni düzenle", "Düzenle sekmesi aracı açar; OCR paragrafı değişir, görüntüdeki eski yazı silinir", async () =>
         {
             var st = _vm.ActiveTab!;
-            _vm.Ribbon = RibbonTab.Edit;
+            _vm.Ribbon = RibbonTab.EditContent;
             bool toolOn = st.Tool == ViewerTool.Edit;
             await WaitUntil(() => Viewer!.EditItemCount(0) > 0, 8000);
             var para = (await st.Document.GetParagraphsAsync(0)).FirstOrDefault(p => p.Text.Contains("otuz"));
@@ -642,25 +642,30 @@ public sealed class SelfTestRunner
             Shot("19-taranmis-sayfada-duzenleme");
             var text = Flat((await st.Document.GetPageTextAsync(0)).Text);
             var objs = await st.Document.GetPageObjectsAsync(0);
-            _vm.Ribbon = RibbonTab.Read;
+            _vm.Ribbon = RibbonTab.Document;
             bool toolOff = st.Tool == ViewerTool.Select;
             bool ok = toolOn && toolOff && ok1 && text.Contains("kırk beş gün") && !text.Contains("otuz gün") && text.Contains("İstanbul") && !objs.Any(o => o.Kind == PageObjectKind.Path);
             return (ok, $"araç açıldı={toolOn}, kapandı={toolOff}, metin değişti={ok1}, yeni metin={text.Contains("kırk beş gün")}, eski metin yok={!text.Contains("otuz gün")}; {st.StatusText}");
         });
 
-        await Step("Arayüz", "Gruplu şerit sekmeleri", "Her sekme taşmadan tek satırda görünür", async () =>
+        await Step("Arayüz", "FineReader düzeni: Belge / Sayfaları Düzenle / İçeriği Düzenle", "Sekmeler taşmaz; Sayfaları Düzenle ızgarayı, İçeriği Düzenle düzenleme kipini açar", async () =>
         {
-            var shots = new List<string>();
+            var st = _vm.ActiveTab!;
             int overflow = 0;
-            foreach (var (tabKey, name) in new[] { (RibbonTab.File, "20-serit-dosya"), (RibbonTab.Read, "21-serit-okuma"), (RibbonTab.Edit, "22-serit-duzenle"), (RibbonTab.Ocr, "23-serit-tanima"), (RibbonTab.Pages, "24-serit-sayfalar"), (RibbonTab.Convert, "25-serit-donustur") })
+            bool organizeOk = false, editOk = false;
+            foreach (var (tabKey, name) in new[] { (RibbonTab.Document, "20-belge-sekmesi"), (RibbonTab.Organize, "21-sayfalari-duzenle"), (RibbonTab.EditContent, "22-icerigi-duzenle") })
             {
                 _vm.Ribbon = tabKey;
                 await Idle();
+                if (tabKey == RibbonTab.Organize) { await Task.Delay(400); await Idle(); organizeOk = st.IsOrganizeMode; }
+                if (tabKey == RibbonTab.EditContent) editOk = st.Tool == ViewerTool.Edit && !st.IsOrganizeMode;
                 if (_w.RibbonScroll.ScrollableWidth > 1) overflow++;
-                Shot(name); shots.Add(name);
+                Shot(name);
             }
-            _vm.Ribbon = RibbonTab.Read;
-            return (overflow == 0, $"{shots.Count} sekme, 1440 px genişlikte taşan sekme: {overflow}");
+            _vm.Ribbon = RibbonTab.Document;
+            await Idle();
+            bool back = st.Tool == ViewerTool.Select && !st.IsOrganizeMode;
+            return (overflow == 0 && organizeOk && editOk && back, $"taşan sekme: {overflow}, sayfa ızgarası={organizeOk}, düzenleme kipi={editOk}, Belge'ye dönüş={back}");
         });
 
         // ── Büyük belge ──

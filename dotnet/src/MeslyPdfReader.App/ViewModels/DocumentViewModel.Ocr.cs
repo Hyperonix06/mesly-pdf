@@ -16,6 +16,8 @@ public sealed partial class DocumentViewModel
     private readonly Dictionary<int, OcrPage> _ocrResults = new();
 
     [ObservableProperty] private bool _currentPageIsScanned;
+    /// <summary>“Sayfaları Düzenle” sekmesi: orta alanda sayfa ızgarası gösterilir.</summary>
+    [ObservableProperty] private bool _isOrganizeMode;
     [ObservableProperty] private string _scanBannerText = "";
     public bool HasOcrResults => _ocrResults.Count > 0;
     public int LowConfidenceCount => _ocrResults.Values.Sum(p => p.Words.Count(w => w.Confidence < 60));

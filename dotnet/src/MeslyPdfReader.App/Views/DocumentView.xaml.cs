@@ -51,6 +51,7 @@ public partial class DocumentView : UserControl
                 break;
             case nameof(DocumentViewModel.LeftPanel):
             case nameof(DocumentViewModel.ShowProperties):
+            case nameof(DocumentViewModel.IsOrganizeMode):
                 ApplyPanels();
                 if (_vm!.LeftPanel == LeftPanelKind.Search) Dispatcher.BeginInvoke(() => { SearchBox.Focus(); SearchBox.SelectAll(); });
                 break;
@@ -64,50 +65,74 @@ public partial class DocumentView : UserControl
     private void ApplyPanels()
     {
         if (_vm is null) return;
-        bool left = _vm.LeftPanel != LeftPanelKind.None;
+        // Sayfaları Düzenle görünümünde ızgara orta alanı kaplar; kenar panelleri gizlenir.
+        bool organize = _vm.IsOrganizeMode;
+        bool left = _vm.LeftPanel != LeftPanelKind.None && !organize;
         if (!left && LeftCol.Width.Value > 0) _savedLeftWidth = LeftCol.Width.Value;
         LeftCol.Width = new GridLength(left ? Math.Max(180, _savedLeftWidth) : 0);
         LeftPanelHost.Visibility = left ? Visibility.Visible : Visibility.Collapsed;
         LeftSplitter.Visibility = left ? Visibility.Visible : Visibility.Collapsed;
-        RightCol.Width = new GridLength(_vm.ShowProperties ? 280 : 0);
-        RightPanel.Visibility = _vm.ShowProperties ? Visibility.Visible : Visibility.Collapsed;
+        bool right = _vm.ShowProperties && !organize;
+        RightCol.Width = new GridLength(right ? 280 : 0);
+        RightPanel.Visibility = right ? Visibility.Visible : Visibility.Collapsed;
+        Rail.Visibility = organize ? Visibility.Collapsed : Visibility.Visible;
+        if (organize) Dispatcher.BeginInvoke(() =>
+        {
+            if (_vm.CurrentPage < _vm.Thumbnails.Count) OrganizeGrid.ScrollIntoView(_vm.Thumbnails[_vm.CurrentPage]);
+            OrganizeGrid.Focus();
+        });
     }
 
     // ─────────────── Küçük resimler ───────────────
 
+    private bool _syncingSelection;
+
     private void ThumbList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_vm is null) return;
+        if (_vm is null || _syncingSelection || sender is not ListBox list) return;
         _vm.SelectedPages.Clear();
-        foreach (ThumbnailItem t in ThumbList.SelectedItems) _vm.SelectedPages.Add(t.Index);
-        if (ThumbList.SelectedItems.Count == 1 && ThumbList.SelectedItem is ThumbnailItem one && Mouse.LeftButton == MouseButtonState.Released)
+        foreach (ThumbnailItem t in list.SelectedItems) _vm.SelectedPages.Add(t.Index);
+        // Kenar paneli ile sayfa ızgarası aynı seçimi göstersin.
+        var other = ReferenceEquals(list, ThumbList) ? OrganizeGrid : ThumbList;
+        _syncingSelection = true;
+        try { other.SelectedItems.Clear(); foreach (var it in list.SelectedItems) other.SelectedItems.Add(it); }
+        finally { _syncingSelection = false; }
+        if (list.SelectedItems.Count == 1 && list.SelectedItem is ThumbnailItem one && Mouse.LeftButton == MouseButtonState.Released)
             _vm.CurrentPage = one.Index;
-        else if (e.AddedItems.Count == 1 && e.AddedItems[0] is ThumbnailItem added && ThumbList.SelectedItems.Count == 1)
+        else if (e.AddedItems.Count == 1 && e.AddedItems[0] is ThumbnailItem added && list.SelectedItems.Count == 1)
             _vm.CurrentPage = added.Index;
+    }
+
+    private void OrganizeGrid_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_vm is null || ItemAt(e.OriginalSource as DependencyObject)?.DataContext is not ThumbnailItem t) return;
+        _vm.CurrentPage = t.Index;
+        _vm.Main.Ribbon = RibbonTab.Document;
     }
 
     private void ThumbList_KeyDown(object sender, KeyEventArgs e)
     {
         if (_vm is null) return;
         if (e.Key == Key.Delete) { _vm.DeletePagesCommand.Execute(null); e.Handled = true; }
-        else if (e.Key == Key.Enter && ThumbList.SelectedItem is ThumbnailItem t) { _vm.CurrentPage = t.Index; Viewer.Focus(); e.Handled = true; }
+        else if (e.Key == Key.Enter && (sender as ListBox)?.SelectedItem is ThumbnailItem t) { _vm.CurrentPage = t.Index; if (_vm.IsOrganizeMode) _vm.Main.Ribbon = RibbonTab.Document; Viewer.Focus(); e.Handled = true; }
     }
 
     private void Thumb_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        _dragStart = e.GetPosition(ThumbList);
+        _dragList = sender as ListBox ?? ThumbList;
+        _dragStart = e.GetPosition(_dragList);
         _dragArmed = ItemAt(e.OriginalSource as DependencyObject) is not null;
     }
 
     private void Thumb_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (!_dragArmed || e.LeftButton != MouseButtonState.Pressed || _vm is null) return;
-        var p = e.GetPosition(ThumbList);
+        var p = e.GetPosition(_dragList);
         if (Math.Abs(p.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance && Math.Abs(p.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         _dragArmed = false;
         var pages = _vm.SelectedPages.Count > 0 ? _vm.SelectedPages.OrderBy(i => i).ToArray() : new[] { _vm.CurrentPage };
         var data = new DataObject(PageDragFormat, pages);
-        DragDrop.DoDragDrop(ThumbList, data, DragDropEffects.Move);
+        DragDrop.DoDragDrop(_dragList, data, DragDropEffects.Move);
         DropIndicator.Visibility = Visibility.Collapsed;
     }
 
@@ -118,12 +143,16 @@ public partial class DocumentView : UserControl
     }
 
     /// <summary>Bırakılan noktadaki hedef konum (bu indeksli sayfanın önüne) ve gösterge konumu.</summary>
-    private (int Before, double Y) DropTarget(DragEventArgs e)
+    private ListBox _dragList = null!;
+
+    private (int Before, double Y) DropTarget(DragEventArgs e, ListBox? list = null)
     {
         var item = ItemAt(e.OriginalSource as DependencyObject);
         if (item?.DataContext is not ThumbnailItem t || _vm is null)
             return (_vm?.PageCount ?? 0, double.NaN);
         var pos = e.GetPosition(item);
+        // Izgarada sol/sağ yarıya, dikey listede üst/alt yarıya göre.
+        if (ReferenceEquals(list, OrganizeGrid)) return (t.Index + (pos.X > item.ActualWidth / 2 ? 1 : 0), double.NaN);
         bool after = pos.Y > item.ActualHeight / 2;
         var top = item.TranslatePoint(new Point(0, after ? item.ActualHeight : 0), ThumbList);
         return (t.Index + (after ? 1 : 0), top.Y);
@@ -134,6 +163,13 @@ public partial class DocumentView : UserControl
         bool pages = e.Data.GetDataPresent(PageDragFormat), files = e.Data.GetDataPresent(DataFormats.FileDrop);
         e.Effects = pages ? DragDropEffects.Move : files ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
+        if (ReferenceEquals(sender, OrganizeGrid))
+        {
+            var gsv = FindScrollViewer(OrganizeGrid);
+            var gp = e.GetPosition(OrganizeGrid);
+            if (gsv is not null) { if (gp.Y < 40) gsv.LineUp(); else if (gp.Y > OrganizeGrid.ActualHeight - 40) gsv.LineDown(); }
+            return;
+        }
         var (_, y) = DropTarget(e);
         if (double.IsNaN(y)) { DropIndicator.Visibility = Visibility.Collapsed; return; }
         DropIndicator.Width = Math.Max(40, ThumbList.ActualWidth - 24);
@@ -152,7 +188,7 @@ public partial class DocumentView : UserControl
     {
         DropIndicator.Visibility = Visibility.Collapsed;
         if (_vm is null) return;
-        var (before, _) = DropTarget(e);
+        var (before, _) = DropTarget(e, sender as ListBox);
         e.Handled = true;
         if (e.Data.GetData(PageDragFormat) is int[] pages)
         {

@@ -71,7 +71,7 @@ public sealed partial class DocumentViewModel : IPdfEditHost
         _ = UpdateScanBannerAsync();
         if (value == ViewerTool.Edit)
         {
-            if (ReferenceEquals(Main.ActiveTab, this) && Main.Ribbon != RibbonTab.Edit) Main.Ribbon = RibbonTab.Edit;
+            if (ReferenceEquals(Main.ActiveTab, this) && Main.Ribbon != RibbonTab.EditContent) Main.Ribbon = RibbonTab.EditContent;
             ShowProperties = true;
             _ = LoadFontsAsync();
         }

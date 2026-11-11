@@ -13,7 +13,6 @@ public partial class HomeView : UserControl
         DragEnter += (_, _) => DropZone.SetResourceReference(Border.BorderBrushProperty, "MeslyAccentBrush");
         DragLeave += (_, _) => DropZone.SetResourceReference(Border.BorderBrushProperty, "MeslyBorderBrush");
         Drop += (_, _) => DropZone.SetResourceReference(Border.BorderBrushProperty, "MeslyBorderBrush");
-        SizeChanged += (_, e) => Actions.Columns = e.NewSize.Width < 1000 ? 2 : 4; // 8 kart: 4×2 veya 2×4, boşluk kalmaz
     }
 
     private MainViewModel? Vm => DataContext as MainViewModel;

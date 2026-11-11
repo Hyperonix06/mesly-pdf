@@ -76,6 +76,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             switch (key)
             {
                 case Key.O: Exec(_vm.OpenCommand); return;
+                case Key.N when !shift: Exec(_vm.CreateBlankCommand); return; // FineReader: Ctrl+N yeni PDF
                 case Key.Tab: Run(() => CycleTab(shift ? -1 : 1)); return;
                 case Key.W when doc is not null: Exec(_vm.CloseTabCommand, doc); return;
             }
@@ -87,6 +88,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 case Key.P: Exec(doc.PrintCommand); return;
                 case Key.F: Run(FocusSearch); return;
                 case Key.G: Exec(doc.GoToPagePromptCommand); return;
+                case Key.E when !inText: Run(() => { _vm.Ribbon = RibbonTab.EditContent; doc.Tool = ViewerTool.Edit; }); return; // FineReader: Ctrl+E İçeriği Düzenle
                 case Key.D: Exec(doc.AddBookmarkCommand); return;
                 case Key.R when shift: Exec(doc.RotatePagesLeftCommand); return;
                 case Key.R: Exec(doc.RotatePagesRightCommand); return;
@@ -114,7 +116,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             case Key.H when mods == ModifierKeys.None: doc.Tool = ViewerTool.Hand; e.Handled = true; return;
             case Key.V when mods == ModifierKeys.None: doc.Tool = ViewerTool.Select; e.Handled = true; return;
-            case Key.E when mods == ModifierKeys.None: _vm.Ribbon = RibbonTab.Edit; doc.Tool = ViewerTool.Edit; e.Handled = true; return;
+            case Key.E when mods == ModifierKeys.None:
+                _vm.Ribbon = RibbonTab.EditContent; doc.Tool = ViewerTool.Edit; e.Handled = true; return;
         }
     }
 
@@ -161,6 +164,8 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    private void Exit_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>Şeritteki açılır menülü düğmeler: tıklayınca menüyü düğmenin altında açar.</summary>
     private void OpenMenu_Click(object sender, RoutedEventArgs e)

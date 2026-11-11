@@ -295,8 +295,33 @@
                 </c:PdfViewer>
             </ScrollViewer>
 
+            <!-- Sayfaları Düzenle: sayfa ızgarası (FineReader “Organize Pages”) -->
+            <Grid Grid.Row="0" Grid.RowSpan="2" Background="{DynamicResource MeslyCanvasBrush}" Visibility="{Binding IsOrganizeMode, Converter={StaticResource BoolToVis}}">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <TextBlock Margin="20,12,20,4" Style="{StaticResource MutedText}" FontSize="12"
+                           Text="Sayfaları seçin (Ctrl / Shift ile birden çok), sürükleyerek sıralayın, Delete ile silin. Çift tıklayınca sayfa açılır." />
+                <ListBox Grid.Row="1" x:Name="OrganizeGrid" ItemsSource="{Binding Thumbnails}" ItemContainerStyle="{StaticResource ThumbItemStyle}"
+                         SelectionMode="Extended" BorderThickness="0" Background="Transparent" AllowDrop="True" Padding="12,4,12,12"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="False"
+                         SelectionChanged="ThumbList_SelectionChanged" PreviewMouseLeftButtonDown="Thumb_PreviewMouseDown" PreviewMouseMove="Thumb_PreviewMouseMove"
+                         MouseDoubleClick="OrganizeGrid_DoubleClick" DragOver="Thumb_DragOver" Drop="Thumb_Drop" DragLeave="Thumb_DragLeave" KeyDown="ThumbList_KeyDown">
+                    <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ThumbnailItem}">
+                            <StackPanel Margin="10,8">
+                                <Border Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}" Background="White" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1">
+                                    <Border.Effect><DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.15" /></Border.Effect>
+                                    <Image Source="{Binding Image}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                                </Border>
+                                <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Margin="0,6,0,0" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
             <!-- Yüzen gezinme çubuğu -->
-            <Border Grid.Row="1" x:Name="NavBar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" CornerRadius="12" Padding="6,4"
+            <Border Grid.Row="1" x:Name="NavBar" HorizontalAlignment="Center" Visibility="{Binding IsOrganizeMode, Converter={StaticResource BoolInvertVis}}" VerticalAlignment="Bottom" Margin="0,0,0,18" CornerRadius="12" Padding="6,4"
                     Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.18" />

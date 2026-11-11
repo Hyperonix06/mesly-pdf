@@ -14,7 +14,10 @@ using MeslyPdfReader.Pdf;
 
 namespace MeslyPdfReader.App.ViewModels;
 
-public enum RibbonTab { File, Read, Edit, Ocr, Pages, Convert }
+/// <summary>FineReader PDF düzenindeki sekmeler: Belge, Sayfaları Düzenle, İçeriği Düzenle.</summary>
+public enum HomeSection { Open, Scan, Recent }
+
+public enum RibbonTab { Document, Organize, EditContent }
 
 public sealed partial class MainViewModel : BusyViewModel
 {
@@ -34,7 +37,7 @@ public sealed partial class MainViewModel : BusyViewModel
     public ObservableCollection<RecentItem> Recent { get; } = new();
 
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsHome), nameof(HasDocument))] private DocumentViewModel? _activeTab;
-    [ObservableProperty] private RibbonTab _ribbon = RibbonTab.File;
+    [ObservableProperty] private RibbonTab _ribbon = RibbonTab.Document;
     [ObservableProperty] private bool _isFullScreen;
 
     public bool IsHome => ActiveTab is null;
@@ -46,22 +49,34 @@ public sealed partial class MainViewModel : BusyViewModel
         if (oldValue is not null) oldValue.IsActive = false;
         if (newValue is not null) newValue.IsActive = true;
         DocumentViewModel? value = newValue;
-        if (value is null && Ribbon is RibbonTab.Read or RibbonTab.Pages or RibbonTab.Ocr or RibbonTab.Edit) Ribbon = RibbonTab.File;
-        else if (value is not null && oldValue is null && Ribbon == RibbonTab.File) Ribbon = RibbonTab.Read;
-        // Düzenle sekmesi açıkken başka belgeye geçilirse o belgede de düzenleme aracı açılır.
-        if (value is not null && Ribbon == RibbonTab.Edit) value.Tool = ViewerTool.Edit;
-        if (oldValue is not null && oldValue.Tool == ViewerTool.Edit && Ribbon == RibbonTab.Edit) oldValue.Tool = ViewerTool.Select;
+        // Yeni bir belgeye geçilince Belge sekmesinden başlanır; İçeriği Düzenle açıkken geçilirse o belgede de düzenleme açılır.
+        if (value is not null && Ribbon == RibbonTab.EditContent) value.Tool = ViewerTool.Edit;
+        if (oldValue is not null && oldValue.Tool == ViewerTool.Edit && Ribbon == RibbonTab.EditContent) oldValue.Tool = ViewerTool.Select;
+        if (value is not null) value.IsOrganizeMode = Ribbon == RibbonTab.Organize;
+        if (oldValue is not null) oldValue.IsOrganizeMode = false;
     }
 
     /// <summary>FineReader düzeni: “Düzenle” sekmesi düzenleme kipidir; sekmeye girince araç açılır, çıkınca kapanır.</summary>
     partial void OnRibbonChanged(RibbonTab oldValue, RibbonTab newValue)
     {
         if (ActiveTab is not { } t) return;
-        if (newValue == RibbonTab.Edit) t.Tool = ViewerTool.Edit;
-        else if (oldValue == RibbonTab.Edit && t.Tool == ViewerTool.Edit) t.Tool = ViewerTool.Select;
+        if (newValue == RibbonTab.EditContent) t.Tool = ViewerTool.Edit;
+        else if (oldValue == RibbonTab.EditContent && t.Tool == ViewerTool.Edit) t.Tool = ViewerTool.Select;
+        t.IsOrganizeMode = newValue == RibbonTab.Organize;
     }
 
     [RelayCommand] private void ShowHome() => ActiveTab = null;
+
+    /// <summary>Yeni Görev ekranındaki bölüm (Aç, Tara, Son Kullanılanlar).</summary>
+    [ObservableProperty] private HomeSection _homeSection = HomeSection.Open;
+
+    private static readonly string[] OcrLangCodes = { "tur+eng", "tur", "eng" };
+    /// <summary>Yeni Görev alt çubuğundaki belge dilleri.</summary>
+    public int OcrLanguageIndex
+    {
+        get => Math.Max(0, Array.IndexOf(OcrLangCodes, _settings.OcrLanguages));
+        set { if (value >= 0 && value < OcrLangCodes.Length) { _settings.OcrLanguages = OcrLangCodes[value]; OnPropertyChanged(); } }
+    }
     [RelayCommand] private void SelectRibbon(RibbonTab tab) => Ribbon = tab;
 
     // ─────────────── Son dosyalar ───────────────
@@ -372,7 +387,7 @@ public sealed partial class MainViewModel : BusyViewModel
     {
         var vm = await PickAndOpenAsync("Düzenlenecek PDF'yi seçin");
         if (vm is null) return;
-        Ribbon = RibbonTab.Edit;
+        Ribbon = RibbonTab.EditContent;
         vm.Tool = ViewerTool.Edit;
     }
 
@@ -382,7 +397,7 @@ public sealed partial class MainViewModel : BusyViewModel
     {
         var vm = await PickAndOpenAsync("Metni tanınacak (taranmış) PDF'yi seçin");
         if (vm is null) return;
-        Ribbon = RibbonTab.Ocr;
+        Ribbon = RibbonTab.Document;
         await vm.RunOcrAsync(ocr: true, pages: null);
     }
 
