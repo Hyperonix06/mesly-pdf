@@ -76,6 +76,18 @@ public partial class DocumentView : UserControl
         RightCol.Width = new GridLength(right ? 280 : 0);
         RightPanel.Visibility = right ? Visibility.Visible : Visibility.Collapsed;
         Rail.Visibility = organize ? Visibility.Collapsed : Visibility.Visible;
+        // Izgara sanallaştırılmaz: yalnız “Sayfaları Düzenle” açıkken sayfalara bağlanır (gizliyken bellek/işlemci harcamasın).
+        var src = organize ? _vm.Thumbnails : null;
+        if (!ReferenceEquals(OrganizeGrid.ItemsSource, src))
+        {
+            OrganizeGrid.ItemsSource = src;
+            if (src is not null)
+            {
+                _syncingSelection = true;
+                try { foreach (var t in _vm.Thumbnails.Where(t => _vm.SelectedPages.Contains(t.Index))) OrganizeGrid.SelectedItems.Add(t); }
+                finally { _syncingSelection = false; }
+            }
+        }
         if (organize) Dispatcher.BeginInvoke(() =>
         {
             if (_vm.CurrentPage < _vm.Thumbnails.Count) OrganizeGrid.ScrollIntoView(_vm.Thumbnails[_vm.CurrentPage]);
@@ -94,9 +106,12 @@ public partial class DocumentView : UserControl
         foreach (ThumbnailItem t in list.SelectedItems) _vm.SelectedPages.Add(t.Index);
         // Kenar paneli ile sayfa ızgarası aynı seçimi göstersin.
         var other = ReferenceEquals(list, ThumbList) ? OrganizeGrid : ThumbList;
-        _syncingSelection = true;
-        try { other.SelectedItems.Clear(); foreach (var it in list.SelectedItems) other.SelectedItems.Add(it); }
-        finally { _syncingSelection = false; }
+        if (other.ItemsSource is not null)
+        {
+            _syncingSelection = true;
+            try { other.SelectedItems.Clear(); foreach (var it in list.SelectedItems) other.SelectedItems.Add(it); }
+            finally { _syncingSelection = false; }
+        }
         if (list.SelectedItems.Count == 1 && list.SelectedItem is ThumbnailItem one && Mouse.LeftButton == MouseButtonState.Released)
             _vm.CurrentPage = one.Index;
         else if (e.AddedItems.Count == 1 && e.AddedItems[0] is ThumbnailItem added && list.SelectedItems.Count == 1)
