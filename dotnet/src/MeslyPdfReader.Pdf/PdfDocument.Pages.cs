@@ -57,7 +57,7 @@ public sealed unsafe partial class PdfDocument
         {
             _bookmarksDirty = true;
             RemapBookmarks(old => set.Contains(old) ? -2 : old - arr.Count(d => d < old));
-            _bookmarks = PruneDeleted(_bookmarks);
+            _bookmarks = PruneDeleted(_bookmarks!);
         }
         else RemapBookmarks(old => old - arr.Count(d => d < old));
         MarkChanged();

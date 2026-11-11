@@ -85,10 +85,23 @@ jobs:
           Compress-Archive -Path ..\publish\* -DestinationPath "artifacts\MeslyPdfReader-Portable-${{ steps.ver.outputs.version }}-win-x64.zip"
           Get-ChildItem artifacts | Format-Table Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}}
 
+      - name: Karşılaştırma için eski tür (çok dosyalı) kurulum
+        run: |
+          dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ..\publish-multi
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DPublishDir=..\..\publish-multi" "/O..\compare" "/FMeslyPdfReader-Setup-cokdosya" installer\MeslyPdfReader.iss
+          Write-Host "Çok dosyalı yayın: $((Get-ChildItem ..\publish-multi -Recurse -File).Count) dosya; tek dosya yayını: $((Get-ChildItem ..\publish -Recurse -File).Count) dosya"
+
       - uses: actions/upload-artifact@v4
         with:
           name: MeslyPdfReader-${{ steps.ver.outputs.version }}
           path: dotnet/artifacts/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: karsilastirma-kurulumu
+          path: dotnet/compare/*
 
   install-test:
     needs: build
@@ -108,15 +121,56 @@ jobs:
           merge-multiple: true
           path: setup
 
-      - name: Sessiz kurulum
+      - uses: actions/download-artifact@v4
+        with:
+          name: karsilastirma-kurulumu
+          path: compare
+
+      - name: Karşılaştırma — eski tür (çok dosyalı) kurulum süresi
+        run: |
+          $setup = Get-Item compare\MeslyPdfReader-Setup-cokdosya.exe
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/TASKS=desktopicon,assocpdf" -Wait -PassThru
+          $sw.Stop()
+          $files = (Get-ChildItem "$env:LOCALAPPDATA\Programs\Mesly PDF Reader" -Recurse -File).Count
+          $msg = "ESKİ (çok dosyalı) kurulum: $([math]::Round($sw.Elapsed.TotalSeconds,1)) sn, $([math]::Round($setup.Length/1MB,1)) MB, $files dosya"
+          Write-Host $msg
+          "### ${{ matrix.os }}`n- $msg" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $un = Get-ChildItem "$env:LOCALAPPDATA\Programs\Mesly PDF Reader\unins*.exe" | Select-Object -First 1
+          $sw2 = [Diagnostics.Stopwatch]::StartNew()
+          Start-Process $un.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait | Out-Null
+          $sw2.Stop()
+          "- ESKİ kaldırma: $([math]::Round($sw2.Elapsed.TotalSeconds,1)) sn" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Start-Sleep -Seconds 3
+
+      - name: Sessiz kurulum (süre ölçümüyle)
         run: |
           $setup = Get-ChildItem setup\MeslyPdfReader-Setup-*.exe | Select-Object -First 1
+          $sw = [Diagnostics.Stopwatch]::StartNew()
           $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/TASKS=desktopicon,assocpdf","/LOG=install.log" -Wait -PassThru
+          $sw.Stop()
           if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 50; throw "Kurulum başarısız: $($p.ExitCode)" }
+          $files = (Get-ChildItem "$env:LOCALAPPDATA\Programs\Mesly PDF Reader" -Recurse -File).Count
+          $msg = "Kurulum süresi: $([math]::Round($sw.Elapsed.TotalSeconds,1)) sn, kurulum dosyası $([math]::Round($setup.Length/1MB,1)) MB, kurulan dosya sayısı: $files"
+          Write-Host $msg
+          "- YENİ (tek dosya) $msg" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           $exe = "$env:LOCALAPPDATA\Programs\Mesly PDF Reader\MeslyPdfReader.exe"
           if (-not (Test-Path $exe)) { throw "Kurulu exe bulunamadı: $exe" }
           "EXE=$exe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Kuruldu: $exe ($([math]::Round((Get-Item $exe).Length/1MB,1)) MB)"
+
+      - name: Açılış süresi (ilk ve sonraki açılışlar)
+        run: |
+          $times = @()
+          for ($i = 1; $i -le 4; $i++) {
+            $f = Join-Path $env:RUNNER_TEMP "startup$i.txt"
+            $p = Start-Process -FilePath $env:EXE -ArgumentList "--startup-benchmark", "`"$f`"" -PassThru
+            if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "Açılış ölçümü zaman aşımı" }
+            $times += [int](Get-Content $f)
+          }
+          $msg = "Açılış (pencere çizilene kadar): ilk $($times[0]) ms, sonrakiler $($times[1..3] -join ' / ') ms"
+          Write-Host $msg
+          "- $msg" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Windows entegrasyonunu doğrula
         run: |

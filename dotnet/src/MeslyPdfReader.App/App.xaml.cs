@@ -33,6 +33,14 @@ public partial class App : Application
             AppPaths.OverrideRoot(Path.Combine(selfTestDir, "appdata"));
         }
 
+        string? benchFile = null;
+        int bi = Array.IndexOf(args, "--startup-benchmark");
+        if (bi >= 0)
+        {
+            benchFile = bi + 1 < args.Length ? args[bi + 1] : Path.Combine(Path.GetTempPath(), "mesly-startup.txt");
+            args = args.Where((_, i) => i != bi && i != bi + 1).ToArray();
+        }
+
         var tr = CultureInfo.GetCultureInfo("tr-TR");
         CultureInfo.DefaultThreadCurrentCulture = tr;
         CultureInfo.DefaultThreadCurrentUICulture = tr;
@@ -40,7 +48,7 @@ public partial class App : Application
         Thread.CurrentThread.CurrentUICulture = tr;
         FrameworkElement.LanguageProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(System.Windows.Markup.XmlLanguage.GetLanguage("tr-TR")));
 
-        if (selfTestDir is null)
+        if (selfTestDir is null && benchFile is null)
         {
             _single = new SingleInstance();
             if (!_single.TryClaim(args.Where(File.Exists).ToArray()))
@@ -83,6 +91,17 @@ public partial class App : Application
         var main = Services.GetRequiredService<MainWindow>();
         var vm = Services.GetRequiredService<MainViewModel>();
         MainWindow = main;
+        if (benchFile is not null)
+        {
+            // Açılış ölçümü: süreç başlangıcından ilk çizilmiş ve boşta kalan pencereye kadar geçen süre.
+            main.ContentRendered += (_, _) => Dispatcher.BeginInvoke(() =>
+            {
+                var ms = (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+                File.WriteAllText(benchFile, ((int)ms).ToString(CultureInfo.InvariantCulture));
+                main.SkipExitPrompt = true;
+                Shutdown(0);
+            }, DispatcherPriority.ApplicationIdle);
+        }
         main.Show();
 
         if (_single is not null)
@@ -96,6 +115,7 @@ public partial class App : Application
             _single.StartServer();
         }
 
+        if (benchFile is not null) return;
         if (selfTestDir is not null)
         {
             var runner = new SelfTestRunner(main, vm, settings, db, selfTestDir);

@@ -39,5 +39,10 @@ public sealed class AppSettings
     public bool HardwareAcceleration { get => GetBool("perf.hardware", true); set => Set("perf.hardware", value ? "1" : "0"); }
     public int ExportDpi { get => Math.Clamp(GetInt("export.dpi", 200), 36, 1200); set => Set("export.dpi", value.ToString(CultureInfo.InvariantCulture)); }
     public int JpegQuality { get => Math.Clamp(GetInt("export.jpegQuality", 90), 10, 100); set => Set("export.jpegQuality", value.ToString(CultureInfo.InvariantCulture)); }
+    public string? ScanDevice { get => Get("scan.device"); set => Set("scan.device", value); }
+    public int ScanSource { get => GetInt("scan.source", 0); set => Set("scan.source", value.ToString(CultureInfo.InvariantCulture)); }
+    public int ScanColor { get => GetInt("scan.color", 0); set => Set("scan.color", value.ToString(CultureInfo.InvariantCulture)); }
+    public int ScanDpi { get => Math.Clamp(GetInt("scan.dpi", 300), 75, 1200); set => Set("scan.dpi", value.ToString(CultureInfo.InvariantCulture)); }
+    public int ScanPaper { get => GetInt("scan.paper", 0); set => Set("scan.paper", value.ToString(CultureInfo.InvariantCulture)); }
     public bool ConfirmExternalLinks { get => GetBool("security.confirmLinks", true); set => Set("security.confirmLinks", value ? "1" : "0"); }
 }

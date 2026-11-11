@@ -79,6 +79,9 @@
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding OpenCommand}" ToolTip="PDF veya görüntü aç (Ctrl+O)">
                         <StackPanel><ui:SymbolIcon Symbol="FolderOpen24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Aç" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ScanToPdfCommand}" ToolTip="Tarayıcıdan (düz cam veya belge besleyici) yeni PDF">
+                        <StackPanel><ui:SymbolIcon Symbol="ScanText24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Tara" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.SaveCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Kaydet (Ctrl+S)">
                         <StackPanel><ui:SymbolIcon Symbol="Save24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Kaydet" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>
@@ -105,6 +108,9 @@
                 <StackPanel Style="{StaticResource RibbonPanel}" Visibility="{Binding Ribbon, Converter={StaticResource EqualsToVis}, ConverterParameter=Home}">
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding OpenCommand}" ToolTip="PDF veya görüntü aç (Ctrl+O)">
                         <StackPanel><ui:SymbolIcon Symbol="FolderOpen24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Aç" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ScanToPdfCommand}" ToolTip="Tarayıcıdan (düz cam veya belge besleyici) yeni PDF">
+                        <StackPanel><ui:SymbolIcon Symbol="ScanText24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Tara" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.SaveCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Kaydet (Ctrl+S)">
                         <StackPanel><ui:SymbolIcon Symbol="Save24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Kaydet" Style="{StaticResource RibbonLabel}" /></StackPanel>
@@ -172,6 +178,9 @@
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.InsertFromFileCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Başka bir PDF'den veya görüntüden sayfa ekle">
                         <StackPanel><ui:SymbolIcon Symbol="ArrowImport24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Dosyadan ekle" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.ScanInsertCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Tarayıcıdan sayfa ekle">
+                        <StackPanel><ui:SymbolIcon Symbol="ScanText24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Tarayıcıdan ekle" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.DuplicatePagesCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili sayfaların kopyasını ekle">
                         <StackPanel><ui:SymbolIcon Symbol="DocumentCopy24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Çoğalt" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>
@@ -202,6 +211,9 @@
 
                 <!-- Dönüştür -->
                 <StackPanel Style="{StaticResource RibbonPanel}" Visibility="{Binding Ribbon, Converter={StaticResource EqualsToVis}, ConverterParameter=Convert}">
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ScanToPdfCommand}" ToolTip="Tarayıcıdan yeni PDF">
+                        <StackPanel><ui:SymbolIcon Symbol="ScanText24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Tarayıcı → PDF" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding CreateFromImagesCommand}" ToolTip="JPG, PNG, TIFF, BMP görüntülerinden PDF oluştur">
                         <StackPanel><ui:SymbolIcon Symbol="ImageMultiple24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Görüntü → PDF" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>

@@ -37,10 +37,15 @@ UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 WizardStyle=modern
 WizardSizePercent=110
+; Hız: uygulama tek exe + birkaç yerel DLL olarak gelir (yüzlerce dosya yerine). Antivirüs her dosyayı
+; ayrı taradığı için dosya sayısı kurulum süresini belirleyen asıl etkendir.
 Compression=lzma2/max
-SolidCompression=yes
+SolidCompression=no
+LZMANumBlockThreads=4
 ChangesAssociations=yes
 CloseApplications=yes
+; Yeniden Başlatma Yöneticisi varsayılan olarak tüm *.dll dosyalarını denetler; yalnız uygulamamızı denetlesin.
+CloseApplicationsFilter=MeslyPdfReader.exe
 RestartApplications=no
 ShowLanguageDialog=no
 LicenseFile=..\THIRD_PARTY_NOTICES.md
@@ -52,8 +57,16 @@ Name: "tr"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "desktopicon"; Description: "Masaüstü kısayolu oluştur"; GroupDescription: "Ek simgeler:"
 Name: "assocpdf"; Description: "PDF dosyalarını “Birlikte aç” listesine ve sağ tık menüsüne ekle"; GroupDescription: "Windows entegrasyonu:"
 
+[InstallDelete]
+; Eski (çok dosyalı) sürümden kalan yönetilen DLL'leri temizle; yenileri ardından kopyalanır.
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.pdb"
+Type: files; Name: "{app}\*.json"
+Type: filesandordirs; Name: "{app}\tr"
+Type: filesandordirs; Name: "{app}\en"
+
 [Files]
-Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PublishDir}\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "PDF görüntüleme, sayfa yönetimi ve dönüştürme"

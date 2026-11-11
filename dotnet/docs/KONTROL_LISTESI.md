@@ -3,7 +3,7 @@
 Durumlar: ✅ çalışıyor ve testle doğrulandı · 🟡 kısmen / sınırlı · ⏳ planlandı (aşama numarası) · ⛔ bu sürümde yok
 Test kaynakları: **B** = birim testi (`dotnet/tests`, Linux + Windows), **Ö** = Windows'ta gerçek pencerede arayüz öz testi (`--selftest`), **K** = CI kurulum testi (Windows Server 2022 + 2025).
 
-Sürüm 0.2.0 — Aşama 1 ve Aşama 2 tamamlandı.
+Sürüm 0.3.0 — Aşama 1 ve 2 tamamlandı; tarama (WIA) ve hızlı kurulum eklendi.
 
 ## 2. Teknoloji ve mimari
 | Madde | Durum | Not |
@@ -16,7 +16,7 @@ Sürüm 0.2.0 — Aşama 1 ve Aşama 2 tamamlandı.
 | Arka plan / iptal edilebilir / asenkron | ✅ B Ö | Tek iş parçacıklı PDF motoru, öncelikli kuyruk, CancellationToken |
 | İnternetsiz çalışma | ✅ | Hiçbir özellik ağ kullanmıyor |
 | Tesseract, OpenCV | ⏳ 4 | |
-| Kurulum paketi (EXE) | ✅ K | Inno Setup, kullanıcı başına, yönetici izni gerekmez |
+| Kurulum paketi (EXE) | ✅ K | Inno Setup, kullanıcı başına, yönetici izni gerekmez; tek dosya yayını (286 → ~11 dosya) ile hızlı kurulum |
 | Ticari dağıtıma uygun bağımlılıklar | ✅ | `THIRD_PARTY_NOTICES.md` |
 
 ## 3. Arayüz
@@ -31,7 +31,8 @@ Sürüm 0.2.0 — Aşama 1 ve Aşama 2 tamamlandı.
 | Sürükle-bırak ile açma | ✅ | Pencereye, ana ekrana, küçük resimlere |
 | Sekmeli çoklu belge | ✅ Ö | Orta tık ile kapatma, Ctrl+Tab |
 | Ana ekran: aç, PDF oluştur, dönüştür, birleştir | ✅ Ö | |
-| Ana ekran: OCR ile tara, belge karşılaştır | ⏳ 4 / 7 | Henüz çalışmadığı için düğmeleri gösterilmiyor |
+| Ana ekran: Tara | ✅ Ö | |
+| Ana ekran: OCR, belge karşılaştır | ⏳ 4 / 7 | Henüz çalışmadığı için düğmeleri gösterilmiyor |
 | Son belgeler, hızlı işlemler, bırakma alanı | ✅ Ö | Sabitleme, klasörde göster, listeden kaldır |
 | Editör: sol panel küçük resim / yer imi / arama | ✅ Ö | |
 | Editör: katmanlar paneli | ⏳ 3 | |
@@ -111,7 +112,9 @@ Açıklamalar (9), imza ve güvenlik (10), formlar (11), karşılaştırma (12),
 | Başlat menüsü, masaüstü kısayolu | ✅ | K |
 | Çift tıklayınca açma, tek örnek (yeni sekmede açar) | ✅ | K (komut satırından PDF ile açılış) |
 | Windows yazdırma sistemi | ✅ | Yazıcı listesi, PrintTicket |
-| Tarayıcı (TWAIN / WIA) | ⏳ 4 | |
+| Tarayıcı — WIA: düz cam, belge besleyici, çift taraflı besleyici | 🟡 B Ö | İş mantığı testli; WIA hizmetiyle iletişim ve pencere Windows'ta testli. **Gerçek tarayıcıyla CI'da test edilemedi** — kullanıcı cihazında doğrulanmalı |
+| Tarayıcının kendi (sürücü) tarama penceresi | 🟡 | Aynı şekilde gerçek cihazla doğrulanmalı |
+| TWAIN (yalnız TWAIN sürücüsü olan tarayıcılar) | ⏳ | WIA sürücüsü olmayan cihazlar için |
 
 ## 17. Ayarlar
 Tema ✅, arayüz dili (yalnız Türkçe) 🟡, görüntüleme varsayılanları ✅, otomatik kayıt/kurtarma ✅, dosya geçmişi ✅, PDF çıktı kalitesi (DPI, JPG kalitesi) ✅, geçici dosyalar ✅, donanım hızlandırma ✅, kısayollar ✅, varsayılan klasörler ✅, hakkında / sürüm / lisanslar ✅, OCR ayarları ⏳ 4, güncelleme denetimi ⛔ (çevrimiçi servis gerektirir; açık izinle Aşama 9).

@@ -426,6 +426,46 @@ public sealed class SelfTestRunner
             return (st?.Page == 12 && recent.Count >= 1, $"son sayfa={st?.Page + 1}, geçmiş={recent.Count}");
         });
 
+        // ── Tarama ──
+        await Step("Tarama", "WIA tarayıcı listesi", "WIA hizmetiyle konuşulur; tarayıcı yoksa çökmeden anlaşılır mesaj", async () =>
+        {
+            try
+            {
+                var list = await WiaScanner.ListAsync();
+                return (true, list.Count == 0 ? "bu makinede tarayıcı yok (0 cihaz) — gerçek tarama burada test edilemez" : $"{list.Count} tarayıcı: {string.Join(", ", list)}");
+            }
+            catch (ScanException ex) { return (ex.Kind is ScanErrorKind.ServiceUnavailable or ScanErrorKind.NoDevice, $"anlaşılır hata: {ex.Message}"); }
+        });
+
+        await Step("Tarama", "Tarama penceresi", "Açılır; cihaz yoksa “Tara” devre dışı ve neden yazılı", async () =>
+        {
+            var win = ScanDialog.CreateForTest(_settings);
+            win.Show();
+            await WaitUntil(() => win.IsLoaded, 5000);
+            await win.Initialization;
+            await Task.Delay(300);
+            await Idle();
+            var path = Path.Combine(_dir, "14-tarama-penceresi.png");
+            ImageCodec.CaptureVisual((FrameworkElement)win.Content, path);
+            var info = $"cihaz={win.DeviceCount}, durum: {win.StatusText}";
+            win.Close();
+            return (File.Exists(path) && !string.IsNullOrWhiteSpace(win.StatusText), info);
+        });
+
+        await Step("Tarama", "Taranan sayfalardan PDF", "JPEG (kayıpsız) + PNG sayfa, kullanıcı döndürmesi uygulanır", async () =>
+        {
+            var pages = new List<ScannedPage>
+            {
+                new() { Data = File.ReadAllBytes(jpgPath), Format = ScannedFormat.Jpeg, Dpi = 150 },
+                new() { Data = File.ReadAllBytes(pngPath), Format = ScannedFormat.Png, Dpi = 150, QuarterTurns = 1 },
+            };
+            using var doc = await ScanPdfBuilder.BuildAsync(pages);
+            int rot0 = await doc.GetRotationAsync(0), rot1 = await doc.GetRotationAsync(1);
+            var s0 = doc.GetPageSize(0);
+            return (doc.PageCount == 2 && rot0 == 0 && rot1 == 1 && Math.Abs(PaperSize.PtToMm(s0.Width) - 297) < 3,
+                $"sayfa={doc.PageCount}, döndürme={rot0}/{rot1}, 1. sayfa {PaperSize.Describe(s0)}");
+        });
+
         // ── Büyük belge ──
         string big = Path.Combine(work, "bin-sayfa.pdf");
         await Step("Performans", "1.000 sayfalık belge", "Hızlı açılır, son sayfaya gidilir, bellek sınırlı", async () =>

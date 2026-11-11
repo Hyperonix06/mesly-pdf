@@ -1,5 +1,19 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.3.0 (11 Kasım 2026)
+
+### Yeni: Tarama
+* Windows Görüntü Alma (WIA) ile **düz camdan**, **belge besleyiciden** ve **çift taraflı belge besleyiciden** tarama.
+* Renkli / gri / siyah-beyaz, 150–600 DPI, A4 / A3 / A5 / Letter / Legal veya tarayıcının tüm alanı; ayarlar hatırlanır.
+* Düz camda sayfa sayfa tarayıp biriktirme; besleyicide tüm sayfalar tek seferde. Kâğıt sıkışırsa o ana kadar taranan sayfalar korunur.
+* Taranan sayfaları önizleme, döndürme, sıralama, silme; yeni PDF oluşturma veya açık belgeye istenen konuma ekleme.
+* Tarayıcının kendi (sürücü) tarama penceresiyle tarama seçeneği.
+* Erişim: Ana ekran → Tara, Dosya / Ana Sayfa → Tara, Sayfalar → Tarayıcıdan ekle, Dönüştür → Tarayıcı → PDF.
+
+### Hızlı kurulum
+* Uygulama tek exe olarak dağıtılıyor: kurulan dosya sayısı 286'dan ~11'e indi. Windows Defender her dosyayı ayrı taradığı için kurulum ve kaldırma belirgin şekilde hızlandı (ölçümler: TEST_RAPORU.md).
+* Kurulumun “uygulama kapatma” denetimi yalnızca Mesly PDF Reader'ı denetliyor; eski sürümden kalan DLL'ler güncellemede temizleniyor.
+
 ## 0.2.0 (11 Kasım 2026) — Aşama 1 ve 2
 
 İlk .NET 10 / WPF sürümü. Önceki Python (PySide6) sürümünden bağımsız, sıfırdan yazıldı.

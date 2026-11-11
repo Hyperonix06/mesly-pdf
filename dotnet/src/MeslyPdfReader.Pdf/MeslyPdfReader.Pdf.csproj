@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <DebugType Condition="'$(Configuration)' == 'Release'">embedded</DebugType>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>MeslyPdfReader.Pdf</RootNamespace>
   </PropertyGroup>

@@ -45,7 +45,7 @@
 
                 <!-- Hızlı işlemler -->
                 <TextBlock Grid.Row="1" Text="Hızlı işlemler" Style="{StaticResource SectionTitle}" FontSize="15" Margin="0,28,0,12" />
-                <UniformGrid Grid.Row="2" Columns="3" x:Name="Actions">
+                <UniformGrid Grid.Row="2" Columns="4" x:Name="Actions">
                     <Button Style="{StaticResource ActionCardStyle}" Command="{Binding OpenCommand}">
                         <StackPanel>
                             <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="FolderOpen24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
@@ -58,6 +58,13 @@
                             <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="ImageMultiple24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
                             <TextBlock Text="PDF oluştur" Style="{StaticResource ActionTitle}" />
                             <TextBlock Text="JPG, PNG, TIFF ve BMP görüntülerinden tek bir PDF oluşturun." Style="{StaticResource ActionDesc}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ActionCardStyle}" Command="{Binding ScanToPdfCommand}">
+                        <StackPanel>
+                            <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="ScanText24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                            <TextBlock Text="Tara" Style="{StaticResource ActionTitle}" />
+                            <TextBlock Text="Düz camdan veya belge besleyiciden (tek / çift taraflı) tarayıp PDF oluşturun." Style="{StaticResource ActionDesc}" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource ActionCardStyle}" Command="{Binding MergeCommand}">

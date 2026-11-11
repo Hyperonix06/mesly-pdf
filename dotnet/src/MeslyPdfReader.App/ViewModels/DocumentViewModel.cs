@@ -481,6 +481,21 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     }
 
     [RelayCommand]
+    private async Task ScanInsert()
+    {
+        var pages = ScanDialog.Ask(_settings, "Belgeye ekle");
+        if (pages is null) return;
+        var at = InsertPositionDialog.Ask(PageCount, CurrentPage, $"{pages.Count} taranmış sayfa");
+        if (at is null) return;
+        await EditAsync("Taranan sayfalar ekleniyor…", async () =>
+        {
+            using var tmp = await ScanPdfBuilder.BuildAsync(pages);
+            await Document.ImportPagesAsync(tmp, null, at.Value);
+        }, $"{pages.Count} taranmış sayfa eklendi.");
+        CurrentPage = at.Value;
+    }
+
+    [RelayCommand]
     private async Task ExtractPages()
     {
         var r = PageRangeDialog.Ask("Sayfaları ayıkla", "Ayıklanacak sayfalar yeni bir PDF olarak kaydedilir.", PageRange.Format(TargetPages()), PageCount, "Ayıkla", allowSeparateFiles: true);

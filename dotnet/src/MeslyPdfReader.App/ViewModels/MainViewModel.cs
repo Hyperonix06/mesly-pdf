@@ -226,6 +226,21 @@ public sealed partial class MainViewModel : BusyViewModel
     }
 
     [RelayCommand]
+    private async Task ScanToPdf()
+    {
+        var pages = ScanDialog.Ask(_settings, "PDF oluştur");
+        if (pages is null) return;
+        PdfDocument? doc = null;
+        var ok = await RunBusyAsync("Taranan sayfalar PDF'e dönüştürülüyor…", async (p, ct) => doc = await ScanPdfBuilder.BuildAsync(pages, p, ct),
+            "scan", $"{pages.Count} sayfa");
+        if (ok && doc is not null)
+        {
+            var vm = AddTab(doc, record: false);
+            vm.StatusText = $"{pages.Count} taranmış sayfa. Kaydetmek için Ctrl+S.";
+        }
+    }
+
+    [RelayCommand]
     private async Task CreateFromImages()
     {
         var files = FileDialogs.OpenFiles(FileDialogs.ImageFilter, true, "PDF'e dönüştürülecek görüntüleri seçin");
