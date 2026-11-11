@@ -58,6 +58,22 @@ public partial class App : Application
             }
         }
 
+        // Açılış ekranı: logo + “Powered by Mesly”. Ana pencere çizildikten sonra (en az ~1 sn) yumuşakça kapanır.
+        SplashScreen? splash = null;
+        var splashShown = System.Diagnostics.Stopwatch.StartNew();
+        if (benchFile is null)
+        {
+            try
+            {
+                splash = new SplashScreen(typeof(App).Assembly, "Assets/splash.png");
+                splash.Show(false, true);
+                var s = splash;
+                // Güvenlik: pencere hiç çizilemezse (açılış hatası) hata iletisinin önünde kalmasın.
+                _ = Task.Delay(8000).ContinueWith(_ => Dispatcher.BeginInvoke(() => { try { s.Close(TimeSpan.Zero); } catch { } }));
+            }
+            catch { splash = null; }
+        }
+
         AppPaths.Ensure();
         InstallCrashHandlers();
         Log.Info($"Mesly PDF Reader {typeof(App).Assembly.GetName().Version} başlatılıyor ({Environment.OSVersion}, .NET {Environment.Version})");
@@ -102,6 +118,16 @@ public partial class App : Application
                 main.SkipExitPrompt = true;
                 Shutdown(0);
             }, DispatcherPriority.ApplicationIdle);
+        }
+        if (splash is not null)
+        {
+            main.ContentRendered += async (_, _) =>
+            {
+                var wait = 1100 - splashShown.ElapsedMilliseconds;
+                if (wait > 0) await Task.Delay((int)wait);
+                try { splash.Close(TimeSpan.FromMilliseconds(350)); } catch { }
+                main.Activate();
+            };
         }
         main.Show();
 

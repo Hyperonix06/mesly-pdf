@@ -19,6 +19,9 @@
 ### PDF'yi sıkıştır
 * Görseller seçilen çözünürlüğe (220 / 150 / 100 DPI) küçültülüp yeniden kodlanır; isteğe bağlı gri tonlama. Metin, yazı tipleri, bağlantılar ve yer imleri olduğu gibi kalır. Saydam görseller ve siyah-beyaz taramalar bozulmasın diye değiştirilmez. Sonuç yeni bir dosyaya yazılır; özgün dosya korunur, kazanç yoksa hiçbir şey yazılmaz.
 
+### Açılış ekranı
+* Uygulama açılırken Mesly PDF Reader logosu ve “Powered by Mesly” yazısıyla açılış ekranı görünür; ana pencere hazır olunca yumuşakça kaybolur.
+
 ### Nerede?
 * **Dosya → Dışa aktar → Word / Excel**, **Dosya → Office belgesinden PDF**, **Dosya → PDF'yi sıkıştır**; Belge sekmesinde **Dönüştür** menüsü; Yeni Görev ekranında dört yeni görev kutusu.
 
