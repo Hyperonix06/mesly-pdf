@@ -9,6 +9,13 @@ Windows 10 / 11 için profesyonel PDF görüntüleme, sayfa yönetimi ve dönü�
 * Sürüm notları: [`docs/SURUM_NOTLARI.md`](docs/SURUM_NOTLARI.md)
 * Lisanslar: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 
+| | |
+|---|---|
+| ![Ana ekran](docs/ekran-goruntuleri/ana-ekran.png) | ![Arama](docs/ekran-goruntuleri/arama.png) |
+| ![Çift sayfa](docs/ekran-goruntuleri/cift-sayfa.png) | ![Koyu tema, karanlık okuma](docs/ekran-goruntuleri/karanlik-okuma.png) |
+
+Ekran görüntüleri Windows Server 2025 üzerinde, kurulum paketinden kurulan uygulamanın öz testi sırasında otomatik alınmıştır.
+
 ## Klasör yapısı
 
 ```
