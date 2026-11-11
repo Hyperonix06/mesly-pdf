@@ -1,4 +1,29 @@
-# Mesly PDF Reader 0.2.0 — Test Raporu
+# Mesly PDF Reader — Test Raporu
+
+## 0.3.0 (tarama + hızlı kurulum) — GitHub Actions çalışması `43001623137`
+
+| Test grubu | Ortam | Sonuç |
+|---|---|---|
+| Birim testleri (99 test; yeni: 10 tarama iş mantığı testi) | Linux ve Windows | ✅ 99 / 99 |
+| Arayüz öz testi (32 adım; yeni: 3 tarama adımı) | Tek dosya exe, Windows NT 10.0.26100 | ✅ 32 / 32 |
+| Kurulu uygulamada öz test | Windows Server 2022 / 2025 | ✅ 32 / 32 · ✅ 32 / 32 |
+
+**Kurulum süresi (aynı makinede, aynı sürümün iki paketi art arda, sessiz kurulum):**
+
+| Makine | Eski paket (284 dosya) | Yeni paket (13 dosya) | Fark |
+|---|---|---|---|
+| Windows Server 2022 (Windows 10 çekirdeği) | 7,3 sn | 5,4 sn | −%26 |
+| Windows Server 2025 (Windows 11 çekirdeği) | 8,1 sn | 5,7 sn | −%30 |
+
+CI sunucularında Windows Defender gerçek zamanlı taraması kişisel bilgisayarlardakinden hafif çalışır; dosya başına tarama maliyeti yüksek olan masaüstü Windows 11'de farkın daha büyük olması beklenir (kişisel bilgisayarda ölçülmedi).
+
+**Açılış süresi (pencere ilk kez çizilip boşta kalana kadar):** Server 2022: ilk 1,35 sn, sonraki açılışlar ≈0,6 sn · Server 2025: ilk 1,11 sn, sonraki ≈0,94 sn.
+
+**Tarama — dürüst kapsam:** CI makinelerinde tarayıcı yok. Test edilenler: tarama iş mantığı (düz cam tek sayfa, besleyici kâğıt bitene kadar, çift taraf, boş besleyici hatası, sıkışmada taranan sayfaların korunması, iptal — sahte tarayıcıyla), Windows WIA hizmetiyle iletişim ve cihaz yokken anlaşılır mesaj, tarama penceresinin açılması, taranan JPEG/PNG sayfalardan döndürmeli PDF üretimi. **Gerçek bir tarayıcıyla düz cam / besleyici taraması henüz doğrulanmadı.**
+
+---
+
+## 0.2.0
 
 Bu rapordaki her sonuç **gerçekten çalıştırılmış** testlerden alınmıştır. Çalıştırılmamış veya atlanan hiçbir test başarılı gösterilmez.
 
@@ -74,7 +99,9 @@ Testler yazıldıktan sonra **başarısız olan** ve kodda düzeltilen gerçek h
 | Performans | 1.000 sayfalık belge | Hızlı açılır, son sayfaya gidilir, bellek sınırlı | açılış+ilk çizim 178 ms, sayfa=1000, geçerli=1000, bellek artışı 156 MB, önbellek 112 MB / 42 görüntü, bekleyen 0, motor kuyruğu 0 | ✅ GEÇTİ | 12963 ms |
 | Arayüz | Sekmeleri kapatma | Değişmemiş sekmeler soru sormadan kapanır | kalan (kaydedilmemiş) sekme=1 | ✅ GEÇTİ | 63 ms |
 
-Aynı 29 adım, kurulum paketinden kurulan uygulamada Windows Server 2022 (29 adım · 29 geçti · 0 başarısız · 30,4 sn) ve Windows Server 2025 (29 adım · 29 geçti · 0 başarısız · 37,0 sn) üzerinde de çalıştırıldı.
+Aynı 29 adım, kurulum paketinden kurulan uygulamada Windows Server 2022 (29 adım · 29 geçti · 0 başarısız · 30,4 sn
+) ve Windows Server 2025 (29 adım · 29 geçti · 0 başarısız · 37,0 sn
+) üzerinde de çalıştırıldı.
 
 ## Kurulum testi (Windows Server 2022 ve 2025)
 
