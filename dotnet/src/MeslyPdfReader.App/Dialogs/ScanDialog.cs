@@ -31,6 +31,13 @@ public sealed class ScanDialog : FluentWindow
     private readonly ComboBox _color = Form.Combo(new[] { "Renkli", "Gri tonlamalı", "Siyah-beyaz (metin)" });
     private readonly ComboBox _dpi = Form.Combo(new[] { "150 DPI (ekranda okuma)", "200 DPI", "300 DPI (önerilen, OCR için)", "400 DPI", "600 DPI (en yüksek kalite)" }, 2);
     private readonly ComboBox _paper = Form.Combo(PaperSize.Standard.Select(p => p.ToString()).Append("Tarayıcının tüm alanı"));
+    private readonly CheckBox _autoFix = new() { Content = "Sayfaları otomatik düzelt", Margin = new Thickness(0, 4, 0, 0),
+        ToolTip = "Yan veya ters taranan sayfayı metne bakarak dik çevirir, eğikliği düzeltir, kenar gölgelerini temizler." };
+    private readonly CheckBox _ocr = new() { Content = "Metni tanı (aranabilir PDF)", Margin = new Thickness(0, 4, 0, 0),
+        ToolTip = "Tarama bitince metin tanınır; PDF'de arama, kopyalama ve düzenleme yapılabilir. Tanıma bu bilgisayarda yapılır." };
+    private readonly ComboBox _lang = Form.Combo(new[] { "Türkçe + İngilizce", "Türkçe", "İngilizce" });
+    private static readonly string[] LangCodes = { "tur+eng", "tur", "eng" };
+    private readonly List<Task> _fixing = new();
     private readonly TextBlock _status = DialogBase.Hint("");
     private readonly TextBlock _capsInfo = DialogBase.Hint("");
     private readonly ProgressBar _progress = new() { IsIndeterminate = true, Height = 4, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 8, 0, 0) };
@@ -94,6 +101,10 @@ public sealed class ScanDialog : FluentWindow
         left.Children.Add(Form.Labeled("Renk", _color));
         left.Children.Add(Form.Labeled("Çözünürlük", _dpi));
         left.Children.Add(Form.Labeled("Kâğıt boyutu", _paper));
+        left.Children.Add(DialogBase.Label("Tarama sonrası", 14));
+        left.Children.Add(_autoFix);
+        left.Children.Add(_ocr);
+        left.Children.Add(Form.Labeled("Tanıma dili", _lang, 6));
 
         _scan = new Button { Content = "Tara", Appearance = ControlAppearance.Primary, Icon = new SymbolIcon { Symbol = SymbolRegular.ScanText24 }, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 18, 0, 0), Height = 40 };
         _scan.Click += async (_, _) => await ScanAsync();
@@ -152,7 +163,17 @@ public sealed class ScanDialog : FluentWindow
         var close = new Button { Content = "Kapat", MinWidth = 96 };
         close.Click += (_, _) => { if (ConfirmDiscard()) DialogResult = false; };
         _finish = new Button { Content = finishText, MinWidth = 150, Margin = new Thickness(8, 0, 0, 0), Appearance = ControlAppearance.Primary, IsEnabled = false };
-        _finish.Click += (_, _) => { Result = _pages.Select(p => p.Page).ToList(); DialogResult = true; };
+        _finish.Click += async (_, _) =>
+        {
+            if (_fixing.Any(t => !t.IsCompleted))
+            {
+                _finish.IsEnabled = false; _status.Text = "Sayfa düzeltmeleri bitiriliyor…";
+                await Task.WhenAll(_fixing.ToArray());
+            }
+            SaveSettings(CurrentSettings());
+            Result = _pages.Select(p => p.Page).ToList();
+            DialogResult = true;
+        };
         fp.Children.Add(close); fp.Children.Add(_finish);
         footer.Child = fp;
         Grid.SetRow(footer, 2);
@@ -195,6 +216,9 @@ public sealed class ScanDialog : FluentWindow
         _color.SelectedIndex = Math.Clamp(_settings.ScanColor, 0, 2);
         _dpi.SelectedIndex = Math.Max(0, Array.IndexOf(DpiValues, _settings.ScanDpi));
         _paper.SelectedIndex = Math.Clamp(_settings.ScanPaper, 0, _paper.Items.Count - 1);
+        _autoFix.IsChecked = _settings.ScanAutoCorrect;
+        _ocr.IsChecked = _settings.ScanOcr;
+        _lang.SelectedIndex = Math.Max(0, Array.IndexOf(LangCodes, _settings.OcrLanguages));
     }
 
     private ScanSettings CurrentSettings()
@@ -211,6 +235,9 @@ public sealed class ScanDialog : FluentWindow
         _settings.ScanColor = (int)s.Color;
         _settings.ScanDpi = s.Dpi;
         _settings.ScanPaper = _paper.SelectedIndex;
+        _settings.ScanAutoCorrect = _autoFix.IsChecked == true;
+        _settings.ScanOcr = _ocr.IsChecked == true;
+        _settings.OcrLanguages = LangCodes[Math.Max(0, _lang.SelectedIndex)];
     }
 
     // ─────────────── Cihazlar ───────────────
@@ -319,6 +346,30 @@ public sealed class ScanDialog : FluentWindow
 
     private void AddPage(ScannedPage page)
     {
+        var item = new ScanPageItem { Page = page, Thumb = Thumb(page) };
+        _pages.Add(item);
+        if (_autoFix.IsChecked != true) return;
+        // Arka planda düzelt; bitince küçük resmi ve sayfayı değiştir.
+        var langs = LangCodes[Math.Max(0, _lang.SelectedIndex)];
+        var c = new ImageCorrection(AutoRotate: true, Deskew: true, CleanBorders: true);
+        _fixing.Add(Task.Run(() =>
+        {
+            try
+            {
+                var (fixedPage, rep) = OcrWorkflow.CorrectScan(page, c, langs);
+                Dispatcher.Invoke(() =>
+                {
+                    int i = _pages.IndexOf(item);
+                    if (i >= 0 && rep.Changed) _pages[i] = new ScanPageItem { Page = fixedPage, Thumb = Thumb(fixedPage) };
+                    if (rep.Changed || rep.Note is not null) _status.Text = $"Sayfa {i + 1}: {rep.Describe()}{(rep.Note is null ? "" : " · " + rep.Note)}";
+                });
+            }
+            catch (Exception ex) { Log.Warn("Tarama düzeltme: " + ex.Message); Dispatcher.Invoke(() => _status.Text = "Sayfa düzeltilemedi: " + ex.Message); }
+        }));
+    }
+
+    private static ImageSource Thumb(ScannedPage page)
+    {
         ImageSource thumb;
         try
         {
@@ -332,7 +383,8 @@ public sealed class ScanDialog : FluentWindow
             thumb = bi;
         }
         catch { thumb = new DrawingImage(); }
-        _pages.Add(new ScanPageItem { Page = page, Thumb = thumb });
+        if (page.QuarterTurns % 4 != 0 && thumb is BitmapSource bs) thumb = Rotate(bs, page.QuarterTurns);
+        return thumb;
     }
 
     private void SetBusy(bool busy, string? text)

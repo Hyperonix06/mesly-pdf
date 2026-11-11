@@ -27,6 +27,7 @@
     <ProjectReference Include="..\MeslyPdfReader.Core\MeslyPdfReader.Core.csproj" />
     <ProjectReference Include="..\MeslyPdfReader.Pdf\MeslyPdfReader.Pdf.csproj" />
     <ProjectReference Include="..\MeslyPdfReader.Data\MeslyPdfReader.Data.csproj" />
+    <ProjectReference Include="..\MeslyPdfReader.Ocr\MeslyPdfReader.Ocr.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="WPF-UI" />

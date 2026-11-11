@@ -44,5 +44,13 @@ public sealed class AppSettings
     public int ScanColor { get => GetInt("scan.color", 0); set => Set("scan.color", value.ToString(CultureInfo.InvariantCulture)); }
     public int ScanDpi { get => Math.Clamp(GetInt("scan.dpi", 300), 75, 1200); set => Set("scan.dpi", value.ToString(CultureInfo.InvariantCulture)); }
     public int ScanPaper { get => GetInt("scan.paper", 0); set => Set("scan.paper", value.ToString(CultureInfo.InvariantCulture)); }
+    public bool ScanAutoCorrect { get => GetBool("scan.autoCorrect", true); set => Set("scan.autoCorrect", value ? "1" : "0"); }
+    public bool ScanOcr { get => GetBool("scan.ocr", true); set => Set("scan.ocr", value ? "1" : "0"); }
+    public string OcrLanguages { get => Get("ocr.languages") is { Length: > 0 } v ? v : "tur+eng"; set => Set("ocr.languages", value); }
+    public bool OcrAutoRotate { get => GetBool("ocr.autoRotate", true); set => Set("ocr.autoRotate", value ? "1" : "0"); }
+    public bool OcrDeskew { get => GetBool("ocr.deskew", true); set => Set("ocr.deskew", value ? "1" : "0"); }
+    public bool OcrCleanBorders { get => GetBool("ocr.cleanBorders", true); set => Set("ocr.cleanBorders", value ? "1" : "0"); }
+    public bool OcrWhiten { get => GetBool("ocr.whiten", false); set => Set("ocr.whiten", value ? "1" : "0"); }
+    public int OcrDpi { get => Math.Clamp(GetInt("ocr.dpi", 300), 150, 600); set => Set("ocr.dpi", value.ToString(CultureInfo.InvariantCulture)); }
     public bool ConfirmExternalLinks { get => GetBool("security.confirmLinks", true); set => Set("security.confirmLinks", value ? "1" : "0"); }
 }

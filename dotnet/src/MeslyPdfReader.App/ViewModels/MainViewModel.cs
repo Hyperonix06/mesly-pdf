@@ -4,15 +4,17 @@ using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MeslyPdfReader.App.Controls;
 using MeslyPdfReader.App.Dialogs;
 using MeslyPdfReader.App.Services;
 using MeslyPdfReader.Core;
 using MeslyPdfReader.Data;
+using MeslyPdfReader.Ocr;
 using MeslyPdfReader.Pdf;
 
 namespace MeslyPdfReader.App.ViewModels;
 
-public enum RibbonTab { File, Home, Edit, Pages, Convert, View }
+public enum RibbonTab { File, Read, Edit, Ocr, Pages, Convert }
 
 public sealed partial class MainViewModel : BusyViewModel
 {
@@ -32,7 +34,7 @@ public sealed partial class MainViewModel : BusyViewModel
     public ObservableCollection<RecentItem> Recent { get; } = new();
 
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsHome), nameof(HasDocument))] private DocumentViewModel? _activeTab;
-    [ObservableProperty] private RibbonTab _ribbon = RibbonTab.Home;
+    [ObservableProperty] private RibbonTab _ribbon = RibbonTab.File;
     [ObservableProperty] private bool _isFullScreen;
 
     public bool IsHome => ActiveTab is null;
@@ -44,7 +46,19 @@ public sealed partial class MainViewModel : BusyViewModel
         if (oldValue is not null) oldValue.IsActive = false;
         if (newValue is not null) newValue.IsActive = true;
         DocumentViewModel? value = newValue;
-        if (value is null && Ribbon is RibbonTab.Pages or RibbonTab.View or RibbonTab.Edit) Ribbon = RibbonTab.Home;
+        if (value is null && Ribbon is RibbonTab.Read or RibbonTab.Pages or RibbonTab.Ocr or RibbonTab.Edit) Ribbon = RibbonTab.File;
+        else if (value is not null && oldValue is null && Ribbon == RibbonTab.File) Ribbon = RibbonTab.Read;
+        // Düzenle sekmesi açıkken başka belgeye geçilirse o belgede de düzenleme aracı açılır.
+        if (value is not null && Ribbon == RibbonTab.Edit) value.Tool = ViewerTool.Edit;
+        if (oldValue is not null && oldValue.Tool == ViewerTool.Edit && Ribbon == RibbonTab.Edit) oldValue.Tool = ViewerTool.Select;
+    }
+
+    /// <summary>FineReader düzeni: “Düzenle” sekmesi düzenleme kipidir; sekmeye girince araç açılır, çıkınca kapanır.</summary>
+    partial void OnRibbonChanged(RibbonTab oldValue, RibbonTab newValue)
+    {
+        if (ActiveTab is not { } t) return;
+        if (newValue == RibbonTab.Edit) t.Tool = ViewerTool.Edit;
+        else if (oldValue == RibbonTab.Edit && t.Tool == ViewerTool.Edit) t.Tool = ViewerTool.Select;
     }
 
     [RelayCommand] private void ShowHome() => ActiveTab = null;
@@ -231,13 +245,26 @@ public sealed partial class MainViewModel : BusyViewModel
         var pages = ScanDialog.Ask(_settings, "PDF oluştur");
         if (pages is null) return;
         PdfDocument? doc = null;
-        var ok = await RunBusyAsync("Taranan sayfalar PDF'e dönüştürülüyor…", async (p, ct) => doc = await ScanPdfBuilder.BuildAsync(pages, p, ct),
-            "scan", $"{pages.Count} sayfa");
+        string ocrNote = "";
+        var ok = await RunBusyAsync("Taranan sayfalar PDF'e dönüştürülüyor…", async (p, ct) =>
+        {
+            doc = await ScanPdfBuilder.BuildAsync(pages, null, ct);
+            if (_settings.ScanOcr && OcrEngine.Unavailable() is null)
+            {
+                BusyText = "Metin tanınıyor…";
+                // Görüntü düzeltmesi tarama penceresinde yapıldı; burada yalnız tanıma.
+                var opts = OcrRunOptions.From(_settings) with { Correction = ImageCorrection.None };
+                var r = await OcrWorkflow.RecognizeAsync(doc, Enumerable.Range(0, doc.PageCount).ToList(), opts, p, ct);
+                ocrNote = " " + OcrWorkflow.Summarize(r);
+            }
+            else if (_settings.ScanOcr) ocrNote = " Metin tanınamadı: " + OcrEngine.Unavailable();
+        }, "scan", $"{pages.Count} sayfa");
         if (ok && doc is not null)
         {
             var vm = AddTab(doc, record: false);
-            vm.StatusText = $"{pages.Count} taranmış sayfa. Kaydetmek için Ctrl+S.";
+            vm.StatusText = $"{pages.Count} taranmış sayfa.{ocrNote} Kaydetmek için Ctrl+S.";
         }
+        else doc?.Dispose();
     }
 
     [RelayCommand]
@@ -337,6 +364,26 @@ public sealed partial class MainViewModel : BusyViewModel
     {
         var vm = ActiveTab ?? await PickAndOpenAsync("Bölünecek PDF'yi seçin");
         vm?.SplitCommand.Execute(null);
+    }
+
+    /// <summary>Ana ekran: PDF seçip doğrudan Düzenle kipinde açar.</summary>
+    [RelayCommand]
+    private async Task EditPdf()
+    {
+        var vm = await PickAndOpenAsync("Düzenlenecek PDF'yi seçin");
+        if (vm is null) return;
+        Ribbon = RibbonTab.Edit;
+        vm.Tool = ViewerTool.Edit;
+    }
+
+    /// <summary>Ana ekran: taranmış PDF'yi seçip metin tanımayı başlatır.</summary>
+    [RelayCommand]
+    private async Task OcrPdf()
+    {
+        var vm = await PickAndOpenAsync("Metni tanınacak (taranmış) PDF'yi seçin");
+        if (vm is null) return;
+        Ribbon = RibbonTab.Ocr;
+        await vm.RunOcrAsync(ocr: true, pages: null);
     }
 
     private async Task<DocumentViewModel?> PickAndOpenAsync(string title)

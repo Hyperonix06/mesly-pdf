@@ -73,6 +73,7 @@ public partial class App : Application
         }
         var settings = new AppSettings(db);
         FileDialogs.Settings = settings;
+        OcrWorkflow.Init();
         if (!settings.HardwareAcceleration) RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
 
         var sc = new ServiceCollection();

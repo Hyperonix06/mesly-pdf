@@ -250,6 +250,9 @@ public sealed unsafe partial class PdfDocument
         var page = Page(pageIndex);
         // Silinecek nesneleri, indeksleri kaymadan önce tutamak olarak topla.
         var targets = paragraph.ObjectIndices.Select(i => Native.FPDFPage_GetObject(page, i)).Where(o => o != 0).ToList();
+        // Taranmış sayfa: metin görünmez OCR katmanıysa, eski yazı görüntünün içindedir → görüntüdeki pikseller de silinir.
+        bool ocrText = targets.Count > 0 && targets.All(o => Native.FPDFPageObj_GetType(o) == Native.FPDF_PAGEOBJ_TEXT && Native.FPDFTextObj_GetTextRenderMode(o) == 3);
+        if (ocrText) EraseImageUnder(page, paragraph.Bounds);
         foreach (var o in AllObjects(page).Where(o => RoleOf(o) == MarkUnderline && Intersects(Bounds(o), paragraph.Bounds))) targets.Add(o);
         foreach (var o in targets.Distinct())
             if (Native.FPDFPage_RemoveObject(page, o) != 0) Native.FPDFPageObj_Destroy(o);
@@ -358,7 +361,11 @@ public sealed unsafe partial class PdfDocument
     public Task DeleteObjectsAsync(int pageIndex, IEnumerable<int> indices) => _engine.RunAsync(() =>
     {
         var page = Page(pageIndex);
-        foreach (var o in Objects(page, indices))
+        var objs = Objects(page, indices);
+        // Görünmez OCR metni silinirse görüntüdeki karşılığı da silinir (taranmış sayfada “metni sil”).
+        foreach (var o in objs.Where(o => Native.FPDFPageObj_GetType(o) == Native.FPDF_PAGEOBJ_TEXT && Native.FPDFTextObj_GetTextRenderMode(o) == 3).ToList())
+            EraseImageUnder(page, Bounds(o));
+        foreach (var o in objs)
             if (Native.FPDFPage_RemoveObject(page, o) != 0) Native.FPDFPageObj_Destroy(o);
         Commit(pageIndex, page);
     });

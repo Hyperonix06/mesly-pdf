@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\src\MeslyPdfReader.Core\MeslyPdfReader.Core.csproj" />
     <ProjectReference Include="..\..\src\MeslyPdfReader.Pdf\MeslyPdfReader.Pdf.csproj" />
     <ProjectReference Include="..\..\src\MeslyPdfReader.Data\MeslyPdfReader.Data.csproj" />
+    <ProjectReference Include="..\..\src\MeslyPdfReader.Ocr\MeslyPdfReader.Ocr.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />

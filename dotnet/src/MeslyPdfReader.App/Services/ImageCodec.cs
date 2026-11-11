@@ -69,6 +69,34 @@ public static class ImageCodec
         return 0;
     }
 
+    /// <summary>Bayt dizisindeki görüntüyü (JPEG/PNG/TIFF/BMP) BGRA'ya çözer.</summary>
+    public static BgraImage Decode(byte[] data)
+    {
+        using var ms = new MemoryStream(data, false);
+        var frame = BitmapDecoder.Create(ms, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad).Frames[0];
+        return FromBitmapSource(frame);
+    }
+
+    public static byte[] EncodeJpeg(BgraImage img, int quality = 90, double dpi = 300)
+    {
+        var enc = new JpegBitmapEncoder { QualityLevel = Math.Clamp(quality, 10, 100) };
+        // JPEG saydamlık taşımaz: BGR24'e çevir (saydam alanlar beyaz olur).
+        var bgr = new FormatConvertedBitmap(BitmapSource.Create(img.Width, img.Height, dpi, dpi, PixelFormats.Bgra32, null, img.Pixels, img.Stride), PixelFormats.Bgr24, null, 0);
+        enc.Frames.Add(BitmapFrame.Create(bgr));
+        using var ms = new MemoryStream();
+        enc.Save(ms);
+        return ms.ToArray();
+    }
+
+    public static byte[] EncodePng(BgraImage img, double dpi = 300)
+    {
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(BitmapSource.Create(img.Width, img.Height, dpi, dpi, PixelFormats.Bgra32, null, img.Pixels, img.Stride)));
+        using var ms = new MemoryStream();
+        enc.Save(ms);
+        return ms.ToArray();
+    }
+
     public static void Save(BgraImage img, string path, ImageFormatKind kind, double dpi, int jpegQuality = 90)
     {
         if (kind == ImageFormatKind.Png)

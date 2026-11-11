@@ -13,6 +13,10 @@ Mesly PDF Reader yalnızca ticari dağıtıma izin veren, kaynak kodu açma zoru
 | Microsoft.Data.Sqlite + SQLitePCLRaw + SQLite | 10.0.15 | Ayarlar, son dosyalar, görev geçmişi | MIT / Apache-2.0 / Kamu malı | https://github.com/dotnet/efcore · https://sqlite.org |
 | System.Security.Cryptography.Pkcs | 10.0.15 | (PDFsharp bağımlılığı) | MIT | https://github.com/dotnet/runtime |
 | .NET 10 çalışma zamanı ve WPF | 10.0 | Uygulama çalışma zamanı (self-contained) | MIT | https://github.com/dotnet |
+| Tesseract OCR (yerel DLL: charlesw/tesseract NuGet paketinden) | 5.0 (Windows) | Metin tanıma, sayfa yönü algılama | Apache-2.0 | https://github.com/tesseract-ocr/tesseract · https://github.com/charlesw/tesseract |
+| Leptonica | 1.82.0 | Tesseract'ın görüntü kitaplığı | BSD-2-Clause benzeri Leptonica lisansı | http://www.leptonica.org |
+| tessdata_best (tur, eng) ve tessdata (osd) | — | OCR dil modelleri ve yön algılama verisi | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_best · https://github.com/tesseract-ocr/tessdata |
+| Microsoft Visual C++ 2015–2022 çalışma zamanı (vcruntime140, vcruntime140_1, msvcp140) | 14.x | Tesseract DLL'lerinin bağımlılığı; yalnızca sistemde yoksa yüklenir | Microsoft Visual Studio yeniden dağıtılabilir dosya lisansı (uygulama yanında dağıtıma izin verilir) | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |
 | DejaVu Sans yazı tipi | 2.37 | Türkçe karakterli metin gömme | Bitstream Vera / Kamu malı (bkz. LICENSE-DejaVu.txt) | https://dejavu-fonts.github.io |
 
 ## Yalnızca geliştirme/test aşamasında
@@ -27,9 +31,9 @@ Mesly PDF Reader yalnızca ticari dağıtıma izin veren, kaynak kodu açma zoru
 
 | Bileşen | Kullanım | Lisans |
 |---|---|---|
-| Tesseract OCR 5 + tessdata | OCR (Aşama 4) | Apache-2.0 |
-| OpenCvSharp4 / OpenCV | Görüntü ön işleme (Aşama 4) | Apache-2.0 |
 | DocumentFormat.OpenXml | DOCX/XLSX/PPTX üretimi (Aşama 5) | MIT |
+
+Görüntü düzeltme (eğiklik ölçümü, döndürme, kenar ve arka plan temizleme) kendi yönetilen kodumuzla yapılır; OpenCV kullanılmaz.
 
 ## Bilerek kullanılmayanlar
 

@@ -186,4 +186,18 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial nint FPDFPage_GetAnnot(nint page, int index);
     [LibraryImport(Lib)] public static partial int FPDFPage_RemoveAnnot(nint page, int index);
     [LibraryImport(Lib)] public static partial void FPDFPage_CloseAnnot(nint annot);
+
+    // ── Aşama 4: OCR metin katmanı ve görüntü düzeltme ──
+    public const int FPDF_TEXTRENDERMODE_FILL = 0, FPDF_TEXTRENDERMODE_INVISIBLE = 3;
+    public const int FPDFBitmap_Gray = 1, FPDFBitmap_BGRx = 3;
+    [LibraryImport(Lib)] public static partial int FPDFTextObj_SetTextRenderMode(nint textObj, int mode);
+    [LibraryImport(Lib)] public static partial nint FPDFImageObj_GetBitmap(nint imageObj);
+    [LibraryImport(Lib)] public static partial nint FPDFImageObj_GetRenderedBitmap(nint doc, nint page, nint imageObj);
+    [LibraryImport(Lib)] public static partial void* FPDFBitmap_GetBuffer(nint bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetStride(nint bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetFormat(nint bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetWidth(nint bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFBitmap_GetHeight(nint bitmap);
+    [LibraryImport(Lib)] public static partial int FPDFImageObj_GetImageFilterCount(nint imageObj);
+    [LibraryImport(Lib)] public static partial CULong FPDFImageObj_GetImageFilter(nint imageObj, int index, void* buffer, CULong buflen);
 }

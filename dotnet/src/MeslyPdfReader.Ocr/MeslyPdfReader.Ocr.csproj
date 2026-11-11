@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <DebugType Condition="'$(Configuration)' == 'Release'">embedded</DebugType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MeslyPdfReader.Ocr</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MeslyPdfReader.Core\MeslyPdfReader.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Yalnızca Windows x64 yerel Tesseract/Leptonica DLL'leri için (Apache-2.0); yönetilen sarmalayıcı kullanılmaz. -->
+    <PackageReference Include="Tesseract" ExcludeAssets="all" GeneratePathProperty="true" />
+  </ItemGroup>
+  <!-- Windows x64 yerel DLL'leri uygulamanın ocr\ klasörüne; tek dosya paketine alınmaz. -->
+  <ItemGroup Condition="'$(PkgTesseract)' != ''">
+    <None Include="$(PkgTesseract)\x64\*.dll" Link="ocr\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
+  </ItemGroup>
+  <!-- CI: dil verileri (tessdata) ve VC++ çalışma zamanı dışarıdan verilir. -->
+  <ItemGroup Condition="'$(MeslyTessdataDir)' != '' And Exists('$(MeslyTessdataDir)')">
+    <None Include="$(MeslyTessdataDir)\*.traineddata" Link="ocr\tessdata\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MeslyVcRuntimeDir)' != '' And Exists('$(MeslyVcRuntimeDir)')">
+    <None Include="$(MeslyVcRuntimeDir)\*.dll" Link="ocr\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
+  </ItemGroup>
+</Project>

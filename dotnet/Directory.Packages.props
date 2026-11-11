@@ -7,6 +7,8 @@
     <PackageVersion Include="PDFsharp" Version="6.2.4" />
     <!-- PDFsharp'ın getirdiği açıklı sürümü güncel sürümle değiştir -->
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+    <!-- OCR: yalnızca Windows x64 yerel Tesseract 5 / Leptonica DLL'leri (Apache-2.0) -->
+    <PackageVersion Include="Tesseract" Version="5.2.0" />
     <!-- Arayüz (MIT) -->
     <PackageVersion Include="WPF-UI" Version="4.3.0" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />

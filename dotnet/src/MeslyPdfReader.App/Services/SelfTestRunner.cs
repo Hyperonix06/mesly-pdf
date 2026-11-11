@@ -571,6 +571,97 @@ public sealed class SelfTestRunner
             return (ok, $"sayfa 2 metni: “{(t1.Length > 120 ? t1[^120..] : t1)}”; filigran silinen={wm}, arka plan silinen={bg}, kaydedilen dosyada yeni metin={rt.Contains("kırk beş gün")}, sayfa no={rt.Contains("Sayfa 1 / 2")}");
         });
 
+        // ── Aşama 4: metin tanıma (OCR) ve tarama düzeltme ──
+        await Step("Tanıma", "OCR motoru ve dil verileri", "Tesseract yüklenir; Türkçe, İngilizce ve yön verisi kurulu", async () =>
+        {
+            await Task.Yield();
+            var why = MeslyPdfReader.Ocr.OcrEngine.Unavailable();
+            var langs = MeslyPdfReader.Ocr.OcrEngine.InstalledLanguages();
+            var data = MeslyPdfReader.Ocr.OcrEngine.FindTessdata();
+            bool osd = data is not null && File.Exists(Path.Combine(data, "osd.traineddata"));
+            return (why is null && langs.Contains("tur") && langs.Contains("eng") && osd,
+                $"sürüm {MeslyPdfReader.Ocr.OcrEngine.Version()}, diller: {string.Join(", ", langs)}, yön verisi={osd}, klasör={data}{(why is null ? "" : " / " + why)}");
+        });
+
+        string scanPdf = Path.Combine(work, "Yan Taranmış Belge.pdf");
+        var ocrLines = new[] { "Pijamalı hasta yağız şoföre çabucak güvendi.", "İstanbul Büyükşehir Belediyesi, Ankara ve İzmir.", "Sözleşme kapsamında ödeme otuz gün içinde yapılır.", "Çalışma saatleri sabah dokuz ile akşam altı arasıdır." };
+        await Step("Tarama", "Yan ve eğik taranmış sayfanın otomatik düzeltilmesi", "Tarama penceresi düzeltmesi: 90° yan + 2° eğik sayfa dik ve düz olur", async () =>
+        {
+            BgraImage page;
+            using (var d = await PdfDocument.CreateAsync(PaperSize.A4.ToPoints(), 1))
+            {
+                await d.AddTextAsync(0, "Hizmet Sözleşmesi", 72, 760, 24, font);
+                for (int i = 0; i < ocrLines.Length; i++) await d.AddTextAsync(0, ocrLines[i], 72, 700 - i * 22, 14, font);
+                page = await PdfTools.RenderAtDpiAsync(d, 0, 300);
+            }
+            // Tarayıcı sürücüsünün yaptığı gibi: sayfa yana dönmüş ve biraz eğik gelir.
+            var sideways = ImageOps.Rotate(ImageOps.RotateQuarter(page, 1), 2.0);
+            var scanned = new ScannedPage { Data = ImageCodec.EncodeJpeg(sideways, 90), Format = ScannedFormat.Jpeg, Dpi = 300 };
+            var sw = Stopwatch.StartNew();
+            var (fixedPage, rep) = await Task.Run(() => OcrWorkflow.CorrectScan(scanned, new ImageCorrection(), "tur+eng"));
+            long ms = sw.ElapsedMilliseconds;
+            var img = ImageCodec.Decode(fixedPage.Data);
+            using (var doc = await ScanPdfBuilder.BuildAsync(new[] { fixedPage })) await doc.SaveAsync(scanPdf);
+            bool ok = rep.QuarterTurnsApplied == 3 && img.Height > img.Width && Math.Abs(Math.Abs(rep.DeskewDegrees) - 2.0) < 0.4;
+            return (ok, $"{rep.Describe()} ({ms} ms); sonuç {img.Width}×{img.Height} px");
+        });
+
+        await Step("Tanıma", "Taranmış PDF: bilgi şeridi → metni tanı → aranabilir", "Şerit görünür; tanımadan sonra Türkçe metin aranır, görünüm değişmez", async () =>
+        {
+            await _vm.OpenFilesAsync(new[] { scanPdf });
+            var st = _vm.ActiveTab!;
+            await WaitRendered();
+            bool banner = await WaitUntil(() => st.CurrentPageIsScanned, 8000);
+            Shot("17-taranmis-sayfa-bilgi-seridi");
+            var sw = Stopwatch.StartNew();
+            var res = await st.RunOcrAsync(ocr: true, pages: new[] { 0 }, ask: false);
+            long ms = sw.ElapsedMilliseconds;
+            await WaitRendered();
+            var hits = await st.Document.SearchAsync("İstanbul", new SearchOptions());
+            var text = Flat((await st.Document.GetPageTextAsync(0)).Text);
+            int okLines = ocrLines.Count(l => text.Contains(l.TrimEnd('.')));
+            Shot("18-ocr-sonrasi");
+            bool ok = banner && res is { Count: 1 } && hits.Count == 1 && okLines >= 3 && !st.CurrentPageIsScanned;
+            return (ok, $"şerit={banner}, {ms} ms, {res?[0].Words} sözcük, ort. güven %{res?[0].Ocr?.MeanConfidence:0}, birebir satır {okLines}/4, “İstanbul” isabet={hits.Count}; {st.StatusText}");
+        });
+
+        await Step("Tanıma", "Taranmış sayfada metni düzenle", "Düzenle sekmesi aracı açar; OCR paragrafı değişir, görüntüdeki eski yazı silinir", async () =>
+        {
+            var st = _vm.ActiveTab!;
+            _vm.Ribbon = RibbonTab.Edit;
+            bool toolOn = st.Tool == ViewerTool.Edit;
+            await WaitUntil(() => Viewer!.EditItemCount(0) > 0, 8000);
+            var para = (await st.Document.GetParagraphsAsync(0)).FirstOrDefault(p => p.Text.Contains("otuz"));
+            if (para is null) return (false, "“otuz gün” paragrafı bulunamadı");
+            bool ok1 = await st.ReplaceTextAsync(0, para, "Sözleşme kapsamında ödeme kırk beş gün içinde yapılır.");
+            await WaitRendered();
+            await WaitUntil(() => Viewer!.EditItemCount(0) > 0, 5000);
+            Viewer!.SelectItemAt(0, (para.Bounds.Left + para.Bounds.Right) / 2, (para.Bounds.Bottom + para.Bounds.Top) / 2);
+            await Idle();
+            Shot("19-taranmis-sayfada-duzenleme");
+            var text = Flat((await st.Document.GetPageTextAsync(0)).Text);
+            var objs = await st.Document.GetPageObjectsAsync(0);
+            _vm.Ribbon = RibbonTab.Read;
+            bool toolOff = st.Tool == ViewerTool.Select;
+            bool ok = toolOn && toolOff && ok1 && text.Contains("kırk beş gün") && !text.Contains("otuz gün") && !objs.Any(o => o.Kind == PageObjectKind.Path);
+            return (ok, $"araç açıldı={toolOn}, kapandı={toolOff}, metin değişti={ok1}, yeni metin={text.Contains("kırk beş gün")}, eski metin yok={!text.Contains("otuz gün")}; {st.StatusText}");
+        });
+
+        await Step("Arayüz", "Gruplu şerit sekmeleri", "Her sekme taşmadan tek satırda görünür", async () =>
+        {
+            var shots = new List<string>();
+            int overflow = 0;
+            foreach (var (tabKey, name) in new[] { (RibbonTab.File, "20-serit-dosya"), (RibbonTab.Read, "21-serit-okuma"), (RibbonTab.Edit, "22-serit-duzenle"), (RibbonTab.Ocr, "23-serit-tanima"), (RibbonTab.Pages, "24-serit-sayfalar"), (RibbonTab.Convert, "25-serit-donustur") })
+            {
+                _vm.Ribbon = tabKey;
+                await Idle();
+                if (_w.RibbonScroll.ScrollableWidth > 1) overflow++;
+                Shot(name); shots.Add(name);
+            }
+            _vm.Ribbon = RibbonTab.Read;
+            return (overflow == 0, $"{shots.Count} sekme, 1440 px genişlikte taşan sekme: {overflow}");
+        });
+
         // ── Büyük belge ──
         string big = Path.Combine(work, "bin-sayfa.pdf");
         await Step("Performans", "1.000 sayfalık belge", "Hızlı açılır, son sayfaya gidilir, bellek sınırlı", async () =>

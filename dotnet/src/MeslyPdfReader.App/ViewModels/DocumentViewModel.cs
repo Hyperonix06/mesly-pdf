@@ -55,6 +55,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         RestoreState();
         _ = LoadBookmarksAsync();
         _ = LoadInfoAsync();
+        _ = UpdateScanBannerAsync();
     }
 
     // ─────────────── Görünüm durumu ───────────────
@@ -118,6 +119,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     partial void OnCurrentPageChanged(int value)
     {
         foreach (var t in Thumbnails) if (t.IsCurrent != (t.Index == value)) t.IsCurrent = t.Index == value;
+        _ = UpdateScanBannerAsync();
     }
 
     partial void OnDarkModeChanged(bool value) => _settings.DarkReading = value;
@@ -487,11 +489,19 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         if (pages is null) return;
         var at = InsertPositionDialog.Ask(PageCount, CurrentPage, $"{pages.Count} taranmış sayfa");
         if (at is null) return;
+        string note = "";
         await EditAsync("Taranan sayfalar ekleniyor…", async () =>
         {
             using var tmp = await ScanPdfBuilder.BuildAsync(pages);
+            if (_settings.ScanOcr && MeslyPdfReader.Ocr.OcrEngine.Unavailable() is null)
+            {
+                BusyText = "Metin tanınıyor…";
+                var opts = OcrRunOptions.From(_settings) with { Correction = ImageCorrection.None };
+                note = " " + OcrWorkflow.Summarize(await OcrWorkflow.RecognizeAsync(tmp, Enumerable.Range(0, tmp.PageCount).ToList(), opts));
+            }
             await Document.ImportPagesAsync(tmp, null, at.Value);
         }, $"{pages.Count} taranmış sayfa eklendi.");
+        if (note.Length > 0) StatusText += note;
         CurrentPage = at.Value;
     }
 

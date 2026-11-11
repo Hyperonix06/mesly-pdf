@@ -39,7 +39,7 @@
                     <Image Source="pack://application:,,,/Assets/icon_256.png" Width="52" Height="52" RenderOptions.BitmapScalingMode="HighQuality" />
                     <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="Mesly PDF Reader" FontSize="26" FontWeight="SemiBold" FontFamily="{StaticResource MeslyDisplayFont}" />
-                        <TextBlock Text="PDF görüntüleme, sayfa yönetimi ve dönüştürme — tamamen çevrimdışı" Style="{StaticResource MutedText}" FontSize="13" />
+                        <TextBlock Text="PDF okuma, düzenleme, tarama, metin tanıma (OCR) ve dönüştürme — tamamı bu bilgisayarda, internetsiz" Style="{StaticResource MutedText}" FontSize="13" />
                     </StackPanel>
                 </StackPanel>
 
@@ -50,49 +50,56 @@
                         <StackPanel>
                             <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="FolderOpen24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
                             <TextBlock Text="PDF aç" Style="{StaticResource ActionTitle}" />
-                            <TextBlock Text="Bir veya birden çok PDF'yi sekmelerde açın." Style="{StaticResource ActionDesc}" />
+                            <TextBlock Text="PDF&#x27;leri sekmelerde açın; okuyun, arayın, yazdırın." Style="{StaticResource ActionDesc}" />
                         </StackPanel>
                     </Button>
-                    <Button Style="{StaticResource ActionCardStyle}" Command="{Binding CreateFromImagesCommand}">
+                    <Button Style="{StaticResource ActionCardStyle}" Command="{Binding EditPdfCommand}">
                         <StackPanel>
-                            <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="ImageMultiple24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
-                            <TextBlock Text="PDF oluştur" Style="{StaticResource ActionTitle}" />
-                            <TextBlock Text="JPG, PNG, TIFF ve BMP görüntülerinden tek bir PDF oluşturun." Style="{StaticResource ActionDesc}" />
+                            <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="Edit24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                            <TextBlock Text="PDF düzenle" Style="{StaticResource ActionTitle}" />
+                            <TextBlock Text="Metni, görselleri ve sayfa öğelerini doğrudan PDF içinde düzenleyin." Style="{StaticResource ActionDesc}" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource ActionCardStyle}" Command="{Binding ScanToPdfCommand}">
                         <StackPanel>
                             <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="ScanText24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
                             <TextBlock Text="Tara" Style="{StaticResource ActionTitle}" />
-                            <TextBlock Text="Düz camdan veya belge besleyiciden (tek / çift taraflı) tarayıp PDF oluşturun." Style="{StaticResource ActionDesc}" />
+                            <TextBlock Text="Düz camdan veya belge besleyiciden tarayın; yön ve eğiklik otomatik düzelir, metin tanınır." Style="{StaticResource ActionDesc}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ActionCardStyle}" Command="{Binding OcrPdfCommand}">
+                        <StackPanel>
+                            <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="DocumentSearch24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                            <TextBlock Text="Metni tanı (OCR)" Style="{StaticResource ActionTitle}" />
+                            <TextBlock Text="Taranmış PDF&#x27;yi aranabilir, kopyalanabilir ve düzenlenebilir yapın." Style="{StaticResource ActionDesc}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ActionCardStyle}" Command="{Binding CreateFromImagesCommand}">
+                        <StackPanel>
+                            <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="ImageMultiple24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
+                            <TextBlock Text="Görüntülerden PDF" Style="{StaticResource ActionTitle}" />
+                            <TextBlock Text="JPG, PNG, TIFF ve BMP görüntülerinden tek bir PDF oluşturun." Style="{StaticResource ActionDesc}" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource ActionCardStyle}" Command="{Binding MergeCommand}">
                         <StackPanel>
                             <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="Merge24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
-                            <TextBlock Text="Belgeleri birleştir" Style="{StaticResource ActionTitle}" />
-                            <TextBlock Text="Birden fazla PDF'yi istediğiniz sırada ve sayfa aralığıyla birleştirin." Style="{StaticResource ActionDesc}" />
+                            <TextBlock Text="Birleştir" Style="{StaticResource ActionTitle}" />
+                            <TextBlock Text="Birden fazla PDF&#x27;yi istediğiniz sırada ve sayfa aralığıyla birleştirin." Style="{StaticResource ActionDesc}" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource ActionCardStyle}" Command="{Binding ConvertPdfCommand}">
                         <StackPanel>
                             <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="ArrowExportLtr24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
-                            <TextBlock Text="PDF dönüştür" Style="{StaticResource ActionTitle}" />
-                            <TextBlock Text="Sayfaları PNG, JPG, TIFF, BMP görüntüye veya metne (TXT) dönüştürün." Style="{StaticResource ActionDesc}" />
+                            <TextBlock Text="Dönüştür" Style="{StaticResource ActionTitle}" />
+                            <TextBlock Text="Sayfaları görüntüye (PNG, JPG, TIFF, BMP) veya metne dönüştürün." Style="{StaticResource ActionDesc}" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource ActionCardStyle}" Command="{Binding SplitPdfCommand}">
                         <StackPanel>
                             <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="ArrowSplit24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
-                            <TextBlock Text="PDF'yi böl" Style="{StaticResource ActionTitle}" />
-                            <TextBlock Text="Sayfa sayısına, aralıklara veya tek/çift sayfalara göre ayrı dosyalara bölün." Style="{StaticResource ActionDesc}" />
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource ActionCardStyle}" Command="{Binding CreateBlankCommand}">
-                        <StackPanel>
-                            <Border Style="{StaticResource ActionIconBox}"><ui:SymbolIcon Symbol="DocumentAdd24" FontSize="22" Foreground="{DynamicResource MeslyAccentBrush}" /></Border>
-                            <TextBlock Text="Boş PDF" Style="{StaticResource ActionTitle}" />
-                            <TextBlock Text="A4, A3, A5 veya özel boyutta boş sayfalı yeni bir belge başlatın." Style="{StaticResource ActionDesc}" />
+                            <TextBlock Text="Böl" Style="{StaticResource ActionTitle}" />
+                            <TextBlock Text="Sayfa sayısına, aralıklara veya tek/çift sayfalara göre bölün." Style="{StaticResource ActionDesc}" />
                         </StackPanel>
                     </Button>
                 </UniformGrid>

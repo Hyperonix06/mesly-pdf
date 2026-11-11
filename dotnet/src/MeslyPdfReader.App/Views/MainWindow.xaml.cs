@@ -114,7 +114,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             case Key.H when mods == ModifierKeys.None: doc.Tool = ViewerTool.Hand; e.Handled = true; return;
             case Key.V when mods == ModifierKeys.None: doc.Tool = ViewerTool.Select; e.Handled = true; return;
-            case Key.E when mods == ModifierKeys.None: doc.Tool = ViewerTool.Edit; e.Handled = true; return;
+            case Key.E when mods == ModifierKeys.None: _vm.Ribbon = RibbonTab.Edit; doc.Tool = ViewerTool.Edit; e.Handled = true; return;
         }
     }
 
@@ -161,6 +161,18 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    /// <summary>Şeritteki açılır menülü düğmeler: tıklayınca menüyü düğmenin altında açar.</summary>
+    private void OpenMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { ContextMenu: { } menu } fe)
+        {
+            menu.DataContext = fe.DataContext;
+            menu.PlacementTarget = fe;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+    }
 
     private void Ribbon_MouseWheel(object sender, MouseWheelEventArgs e)
     {

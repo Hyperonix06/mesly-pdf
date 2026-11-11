@@ -40,11 +40,27 @@ jobs:
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Sürüm: $v"
 
+      - name: OCR dil verileri ve VC++ çalışma zamanı
+        run: |
+          $td = Join-Path $env:RUNNER_TEMP "tessdata"; New-Item -ItemType Directory -Force $td | Out-Null
+          $files = [ordered]@{
+            "tur.traineddata" = "https://github.com/tesseract-ocr/tessdata_best/raw/main/tur.traineddata"
+            "eng.traineddata" = "https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata"
+            "osd.traineddata" = "https://github.com/tesseract-ocr/tessdata/raw/main/osd.traineddata"
+          }
+          foreach ($k in $files.Keys) { Invoke-WebRequest -Uri $files[$k] -OutFile (Join-Path $td $k) -UseBasicParsing }
+          Get-ChildItem $td | ForEach-Object { Write-Host "$($_.Name) $([math]::Round($_.Length/1MB,1)) MB" }
+          $vc = Join-Path $env:RUNNER_TEMP "vcrt"; New-Item -ItemType Directory -Force $vc | Out-Null
+          foreach ($f in "vcruntime140.dll","vcruntime140_1.dll","msvcp140.dll") { Copy-Item "$env:WINDIR\System32\$f" $vc }
+          "MESLY_TESSDATA=$td" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "TESSDIR=$td" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "VCDIR=$vc" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Birim testleri (Windows)
         run: dotnet test tests/MeslyPdfReader.Tests -c Release --logger "trx;LogFileName=unit-tests.trx" --logger "console;verbosity=normal" --results-directory ../test-results
 
       - name: Self-contained yayın (win-x64)
-        run: dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -o ../publish
+        run: dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -o ../publish "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR"
 
       - name: Arayüz öz testi (yayınlanmış exe, gerçek pencere)
         id: selftest
@@ -87,7 +103,7 @@ jobs:
 
       - name: Karşılaştırma için eski tür (çok dosyalı) kurulum
         run: |
-          dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ..\publish-multi
+          dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ..\publish-multi "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR"
           $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
           & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DPublishDir=..\..\publish-multi" "/Ocompare" "/FMeslyPdfReader-Setup-cokdosya" installer\MeslyPdfReader.iss
