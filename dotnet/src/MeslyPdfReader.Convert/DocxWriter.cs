@@ -42,14 +42,22 @@ public static class DocxWriter
             double mt = Math.Clamp(area.Y0, 18, 108), mb = Math.Clamp(page.Height - area.Y1, 18, 108);
             double contentW = page.Width - ml - mr;
             int written = 0;
+            double? prevBottom = null;
             foreach (var b in page.Blocks)
             {
+                // Tablo ve resimlerin üstündeki boşluk (paragraflar kendi SpaceBefore değerini taşır).
+                double gap = prevBottom is { } pbm ? Math.Clamp(b.Box.Y0 - pbm, 0, 72) : 0;
                 switch (b)
                 {
                     case ParagraphBlock pb: body.Append(Para(pb, area)); written++; break;
-                    case TableBlock tb: body.Append(Table(tb, contentW)); body.Append(new Paragraph(new ParagraphProperties(new SpacingBetweenLines { After = "0" }))); written++; break;
-                    case ImageBlock ib: body.Append(Image(main, ib, contentW, ref imageId)); written++; break;
+                    case TableBlock tb:
+                        if (gap > 6) body.Append(Spacer(gap - 2));
+                        body.Append(Table(tb, contentW));
+                        body.Append(Spacer(1)); // Word iki tabloyu birleştirmesin diye zorunlu boş paragraf, 1 pt
+                        written++; break;
+                    case ImageBlock ib: body.Append(Image(main, ib, contentW, ref imageId, gap)); written++; break;
                 }
+                prevBottom = b.Box.Y1;
             }
             if (written == 0) body.Append(new Paragraph());
             var sect = new SectionProperties(
@@ -163,7 +171,12 @@ public static class DocxWriter
         return table;
     }
 
-    private static Paragraph Image(MainDocumentPart main, ImageBlock ib, double contentWidth, ref uint id)
+    /// <summary>Belirli yükseklikte (pt) boş paragraf: tablo üstü boşluk / tabloları ayırma.</summary>
+    private static Paragraph Spacer(double heightPt) => new(new ParagraphProperties(
+        new SpacingBetweenLines { Before = "0", After = "0", Line = ((int)Math.Max(20, Math.Round(heightPt * Twip))).ToString(), LineRule = LineSpacingRuleValues.Exact }),
+        new ParagraphMarkRunProperties(new FontSize { Val = "2" }));
+
+    private static Paragraph Image(MainDocumentPart main, ImageBlock ib, double contentWidth, ref uint id, double gapBefore)
     {
         var (data, type) = ImageEncoder(ib.Image, ib.PreferJpeg);
         var part = main.AddImagePart(type == "image/jpeg" ? ImagePartType.Jpeg : ImagePartType.Png);
@@ -186,6 +199,6 @@ public static class DocxWriter
                         new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle })))
             { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" }))
         { DistanceFromTop = 0, DistanceFromBottom = 0, DistanceFromLeft = 0, DistanceFromRight = 0 };
-        return new Paragraph(new ParagraphProperties(new SpacingBetweenLines { Before = "120", After = "120" }), new Run(new Drawing(inline)));
+        return new Paragraph(new ParagraphProperties(new SpacingBetweenLines { Before = ((int)Math.Round(gapBefore * Twip * 0.9)).ToString(), After = "0" }), new Run(new Drawing(inline)));
     }
 }
