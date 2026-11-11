@@ -38,3 +38,14 @@ data = open(os.path.join(out,'links_outline.pdf'),'rb').read()
 open(os.path.join(out,'truncated.pdf'),'wb').write(data[:len(data)//2])
 open(os.path.join(out,'garbage.pdf'),'wb').write(os.urandom(4096))
 open(os.path.join(out,'notpdf.pdf'),'wb').write(b'Bu bir PDF degil, sadece metin.\n'*50)
+# 6) Düzenleme testi: çok satırlı paragraf (satır başına ayrı metin nesnesi), başlık, görsel, dikdörtgen
+c = canvas.Canvas(os.path.join(out,'edit_paragraphs.pdf'), pagesize=A4)
+c.setFont('DV', 20); c.drawString(72, 770, 'Sözleşme Başlığı')
+c.setFont('DV', 11)
+lines = ['Bu metin birinci paragrafın ilk satırıdır ve düzenleme', 'testi için hazırlanmıştır; ikinci satır burada devam',
+         'eder ve üçüncü satırda paragraf sona erer.']
+for k, l in enumerate(lines): c.drawString(72, 720 - k * 14, l)
+c.drawString(72, 640, 'İkinci paragraf tek satırdan oluşur: ığüşöç İĞÜŞÖÇ.')
+c.setFillColorRGB(0.2, 0.4, 0.8); c.rect(72, 500, 120, 60, fill=1, stroke=0)
+c.drawImage(os.path.join(out, 'photo.jpg'), 300, 480, width=120, height=90)
+c.showPage(); c.save()
