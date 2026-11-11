@@ -1,5 +1,31 @@
 # Mesly PDF Reader — Test Raporu
 
+## 0.4.0 (Aşama 3: gerçek PDF düzenleme) — GitHub Actions çalışması `43028853171`
+
+| Test grubu | Ortam | Sonuç |
+|---|---|---|
+| Birim testleri (119 test; yeni: 14 düzenleme motoru + 6 yazı tipi eşleme testi) | Linux ve Windows | ✅ 119 / 119 |
+| Arayüz öz testi (37 adım; yeni: 5 düzenleme adımı) | Tek dosya exe, Windows | ✅ 37 / 37 |
+| Kurulu uygulamada öz test | Windows Server 2022 / 2025 | ✅ 37 / 37 · ✅ 37 / 37 |
+
+**Düzenleme testlerinin denetledikleri (her biri kaydedip yeniden açarak):**
+* Üçüncü taraf (reportlab) PDF'de satır başına ayrı metin nesnesi olan 3 satırlık paragraf tek paragraf olarak algılanır; satır aralığı 14 pt doğru ölçülür.
+* Paragraf değiştirilince eski metin nesneleri içerik akışından **silinir** (eski metin aranınca bulunmaz), yeni metin kutu genişliğinde birden çok satıra akar, Türkçe karakterleri birebir içerir ve aranabilir; sayfaya **beyaz dolgulu nesne eklenmediği** ayrıca denetlenir; başlık, görsel ve diğer paragraf korunur.
+* Ortalı/sağa hizalı metin kutusu konumu, altı çizgi nesnesi; elips (Bézier) ve ok yolları, çizgi/dolgu renkleri; metin rengi değişimi.
+* Görsel taşıma (±0,1 pt), dikdörtgen boyutlandırma, sola hizalama, silme; görsel ekleme (orantılı sığdırma) ve değiştirme (yeni en-boy oranı).
+* Bağlantı: `javascript:` reddedilir; https bağlantısı eklenir, okunur, noktadan kaldırılır.
+* Filigran 90° döndürülmüş sayfa dahil sayfa merkezinde; paragraf listesine karışmaz; 3 sayfadan kaldırılınca 3 nesne silinir.
+* Üst/altbilgi: “Sayfa 2 / 3” (seçilen sayfalara göre numaralama), dosya adı, alt ortada 20–40 pt yükseklik; kaldırma 6 nesne.
+* Arka plan sayfanın ilk (en arkadaki) nesnesi; ikinci kez uygulanınca öncekinin yerine geçer; çizimde köşe pikseli arka plan rengi.
+* Anlık görüntüden geri yükleme düzenlemeyi tamamen geri alır.
+* Gerçek Windows'ta: 131 kurulu yazı tipi dizinlendi; “ABCDEF+Arial-BoldMT” → Arial Kalın (tam eşleşme); kurulu olmayan yazı tipi → Arial + kullanıcıya not.
+
+**Bu sürümde testle bulunup düzeltilen hata:** yerinde metin düzenleyici açıkken ölçme ve yerleştirme farklı genişlik kullandığı için sonsuz yerleşim döngüsü oluşuyordu (öz test “arayüz 5 sn boşta kalmadı” diye yakaladı). Ölçme ve yerleştirme aynı dikdörtgeni kullanacak şekilde düzeltildi.
+
+Ekran görüntüleri: `ekran-goruntuleri/13-duzenleme-paragraf.png`, `14-duzenleme-yerinde.png`, `15-duzenleme-nesneler.png`, `16-filigran-sayfa-no.png`.
+
+**Test edilemeyen:** fareyle sürükleme/boyutlandırma hareketleri CI'da gerçek fare olmadan çalıştırılamaz; aynı işlemler (taşıma, boyutlandırma, yerleştirme) öz testte doğrudan ViewModel üzerinden ve birim testlerinde motor üzerinden doğrulandı. Fare etkileşimini kendi bilgisayarınızda denemeniz gerekir.
+
 ## 0.3.0 (tarama + hızlı kurulum) — GitHub Actions çalışması `43001623137`
 
 | Test grubu | Ortam | Sonuç |
