@@ -127,7 +127,7 @@
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="MinWidth" Value="54" />
-        <Setter Property="Height" Value="64" />
+        <Setter Property="Height" Value="66" />
         <Setter Property="Padding" Value="5,3" />
         <Setter Property="Margin" Value="1,0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -170,9 +170,9 @@
     <Style x:Key="RibbonSmall" TargetType="ButtonBase">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Height" Value="22" />
+        <Setter Property="Height" Value="21" />
         <Setter Property="Padding" Value="5,0,8,0" />
-        <Setter Property="Margin" Value="0,0,0,1" />
+        <Setter Property="Margin" Value="0" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontSize" Value="12" />
@@ -212,8 +212,8 @@
     <Style x:Key="RibbonGroup" TargetType="Border">
         <Setter Property="BorderBrush" Value="{DynamicResource MeslyBorderBrush}" />
         <Setter Property="BorderThickness" Value="0,0,1,0" />
-        <Setter Property="Padding" Value="6,4,6,2" />
-        <Setter Property="Margin" Value="0,4,0,4" />
+        <Setter Property="Padding" Value="6,2,6,1" />
+        <Setter Property="Margin" Value="0,3,0,3" />
     </Style>
 
     <Style x:Key="SectionTitle" TargetType="TextBlock">

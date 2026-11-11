@@ -633,7 +633,8 @@ public sealed class SelfTestRunner
             await WaitUntil(() => Viewer!.EditItemCount(0) > 0, 8000);
             var para = (await st.Document.GetParagraphsAsync(0)).FirstOrDefault(p => p.Text.Contains("otuz"));
             if (para is null) return (false, "“otuz gün” paragrafı bulunamadı");
-            bool ok1 = await st.ReplaceTextAsync(0, para, "Sözleşme kapsamında ödeme kırk beş gün içinde yapılır.");
+            // Yalnız bir sözcük değişir; paragrafın geri kalanı aynen yeniden yazılır.
+            bool ok1 = await st.ReplaceTextAsync(0, para, para.Text.Replace("otuz", "kırk beş"));
             await WaitRendered();
             await WaitUntil(() => Viewer!.EditItemCount(0) > 0, 5000);
             Viewer!.SelectItemAt(0, (para.Bounds.Left + para.Bounds.Right) / 2, (para.Bounds.Bottom + para.Bounds.Top) / 2);
@@ -643,7 +644,7 @@ public sealed class SelfTestRunner
             var objs = await st.Document.GetPageObjectsAsync(0);
             _vm.Ribbon = RibbonTab.Read;
             bool toolOff = st.Tool == ViewerTool.Select;
-            bool ok = toolOn && toolOff && ok1 && text.Contains("kırk beş gün") && !text.Contains("otuz gün") && !objs.Any(o => o.Kind == PageObjectKind.Path);
+            bool ok = toolOn && toolOff && ok1 && text.Contains("kırk beş gün") && !text.Contains("otuz gün") && text.Contains("İstanbul") && !objs.Any(o => o.Kind == PageObjectKind.Path);
             return (ok, $"araç açıldı={toolOn}, kapandı={toolOff}, metin değişti={ok1}, yeni metin={text.Contains("kırk beş gün")}, eski metin yok={!text.Contains("otuz gün")}; {st.StatusText}");
         });
 

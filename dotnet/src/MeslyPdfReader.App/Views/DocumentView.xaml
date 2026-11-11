@@ -246,7 +246,19 @@
 
         <!-- Görüntüleyici -->
         <Grid Grid.Column="3" Background="{DynamicResource MeslyCanvasBrush}">
-            <ScrollViewer x:Name="Scroller" CanContentScroll="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Focusable="False">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <!-- Taranmış sayfa bilgi şeridi (sayfanın üstünü örtmez) -->
+            <Border Grid.Row="0" Padding="14,7,8,7" Background="{DynamicResource MeslyAccentSoftBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="0,0,0,1"
+                    Visibility="{Binding CurrentPageIsScanned, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="DocumentSearch24" FontSize="18" Foreground="{DynamicResource MeslyAccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding ScanBannerText}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12.5" />
+                    <ui:Button Grid.Column="2" Content="Metni tanı" Appearance="Primary" Padding="14,4" Margin="12,0,4,0" Command="{Binding RecognizeTextCommand}" />
+                    <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" ToolTip="Gizle" Command="{Binding DismissScanBannerCommand}"><ui:SymbolIcon Symbol="Dismiss16" FontSize="12" /></Button>
+                </Grid>
+            </Border>
+            <ScrollViewer Grid.Row="1" x:Name="Scroller" CanContentScroll="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Focusable="False">
                 <c:PdfViewer x:Name="Viewer"
                              Document="{Binding Document, Mode=OneWay}"
                              Zoom="{Binding Zoom, Mode=TwoWay}"
@@ -283,22 +295,8 @@
                 </c:PdfViewer>
             </ScrollViewer>
 
-            <!-- Taranmış sayfa bilgi şeridi -->
-            <Border VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,12,0,0" CornerRadius="10" Padding="14,8,8,8" MaxWidth="760"
-                    Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyAccentBrush}" BorderThickness="1"
-                    Visibility="{Binding CurrentPageIsScanned, Converter={StaticResource BoolToVis}}">
-                <Border.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.16" /></Border.Effect>
-                <Grid>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="DocumentSearch24" FontSize="20" Foreground="{DynamicResource MeslyAccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <TextBlock Grid.Column="1" Text="{Binding ScanBannerText}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12.5" />
-                    <ui:Button Grid.Column="2" Content="Metni tanı" Appearance="Primary" Margin="12,0,4,0" Command="{Binding RecognizeTextCommand}" />
-                    <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" ToolTip="Gizle" Command="{Binding DismissScanBannerCommand}"><ui:SymbolIcon Symbol="Dismiss16" FontSize="13" /></Button>
-                </Grid>
-            </Border>
-
             <!-- Yüzen gezinme çubuğu -->
-            <Border x:Name="NavBar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" CornerRadius="12" Padding="6,4"
+            <Border Grid.Row="1" x:Name="NavBar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" CornerRadius="12" Padding="6,4"
                     Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1">
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.18" />
@@ -339,7 +337,7 @@
             </Border>
 
             <!-- Belge meşgul katmanı -->
-            <Border Background="#55000000" Visibility="{Binding ShowBusy, Converter={StaticResource BoolToVis}}">
+            <Border Grid.RowSpan="2" Background="#55000000" Visibility="{Binding ShowBusy, Converter={StaticResource BoolToVis}}">
                 <Border Background="{DynamicResource MeslyPanelBrush}" CornerRadius="12" Padding="26,20" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="340">
                     <StackPanel>
                         <TextBlock Text="{Binding BusyText}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
