@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <DebugType Condition="'$(Configuration)' == 'Release'">embedded</DebugType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>MeslyPdfReader.Convert</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MeslyPdfReader.Core\MeslyPdfReader.Core.csproj" />
+    <ProjectReference Include="..\MeslyPdfReader.Pdf\MeslyPdfReader.Pdf.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Word / Excel dosyası yazma (MIT) -->
+    <PackageReference Include="DocumentFormat.OpenXml" />
+  </ItemGroup>
+</Project>

@@ -200,4 +200,13 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial int FPDFBitmap_GetHeight(nint bitmap);
     [LibraryImport(Lib)] public static partial int FPDFImageObj_GetImageFilterCount(nint imageObj);
     [LibraryImport(Lib)] public static partial CULong FPDFImageObj_GetImageFilter(nint imageObj, int index, void* buffer, CULong buflen);
+
+    // ── Aşama 5: biçimli karakter okuma (Word/Excel dönüştürme) ──
+    [LibraryImport(Lib)] public static partial double FPDFText_GetFontSize(nint textPage, int index);
+    [LibraryImport(Lib)] public static partial CULong FPDFText_GetFontInfo(nint textPage, int index, void* buffer, CULong buflen, out int flags);
+    [LibraryImport(Lib)] public static partial int FPDFText_GetFontWeight(nint textPage, int index);
+    [LibraryImport(Lib)] public static partial int FPDFText_GetFillColor(nint textPage, int index, out uint r, out uint g, out uint b, out uint a);
+    [LibraryImport(Lib)] public static partial int FPDFText_GetCharOrigin(nint textPage, int index, out double x, out double y);
+    [LibraryImport(Lib)] public static partial nint FPDFText_GetTextObject(nint textPage, int index);
+    [LibraryImport(Lib)] public static partial float FPDFText_GetCharAngle(nint textPage, int index);
 }

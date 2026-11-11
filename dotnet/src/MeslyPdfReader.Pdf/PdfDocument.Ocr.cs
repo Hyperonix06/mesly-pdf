@@ -53,10 +53,14 @@ public sealed unsafe partial class PdfDocument
         // %75'lik değeri kullanılır; yalnız küçük harfli sözcükler (x yüksekliği) tahmini aşağı çekmesin.
         var lineSize = ocr.Words.Where(w => w.Height > 0).GroupBy(w => w.Line).ToDictionary(g => g.Key, g =>
         {
-            var hs = g.Select(w => (double)Math.Max(1, Math.Clamp(w.BaselineY, w.Top, w.Bottom) - w.Top)).OrderBy(h => h).ToList();
-            double h = hs[(int)Math.Min(hs.Count - 1, Math.Floor(hs.Count * 0.75))];
-            double em = h / 0.74;
-            // Taban çizgisi bulunamadıysa kutu yüksekliğine dön.
+            // Sözcüğün en yüksek harfine göre taban çizgisi–üst oranı (em cinsinden): noktalı/şapkalı büyük harf ~0,92,
+            // büyük harf veya uzun harf (b, d, l…) ~0,74, yalnız küçük harf (x yüksekliği) ~0,53. Satırın ortancası alınır.
+            var ems = g.Select(w =>
+            {
+                double h = Math.Max(1, Math.Clamp(w.BaselineY, w.Top, w.Bottom) - w.Top);
+                return h / TopRatio(w.Text);
+            }).OrderBy(x => x).ToList();
+            double em = ems[ems.Count / 2];
             return (em > 1 ? em : g.Max(w => w.Height) * 0.9) * sy;
         });
         foreach (var w in ocr.Words)
@@ -84,6 +88,15 @@ public sealed unsafe partial class PdfDocument
         Commit(pageIndex, page);
         return added;
     });
+
+    /// <summary>Sözcükteki en yüksek harfin taban çizgisinden yüksekliği (em oranı).</summary>
+    internal static double TopRatio(string word)
+    {
+        if (word.Any(c => "İĞÜÖÂÎÛÄÅÉÈÊÁÀÑ".Contains(c))) return 0.92;
+        const string tall = "bdfhklti'\"()[]{}/|!?%&#ğüöj";
+        if (word.Any(c => char.IsUpper(c) || char.IsDigit(c) || tall.Contains(c))) return 0.74;
+        return 0.53;
+    }
 
     public Task<int> RemoveOcrLayerAsync(IEnumerable<int> pages) => RemoveByRole(pages, MarkOcr);
 
