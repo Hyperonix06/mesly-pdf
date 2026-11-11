@@ -93,7 +93,7 @@
         <Border Background="{DynamicResource MeslyChromeBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="0,0,1,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,22,10,22">
-                    <Image Source="pack://application:,,,/Assets/icon_256.png" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Image Source="pack://application:,,,/Assets/mark_64.png" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality" />
                     <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="Yeni Görev" FontSize="17" FontWeight="SemiBold" />
                         <TextBlock Text="Mesly PDF Reader" Style="{StaticResource MutedText}" FontSize="11.5" />

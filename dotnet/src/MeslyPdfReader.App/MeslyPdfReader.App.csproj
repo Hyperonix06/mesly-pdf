@@ -36,6 +36,7 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\icon_256.png" />
+    <Resource Include="Assets\mark_64.png" />
     <Resource Include="Assets\icon.ico" />
     <None Include="..\..\assets\DejaVuSans.ttf" Link="Assets\DejaVuSans.ttf" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\LICENSE-DejaVu.txt" Link="Licenses\LICENSE-DejaVu.txt" CopyToOutputDirectory="PreserveNewest" />

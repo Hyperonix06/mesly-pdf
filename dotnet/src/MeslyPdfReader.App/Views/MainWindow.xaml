@@ -40,7 +40,7 @@
         <!-- 0: Başlık çubuğu -->
         <ui:TitleBar x:Name="TitleBar" Grid.Row="0" Title="Mesly PDF Reader" Height="40">
             <ui:TitleBar.Icon>
-                <ui:ImageIcon Source="pack://application:,,,/Assets/icon_256.png" />
+                <ui:ImageIcon Source="pack://application:,,,/Assets/mark_64.png" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 

@@ -1,5 +1,10 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.5.1 (11 Kasım 2026) — FineReader düzeni ve yeni logo
+* Arayüz ABBYY FineReader PDF 16 düzeninde: “Dosya” menüsü; **Belge · Sayfaları Düzenle · İçeriği Düzenle** sekmeleri; tek satır araç çubuğu; Sayfaları Düzenle'de sayfa ızgarası; açılışta **Yeni Görev** ekranı (Aç · Tara · Son Kullanılanlar, belge dilleri). Ctrl+E İçeriği Düzenle, Ctrl+N yeni PDF.
+* Yeni Mesly PDF Reader logosu ve uygulama simgesi (küçük boyutlarda yalnız PDF-M işareti, büyük boyutlarda tam logo); PDF dosyaları ve kısayollar yeni simgeyle görünür.
+* Düzeltme: gizli sayfa ızgarası büyük belgelerde gereksiz bellek kullanıyordu (1.000 sayfada ~650 MB → ~50–100 MB).
+
 ## 0.5.0 (11 Kasım 2026) — Aşama 4: OCR, otomatik tarama düzeltme, yeni arayüz
 
 ### Tarama artık kendini düzeltiyor
