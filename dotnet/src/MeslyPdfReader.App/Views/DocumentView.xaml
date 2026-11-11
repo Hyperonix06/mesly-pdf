@@ -357,7 +357,6 @@
                     <ToggleButton Style="{StaticResource ToolButtonStyle}" ToolTip="El aracı (H)" IsChecked="{Binding Tool, Converter={StaticResource EqualsToBool}, ConverterParameter=Hand}"
                                   Click="HandTool_Click"><ui:SymbolIcon Symbol="HandLeft24" FontSize="15" /></ToggleButton>
                     <ToggleButton Style="{StaticResource ToolButtonStyle}" ToolTip="Karanlık okuma (Ctrl+Shift+N)" IsChecked="{Binding DarkMode}"><ui:SymbolIcon Symbol="WeatherMoon24" FontSize="15" /></ToggleButton>
-                    <ToggleButton Style="{StaticResource ToolButtonStyle}" ToolTip="Özellikler paneli" IsChecked="{Binding ShowProperties}"><ui:SymbolIcon Symbol="PanelRight24" FontSize="15" /></ToggleButton>
                 </StackPanel>
             </Border>
 
@@ -378,7 +377,7 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="16,12,14,16">
                     <!-- Düzenleme -->
-                    <StackPanel Visibility="{Binding IsEditTool, Converter={StaticResource BoolToVis}}" Margin="0,0,0,18">
+                    <StackPanel Visibility="{Binding IsEditTool, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="Düzenleme" Style="{StaticResource SectionTitle}" />
                         <TextBlock Text="{Binding SelectionTitle}" FontWeight="SemiBold" FontSize="12.5" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding SelectionNote}" FontSize="11.5" Foreground="{DynamicResource MeslyMutedTextBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
@@ -496,49 +495,6 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <TextBlock Text="Sayfa" Style="{StaticResource SectionTitle}" />
-                    <TextBlock Text="Numara" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}">
-                        <TextBox.Text>
-                            <MultiBinding StringFormat="{}{0} / {1}" Mode="OneWay">
-                                <Binding Path="PageNumber" Mode="OneWay" />
-                                <Binding Path="PageCount" Mode="OneWay" />
-                            </MultiBinding>
-                        </TextBox.Text>
-                    </TextBox>
-                    <TextBlock Text="Boyut" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding PageInfo, Mode=OneWay}" />
-
-                    <TextBlock Text="Belge" Style="{StaticResource SectionTitle}" Margin="0,20,0,4" />
-                    <TextBlock Text="Dosya" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding FilePath, Mode=OneWay, TargetNullValue='(kaydedilmedi)'}" />
-                    <TextBlock Text="Başlık" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Title, Mode=OneWay, TargetNullValue='—'}" />
-                    <TextBlock Text="Yazar" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Author, Mode=OneWay, TargetNullValue='—'}" />
-                    <TextBlock Text="Konu" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Subject, Mode=OneWay, TargetNullValue='—'}" />
-                    <TextBlock Text="Anahtar sözcükler" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Keywords, Mode=OneWay, TargetNullValue='—'}" />
-                    <TextBlock Text="Oluşturan uygulama" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Creator, Mode=OneWay, TargetNullValue='—'}" />
-                    <TextBlock Text="PDF üreticisi" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.Producer, Mode=OneWay, TargetNullValue='—'}" />
-                    <TextBlock Text="Oluşturma / değiştirme" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}">
-                        <TextBox.Text>
-                            <MultiBinding StringFormat="{}{0} / {1}" Mode="OneWay" TargetNullValue="—">
-                                <Binding Path="Info.CreationDate" Mode="OneWay" TargetNullValue="—" />
-                                <Binding Path="Info.ModDate" Mode="OneWay" TargetNullValue="—" />
-                            </MultiBinding>
-                        </TextBox.Text>
-                    </TextBox>
-                    <TextBlock Text="Sürüm" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding Info.VersionText, Mode=OneWay}" />
-                    <TextBlock Text="Dosya boyutu" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding FileSizeText, Mode=OneWay}" />
-                    <TextBlock Text="Şifreleme" Style="{StaticResource PropLabel}" />
-                    <TextBox Style="{StaticResource PropValue}" Text="{Binding EncryptionText, Mode=OneWay}" />
                 </StackPanel>
             </ScrollViewer>
         </Border>

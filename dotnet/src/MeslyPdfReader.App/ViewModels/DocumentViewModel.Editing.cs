@@ -75,6 +75,7 @@ public sealed partial class DocumentViewModel : IPdfEditHost
             ShowProperties = true;
             _ = LoadFontsAsync();
         }
+        else ShowProperties = false; // sağ panel yalnız düzenleme ayarlarını gösterir
     }
 
     private async Task LoadFontsAsync()

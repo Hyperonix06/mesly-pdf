@@ -203,7 +203,6 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
     [RelayCommand] private void LastPage() => CurrentPage = PageCount - 1;
     [RelayCommand] private void ToggleDark() => DarkMode = !DarkMode;
     [RelayCommand] private void ShowPanel(LeftPanelKind kind) => LeftPanel = LeftPanel == kind ? LeftPanelKind.None : kind;
-    [RelayCommand] private void ToggleProperties() => ShowProperties = !ShowProperties;
     [RelayCommand] private void SetTool(ViewerTool tool) => Tool = tool;
 
     [RelayCommand]
