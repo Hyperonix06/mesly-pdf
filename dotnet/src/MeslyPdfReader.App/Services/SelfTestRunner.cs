@@ -678,7 +678,7 @@ public sealed class SelfTestRunner
                 await doc.AddTextAsync(0, "Satış Raporu 2026", 72, 770, 26, font);
                 await doc.AddTextAsync(0, "Bu rapor İstanbul, İzmir ve Çanakkale şubelerinin üç aylık sonuçlarını özetler.", 72, 735, 11, font);
                 await doc.AddTextAsync(0, "Güçlü büyüme özellikle öğrenci ürünlerinde görüldü.", 72, 720, 11, font);
-                double[] xs = { 72, 252, 372, 522 }, ys = { 680, 655, 630, 605, 580 };
+                double[] xs = { 72, 252, 372, 522 }, ys = { 680, 655, 630, 605, 580, 555 };
                 var line = new ShapeStyle(0x000000, 1);
                 foreach (var y in ys) await doc.AddShapeAsync(0, ShapeKind.Line, new RectF(xs[0], y, xs[^1], y), line);
                 foreach (var x in new[] { xs[0], xs[^1] }) await doc.AddShapeAsync(0, ShapeKind.Line, new RectF(x, ys[0], x, ys[^1]), line);
