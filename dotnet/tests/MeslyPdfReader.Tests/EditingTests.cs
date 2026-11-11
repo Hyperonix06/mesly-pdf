@@ -285,3 +285,42 @@ public class EditingTests
         Assert.Equal(("Arial", true, false), TextLayout.ParseFontName("ABCDEF+Arial-BoldMT"));
     }
 }
+
+public class FontMatchingTests
+{
+    private static InstalledFont F(string fam, bool b = false, bool i = false, string? lacks = null) =>
+        new($"/f/{fam}{(b ? "-b" : "")}{(i ? "-i" : "")}.ttf", fam, b, i, c => lacks is null || !lacks.Contains(c));
+
+    private static readonly InstalledFont[] Fonts =
+    {
+        F("Arial"), F("Arial", b: true), F("Arial", i: true), F("Times New Roman"), F("Times New Roman", b: true),
+        F("Courier New"), F("Segoe UI"), F("Eski Font", lacks: "ğşı"), F("DejaVu Sans"),
+    };
+
+    [Theory]
+    [InlineData("ABCDEF+Arial-BoldMT", true, false, "Arial", true)]
+    [InlineData("TimesNewRomanPSMT", false, false, "Times New Roman", false)]
+    [InlineData("Helvetica", false, false, "Arial", false)]
+    [InlineData("Courier", false, false, "Courier New", false)]
+    [InlineData("ArialMT", false, true, "Arial", false)]
+    public void MapsCommonPdfNames(string pdfName, bool bold, bool italic, string family, bool fontBold)
+    {
+        var c = FontMatching.Choose(Fonts, pdfName, "Türkçe ığüşöç", bold, italic);
+        Assert.Equal(family, c.Font!.Family);
+        Assert.Equal(fontBold, c.Font.Bold);
+        Assert.Null(c.Note);
+    }
+
+    [Fact]
+    public void FallsBackWhenGlyphsMissingOrFontAbsent()
+    {
+        var c = FontMatching.Choose(Fonts, "EskiFont", "ağaç şişe", false, false);
+        Assert.Equal("Arial", c.Font!.Family);
+        Assert.Contains("karakter", c.Note);
+        var d = FontMatching.Choose(Fonts, "QWERTY+Garamond", "abc", false, false);
+        Assert.Equal("Arial", d.Font!.Family);
+        Assert.Contains("kurulu değil", d.Note);
+        var e = FontMatching.Choose(Fonts, null, "abc", false, false, preferredFamily: "Segoe UI");
+        Assert.Equal("Segoe UI", e.Font!.Family);
+    }
+}

@@ -114,6 +114,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         {
             case Key.H when mods == ModifierKeys.None: doc.Tool = ViewerTool.Hand; e.Handled = true; return;
             case Key.V when mods == ModifierKeys.None: doc.Tool = ViewerTool.Select; e.Handled = true; return;
+            case Key.E when mods == ModifierKeys.None: doc.Tool = ViewerTool.Edit; e.Handled = true; return;
         }
     }
 

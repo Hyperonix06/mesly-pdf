@@ -13,6 +13,9 @@ public abstract partial class BusyViewModel : ObservableObject
     private CancellationTokenSource? _busyCts;
 
     [ObservableProperty] private bool _isBusy;
+    /// <summary>Meşgul katmanı yalnızca 300 ms'den uzun süren işlemlerde görünür (kısa düzenlemelerde titreme olmasın).</summary>
+    [ObservableProperty] private bool _showBusy;
+    private int _busySeq;
     [ObservableProperty] private string _busyText = "";
     [ObservableProperty] private double _busyProgress;
     [ObservableProperty] private bool _busyIndeterminate = true;
@@ -32,6 +35,8 @@ public abstract partial class BusyViewModel : ObservableObject
         if (IsBusy) return false;
         _busyCts = new CancellationTokenSource();
         BusyText = text; BusyProgress = 0; BusyIndeterminate = true; IsBusy = true;
+        int seq = ++_busySeq;
+        _ = Task.Delay(300).ContinueWith(_ => { if (IsBusy && seq == _busySeq) ShowBusy = true; }, SynchronizationContext.Current is null ? TaskScheduler.Default : TaskScheduler.FromCurrentSynchronizationContext());
         long? taskId = null;
         if (historyKind is not null && Db is not null) try { taskId = Db.StartTask(historyKind, historyInput ?? ""); } catch { }
         var progress = new Progress<double>(p => { BusyIndeterminate = false; BusyProgress = Math.Clamp(p * 100, 0, 100); });
@@ -57,6 +62,7 @@ public abstract partial class BusyViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            ShowBusy = false;
             _busyCts.Dispose(); _busyCts = null;
         }
     }

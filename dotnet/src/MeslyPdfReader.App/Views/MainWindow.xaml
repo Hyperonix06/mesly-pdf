@@ -5,6 +5,7 @@
         xmlns:vm="clr-namespace:MeslyPdfReader.App.ViewModels"
         xmlns:v="clr-namespace:MeslyPdfReader.App.Views"
         xmlns:c="clr-namespace:MeslyPdfReader.App.Controls"
+        xmlns:core="clr-namespace:MeslyPdfReader.Core;assembly=MeslyPdfReader.Core"
         Title="Mesly PDF Reader" Width="1360" Height="880" MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen" ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica"
         WindowCornerPreference="Round" AllowDrop="True" FontFamily="{StaticResource MeslyFont}"
@@ -50,6 +51,9 @@
                              IsChecked="{Binding Ribbon, Converter={StaticResource EqualsToBool}, ConverterParameter=File}" />
                 <RadioButton Style="{StaticResource RibbonTabStyle}" Content="Ana Sayfa" GroupName="rb"
                              IsChecked="{Binding Ribbon, Converter={StaticResource EqualsToBool}, ConverterParameter=Home}" />
+                <RadioButton Style="{StaticResource RibbonTabStyle}" Content="Düzenle" GroupName="rb"
+                             Visibility="{Binding HasDocument, Converter={StaticResource BoolToVis}}"
+                             IsChecked="{Binding Ribbon, Converter={StaticResource EqualsToBool}, ConverterParameter=Edit}" />
                 <RadioButton Style="{StaticResource RibbonTabStyle}" Content="Sayfalar" GroupName="rb"
                              Visibility="{Binding HasDocument, Converter={StaticResource BoolToVis}}"
                              IsChecked="{Binding Ribbon, Converter={StaticResource EqualsToBool}, ConverterParameter=Pages}" />
@@ -156,6 +160,93 @@
                         <StackPanel><ui:SymbolIcon Symbol="ArrowUndo24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Geri al" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>
                     <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.RedoCommand}" IsEnabled="{Binding ActiveTab.CanRedo, FallbackValue=False}" ToolTip="Yinele (Ctrl+Y)">
+                        <StackPanel><ui:SymbolIcon Symbol="ArrowRedo24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Yinele" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Düzenle -->
+                <StackPanel Style="{StaticResource RibbonPanel}" Visibility="{Binding Ribbon, Converter={StaticResource EqualsToVis}, ConverterParameter=Edit}">
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.ToggleEditToolCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Metin, görsel ve şekilleri seç, taşı, boyutlandır; metne çift tıklayarak düzenle (E)">
+                        <StackPanel><ui:SymbolIcon Symbol="Edit24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Düzenle aracı" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.EditSelectedTextCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili paragrafın metnini düzenle (F2)">
+                        <StackPanel><ui:SymbolIcon Symbol="TextEditStyle24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Metni düzenle" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.DeleteSelectedCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili nesneleri sayfadan sil (Delete)">
+                        <StackPanel><ui:SymbolIcon Symbol="Delete24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Sil" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Border Style="{StaticResource RibbonSeparator}" />
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.Text}" IsEnabled="{Binding HasDocument}" ToolTip="Yeni metin kutusu ekle">
+                        <StackPanel><ui:SymbolIcon Symbol="TextAddT24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Metin ekle" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.Image}" IsEnabled="{Binding HasDocument}" ToolTip="Sayfaya görsel ekle">
+                        <StackPanel><ui:SymbolIcon Symbol="ImageAdd24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Görsel ekle" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.ReplaceSelectedImageCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili görseli başka bir görselle değiştir">
+                        <StackPanel><ui:SymbolIcon Symbol="ImageEdit24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Görseli değiştir" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.Rectangle}" IsEnabled="{Binding HasDocument}" ToolTip="Dikdörtgen çiz">
+                        <StackPanel><ui:SymbolIcon Symbol="RectangleLandscape24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Dikdörtgen" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.Ellipse}" IsEnabled="{Binding HasDocument}" ToolTip="Elips çiz">
+                        <StackPanel><ui:SymbolIcon Symbol="Circle24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Elips" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.Line}" IsEnabled="{Binding HasDocument}" ToolTip="Çizgi çiz">
+                        <StackPanel><ui:SymbolIcon Symbol="Line24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Çizgi" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.Arrow}" IsEnabled="{Binding HasDocument}" ToolTip="Ok çiz">
+                        <StackPanel><ui:SymbolIcon Symbol="ArrowUpRight24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Ok" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Border Style="{StaticResource RibbonSeparator}" />
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Left}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili öğeleri sola hizala">
+                        <StackPanel><ui:SymbolIcon Symbol="AlignLeft24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Sola" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.CenterH}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili öğeleri yatayda ortala">
+                        <StackPanel><ui:SymbolIcon Symbol="AlignCenterHorizontal24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Ortala" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Right}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili öğeleri sağa hizala">
+                        <StackPanel><ui:SymbolIcon Symbol="AlignRight24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Sağa" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Top}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili öğeleri üste hizala">
+                        <StackPanel><ui:SymbolIcon Symbol="AlignTop24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Üste" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Bottom}" IsEnabled="{Binding HasDocument}" ToolTip="Seçili öğeleri alta hizala">
+                        <StackPanel><ui:SymbolIcon Symbol="AlignBottom24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Alta" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Border Style="{StaticResource RibbonSeparator}" />
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.Link}" IsEnabled="{Binding HasDocument}" ToolTip="Web bağlantısı ekle (alan çizin)">
+                        <StackPanel><ui:SymbolIcon Symbol="Link24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Bağlantı" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.PlaceCommand}" CommandParameter="{x:Static c:EditPlacement.RemoveLink}" IsEnabled="{Binding HasDocument}" ToolTip="Tıkladığınız bağlantıyı kaldır">
+                        <StackPanel><ui:SymbolIcon Symbol="LinkDismiss24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Bağlantı kaldır" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Border Style="{StaticResource RibbonSeparator}" />
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AddWatermarkCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Sayfalara metin filigranı ekle">
+                        <StackPanel><ui:SymbolIcon Symbol="DrawImage24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Filigran" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.RemoveWatermarksCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Eklenen filigranları kaldır">
+                        <StackPanel><ui:SymbolIcon Symbol="Eraser24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Filigranı kaldır" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AddHeaderFooterCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Üstbilgi ve altbilgi ekle">
+                        <StackPanel><ui:SymbolIcon Symbol="DocumentHeaderFooter24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Üst/altbilgi" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.AddPageNumbersCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Sayfa numarası ekle">
+                        <StackPanel><ui:SymbolIcon Symbol="NumberSymbol24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Sayfa no." Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.RemoveHeaderFooterCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Eklenen üst/altbilgi ve sayfa numaralarını kaldır">
+                        <StackPanel><ui:SymbolIcon Symbol="DocumentHeaderDismiss24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Üst/altbilgiyi kaldır" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.SetBackgroundCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Sayfa arka plan rengi">
+                        <StackPanel><ui:SymbolIcon Symbol="PaintBucket24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Arka plan" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.RemoveBackgroundCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Eklenen arka plan rengini kaldır">
+                        <StackPanel><ui:SymbolIcon Symbol="DismissCircle24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Arka planı kaldır" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Border Style="{StaticResource RibbonSeparator}" />
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.UndoCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Geri al (Ctrl+Z)">
+                        <StackPanel><ui:SymbolIcon Symbol="ArrowUndo24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Geri al" Style="{StaticResource RibbonLabel}" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource RibbonButtonStyle}" Command="{Binding ActiveTab.RedoCommand}" IsEnabled="{Binding HasDocument}" ToolTip="Yinele (Ctrl+Y)">
                         <StackPanel><ui:SymbolIcon Symbol="ArrowRedo24" Style="{StaticResource RibbonIcon}" /><TextBlock Text="Yinele" Style="{StaticResource RibbonLabel}" /></StackPanel>
                     </Button>
                 </StackPanel>

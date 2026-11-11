@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:MeslyPdfReader.App.ViewModels"
-             xmlns:c="clr-namespace:MeslyPdfReader.App.Controls">
+             xmlns:c="clr-namespace:MeslyPdfReader.App.Controls"
+             xmlns:core="clr-namespace:MeslyPdfReader.Core;assembly=MeslyPdfReader.Core">
     <UserControl.Resources>
         <Style x:Key="PropLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11.5" />
@@ -254,6 +255,8 @@
                              ViewRotation="{Binding ViewRotation, Mode=TwoWay}"
                              DarkMode="{Binding DarkMode}"
                              Tool="{Binding Tool}"
+                             EditHost="{Binding}"
+                             Placement="{Binding Placement, Mode=TwoWay}"
                              CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                              SearchHits="{Binding SearchHits}"
                              ActiveHit="{Binding ActiveHit}">
@@ -270,6 +273,11 @@
                             <Separator />
                             <MenuItem Header="Sayfayı sağa döndür" Command="{Binding RotatePagesRightCommand}" InputGestureText="Ctrl+R" />
                             <MenuItem Header="Yazdır…" Command="{Binding PrintCommand}" InputGestureText="Ctrl+P" />
+                            <Separator />
+                            <MenuItem Header="Düzenle aracı" Command="{Binding ToggleEditToolCommand}" InputGestureText="E" />
+                            <MenuItem Header="Metni düzenle" Command="{Binding EditSelectedTextCommand}" InputGestureText="F2" Visibility="{Binding IsTextSelection, Converter={StaticResource BoolToVis}}" />
+                            <MenuItem Header="Seçili nesneleri sil" Command="{Binding DeleteSelectedCommand}" InputGestureText="Delete" Visibility="{Binding HasEditSelection, Converter={StaticResource BoolToVis}}" />
+                            <MenuItem Header="Görseli değiştir…" Command="{Binding ReplaceSelectedImageCommand}" Visibility="{Binding IsImageSelection, Converter={StaticResource BoolToVis}}" />
                         </ContextMenu>
                     </c:PdfViewer.ContextMenu>
                 </c:PdfViewer>
@@ -317,7 +325,7 @@
             </Border>
 
             <!-- Belge meşgul katmanı -->
-            <Border Background="#55000000" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+            <Border Background="#55000000" Visibility="{Binding ShowBusy, Converter={StaticResource BoolToVis}}">
                 <Border Background="{DynamicResource MeslyPanelBrush}" CornerRadius="12" Padding="26,20" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="340">
                     <StackPanel>
                         <TextBlock Text="{Binding BusyText}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -332,6 +340,125 @@
         <Border Grid.Column="4" x:Name="RightPanel" Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1,0,0,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="16,12,14,16">
+                    <!-- Düzenleme -->
+                    <StackPanel Visibility="{Binding IsEditTool, Converter={StaticResource BoolToVis}}" Margin="0,0,0,18">
+                        <TextBlock Text="Düzenleme" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="{Binding SelectionTitle}" FontWeight="SemiBold" FontSize="12.5" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SelectionNote}" FontSize="11.5" Foreground="{DynamicResource MeslyMutedTextBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                        <!-- Metin biçimi: seçili paragraf veya yeni metin -->
+                        <StackPanel Margin="0,10,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTextSelection}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding HasEditSelection}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="Yazı tipi" Style="{StaticResource PropLabel}" />
+                            <ComboBox ItemsSource="{Binding FontFamilies}" Text="{Binding EditFontFamily, UpdateSourceTrigger=LostFocus}" IsEditable="True" />
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Boyut (pt)" Style="{StaticResource PropLabel}" />
+                                    <ui:NumberBox Value="{Binding EditFontSize, UpdateSourceTrigger=PropertyChanged}" Minimum="2" Maximum="400" MaxDecimalPlaces="1" SpinButtonPlacementMode="Hidden" ClearButtonEnabled="False" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Renk (#RRGGBB)" Style="{StaticResource PropLabel}" />
+                                    <TextBox Text="{Binding EditColor, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Hizalama" Style="{StaticResource PropLabel}" />
+                                    <ComboBox ItemsSource="{x:Static vm:DocumentViewModel.AlignNames}" SelectedIndex="{Binding EditAlign}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Satır aralığı" Style="{StaticResource PropLabel}" />
+                                    <ui:NumberBox Value="{Binding EditLineSpacing, UpdateSourceTrigger=PropertyChanged}" Minimum="0.8" Maximum="4" MaxDecimalPlaces="2" SmallChange="0.1" SpinButtonPlacementMode="Hidden" ClearButtonEnabled="False" />
+                                </StackPanel>
+                            </Grid>
+                            <WrapPanel Margin="0,8,0,0">
+                                <CheckBox Content="Kalın" IsChecked="{Binding EditBold}" Margin="0,0,12,0" />
+                                <CheckBox Content="Eğik" IsChecked="{Binding EditItalic}" Margin="0,0,12,0" />
+                                <CheckBox Content="Altı çizili" IsChecked="{Binding EditUnderline}" />
+                            </WrapPanel>
+                            <StackPanel Visibility="{Binding IsTextSelection, Converter={StaticResource BoolToVis}}">
+                                <WrapPanel Margin="0,10,0,0">
+                                    <ui:Button Content="Metni düzenle" Icon="{ui:SymbolIcon TextEditStyle24}" Command="{Binding EditSelectedTextCommand}" Margin="0,0,6,6" />
+                                    <ui:Button Content="Biçimi uygula" Icon="{ui:SymbolIcon Checkmark24}" Appearance="Primary" Command="{Binding ApplyTextStyleCommand}" Margin="0,0,6,6"
+                                               ToolTip="Paragrafı seçilen yazı tipi, boyut, renk ve hizalamayla yeniden yazar" />
+                                    <ui:Button Content="Yalnız renk" Command="{Binding SetTextColorCommand}" Margin="0,0,6,6" ToolTip="Metni yeniden yazmadan yalnızca rengini değiştirir" />
+                                </WrapPanel>
+                            </StackPanel>
+                            <TextBlock Visibility="{Binding HasEditSelection, Converter={StaticResource BoolInvertVis}}" Text="Bu ayarlar yeni eklenecek metinlerde kullanılır." FontSize="11.5" Foreground="{DynamicResource MeslyMutedTextBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        </StackPanel>
+
+                        <!-- Şekil renkleri -->
+                        <StackPanel Margin="0,10,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsShapeSelection}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding HasEditSelection}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="Şekil" Style="{StaticResource PropLabel}" FontWeight="SemiBold" />
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Çizgi rengi" Style="{StaticResource PropLabel}" />
+                                    <TextBox Text="{Binding ShapeStroke, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Dolgu (boş = yok)" Style="{StaticResource PropLabel}" />
+                                    <TextBox Text="{Binding ShapeFill, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="Çizgi kalınlığı (pt)" Style="{StaticResource PropLabel}" />
+                            <ui:NumberBox Value="{Binding ShapeStrokeWidth, UpdateSourceTrigger=PropertyChanged}" Minimum="0" Maximum="50" MaxDecimalPlaces="1" SpinButtonPlacementMode="Hidden" ClearButtonEnabled="False" />
+                            <ui:Button Content="Renkleri uygula" Appearance="Primary" Command="{Binding ApplyShapeStyleCommand}" Margin="0,8,0,0"
+                                       Visibility="{Binding IsShapeSelection, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+
+                        <!-- Konum ve boyut -->
+                        <StackPanel Margin="0,12,0,0" Visibility="{Binding HasEditSelection, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Visibility="{Binding IsMultiSelection, Converter={StaticResource BoolInvertVis}}">
+                                <TextBlock Text="Konum ve boyut (mm, sol-alt köşe)" Style="{StaticResource PropLabel}" FontWeight="SemiBold" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="6" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                                    <StackPanel><TextBlock Text="X" Style="{StaticResource PropLabel}" /><ui:NumberBox Value="{Binding ObjX}" MaxDecimalPlaces="1" SpinButtonPlacementMode="Hidden" ClearButtonEnabled="False" /></StackPanel>
+                                    <StackPanel Grid.Column="2"><TextBlock Text="Y" Style="{StaticResource PropLabel}" /><ui:NumberBox Value="{Binding ObjY}" MaxDecimalPlaces="1" SpinButtonPlacementMode="Hidden" ClearButtonEnabled="False" /></StackPanel>
+                                    <StackPanel Grid.Row="1" IsEnabled="{Binding IsObjectSelection}"><TextBlock Text="Genişlik" Style="{StaticResource PropLabel}" /><ui:NumberBox Value="{Binding ObjW}" Minimum="0.5" MaxDecimalPlaces="1" SpinButtonPlacementMode="Hidden" ClearButtonEnabled="False" /></StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="2" IsEnabled="{Binding IsObjectSelection}"><TextBlock Text="Yükseklik" Style="{StaticResource PropLabel}" /><ui:NumberBox Value="{Binding ObjH}" Minimum="0.5" MaxDecimalPlaces="1" SpinButtonPlacementMode="Hidden" ClearButtonEnabled="False" /></StackPanel>
+                                </Grid>
+                                <ui:Button Content="Konumu uygula" Command="{Binding ApplyGeometryCommand}" Margin="0,8,0,0" />
+                            </StackPanel>
+                            <WrapPanel Margin="0,10,0,0">
+                                <ui:Button Content="Görseli değiştir" Icon="{ui:SymbolIcon ImageEdit24}" Command="{Binding ReplaceSelectedImageCommand}" Margin="0,0,6,6"
+                                           Visibility="{Binding IsImageSelection, Converter={StaticResource BoolToVis}}" />
+                                <ui:Button Content="Sil" Icon="{ui:SymbolIcon Delete24}" Command="{Binding DeleteSelectedCommand}" Margin="0,0,6,6" />
+                            </WrapPanel>
+                            <StackPanel Visibility="{Binding IsMultiSelection, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Hizala" Style="{StaticResource PropLabel}" />
+                                <WrapPanel>
+                                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Sola" Command="{Binding AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Left}"><ui:SymbolIcon Symbol="AlignLeft24" /></Button>
+                                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Yatay ortala" Command="{Binding AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.CenterH}"><ui:SymbolIcon Symbol="AlignCenterHorizontal24" /></Button>
+                                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Sağa" Command="{Binding AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Right}"><ui:SymbolIcon Symbol="AlignRight24" /></Button>
+                                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Üste" Command="{Binding AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Top}"><ui:SymbolIcon Symbol="AlignTop24" /></Button>
+                                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Dikey ortala" Command="{Binding AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Middle}"><ui:SymbolIcon Symbol="AlignCenterVertical24" /></Button>
+                                    <Button Style="{StaticResource ToolButtonStyle}" ToolTip="Alta" Command="{Binding AlignSelectedCommand}" CommandParameter="{x:Static core:AlignMode.Bottom}"><ui:SymbolIcon Symbol="AlignBottom24" /></Button>
+                                </WrapPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+
                     <TextBlock Text="Sayfa" Style="{StaticResource SectionTitle}" />
                     <TextBlock Text="Numara" Style="{StaticResource PropLabel}" />
                     <TextBox Style="{StaticResource PropValue}">

@@ -466,6 +466,108 @@ public sealed class SelfTestRunner
                 $"sayfa={doc.PageCount}, döndürme={rot0}/{rot1}, 1. sayfa {PaperSize.Describe(s0)}");
         });
 
+        // ── Aşama 3: içerik düzenleme ──
+        string editPath = Path.Combine(work, "Düzenleme Testi.pdf");
+        var winArial = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "arial.ttf");
+        await Step("Düzenleme", "Yazı tipi dizini ve eşleme", "Kurulu yazı tipleri listelenir; “ABCDEF+Arial-BoldMT” → Arial kalın, Türkçe karakterler var", async () =>
+        {
+            var fonts = await FontResolver.Instance.GetFontsAsync();
+            var (_, choice) = await FontResolver.Instance.ResolveAsync("ABCDEF+Arial-BoldMT", "İĞÜŞÖÇ ığüşöç", bold: true, italic: false);
+            var (_, missing) = await FontResolver.Instance.ResolveAsync("XYZABC+MeslyOlmayanFont", "ığüşöç", false, false);
+            bool ok = fonts.Count >= 10 && choice.Font?.Family == "Arial" && choice.Font.Bold && choice.Exact && missing.Font is not null && missing.Note is not null;
+            return (ok, $"{fonts.Count} yazı tipi; Arial-Bold → {choice.Font?.Family} kalın={choice.Font?.Bold} tam={choice.Exact}; olmayan → {missing.Font?.Family} ({missing.Note})");
+        });
+
+        await Step("Düzenleme", "Paragraf metnini değiştir (gerçek içerik)", "Eski metin nesneleri silinir, yeni metin kutu genişliğinde akar, aranabilir", async () =>
+        {
+            var fdata = File.Exists(winArial) ? File.ReadAllBytes(winArial) : font;
+            using (var d = await PdfDocument.CreateAsync(PaperSize.A4.ToPoints(), 2))
+            {
+                await d.AddTextAsync(0, "Hizmet Sözleşmesi", 72, 770, 22, fdata);
+                var lines = new[] { "Bu sözleşme, taraflar arasında yapılan hizmet alımına", "ilişkin koşulları belirler; ödeme otuz gün içinde", "yapılır ve gecikmede faiz uygulanır." };
+                for (int k = 0; k < lines.Length; k++) await d.AddTextAsync(0, lines[k], 72, 720 - k * 15, 12, fdata);
+                await d.AddTextAsync(0, "İmza: ____________", 72, 600, 12, fdata);
+                await d.SaveAsync(editPath);
+            }
+            await _vm.OpenFilesAsync(new[] { editPath });
+            var et = _vm.ActiveTab!;
+            await WaitRendered();
+            et.Tool = ViewerTool.Edit;
+            bool loaded = await WaitUntil(() => Viewer!.EditItemCount(0) >= 3, 10000);
+            bool selected = Viewer!.SelectItemAt(0, 100, 715);
+            var para = et.EditSelection?.Single?.Paragraph;
+            if (para is null) return (false, $"öğeler={Viewer.EditItemCount(0)}, seçim yok");
+            var newText = "Bu sözleşme, Mesly PDF Reader ile gerçek içerik düzenlemesi yapılarak değiştirilmiştir: ödeme kırk beş gün içinde yapılır, gecikmede yıllık %12 faiz uygulanır. İĞÜŞÖÇ ığüşöç.";
+            bool ok1 = await et.ReplaceTextAsync(0, para, newText);
+            await WaitRendered();
+            var text = (await et.Document.GetPageTextAsync(0)).Text.Replace("\r\n", " ").Replace("\n", " ");
+            var objs = await et.Document.GetPageObjectsAsync(0);
+            bool noOverlay = !objs.Any(o => o.Kind == PageObjectKind.Path && o.FillRgb == 0xFFFFFF);
+            bool ok = loaded && selected && ok1 && !text.Contains("otuz gün") && text.Contains("kırk beş gün") && text.Contains("İĞÜŞÖÇ ığüşöç") && noOverlay;
+            await WaitUntil(() => Viewer!.EditItemCount(0) >= 3, 5000);
+            Viewer!.SelectItemAt(0, 100, 715);
+            await Idle();
+            Shot("13-duzenleme-paragraf");
+            return (ok, $"öğe={Viewer.EditItemCount(0)}, değişti={ok1}, eski metin yok={!text.Contains("otuz gün")}, yeni metin var={text.Contains("kırk beş gün")}, beyaz kutu yok={noOverlay}; {et.StatusText}");
+        });
+
+        await Step("Düzenleme", "Yerinde metin düzenleyici", "Seçili paragrafta düzenleyici açılır, Esc ile değişiklik yapılmadan kapanır", async () =>
+        {
+            var et = _vm.ActiveTab!;
+            int rev = et.Document.Revision;
+            bool opened = Viewer!.BeginEditSelectedText();
+            await Idle();
+            Shot("14-duzenleme-yerinde");
+            bool editing = Viewer.IsEditingText;
+            Viewer.CancelTextEdit();
+            await Idle();
+            return (opened && editing && !Viewer.IsEditingText && et.Document.Revision == rev, $"açıldı={opened}, düzenleniyor={editing}, belge değişmedi={et.Document.Revision == rev}");
+        });
+
+        await Step("Düzenleme", "Şekil, görsel, bağlantı, taşıma + geri al", "Nesneler içerik akışına eklenir; taşıma geri alınınca eski konum", async () =>
+        {
+            var et = _vm.ActiveTab!;
+            et.ShapeStroke = "#1E5EF0"; et.ShapeFill = "#E6F0FF"; et.ShapeStrokeWidth = 2;
+            bool r = await et.PlaceAsync(EditPlacement.Rectangle, 0, 72, 560, 300, 500);
+            bool e = await et.PlaceAsync(EditPlacement.Ellipse, 0, 320, 560, 520, 500);
+            bool a = await et.PlaceAsync(EditPlacement.Arrow, 0, 72, 470, 300, 440);
+            await et.Document.AddImageAsync(0, ImageCodec.LoadForPdf(jpgPath)[0], new RectF(320, 300, 520, 450));
+            await et.Document.AddLinkAsync(0, new RectF(72, 595, 200, 615), "https://example.com/mesly");
+            var objs = await et.Document.GetPageObjectsAsync(0);
+            var img = objs.First(o => o.Kind == PageObjectKind.Image);
+            bool mv = await et.MoveAsync(0, new[] { img.Index }, -240, 0);
+            var moved = (await et.Document.GetPageObjectsAsync(0))[img.Index].Bounds.Left;
+            await et.UndoCommand.ExecuteAsync(null);
+            var back = (await et.Document.GetPageObjectsAsync(0)).First(o => o.Kind == PageObjectKind.Image).Bounds.Left;
+            await et.RedoCommand.ExecuteAsync(null);
+            var links = await et.Document.GetLinksAsync(0);
+            await WaitRendered();
+            Shot("15-duzenleme-nesneler");
+            bool ok = r && e && a && mv && Math.Abs(moved - (img.Bounds.Left - 240)) < 1 && Math.Abs(back - img.Bounds.Left) < 1 && links.Any(l => l.Uri == "https://example.com/mesly");
+            return (ok, $"şekiller={r}/{e}/{a}, görsel taşındı {img.Bounds.Left:0}→{moved:0}, geri al→{back:0}, bağlantı={links.Count}");
+        });
+
+        await Step("Düzenleme", "Filigran, sayfa numarası, arka plan", "Gerçek metin/yol nesneleri olarak eklenir ve kaldırılabilir", async () =>
+        {
+            var et = _vm.ActiveTab!;
+            var (fd, _) = await FontResolver.Instance.ResolveAsync("Arial", "GİZLİ Sayfa 0123456789/", false, false);
+            await et.Document.AddWatermarkAsync(new[] { 0, 1 }, new WatermarkSettings("GİZLİ", new TextStyle(fd, 0, 0xD32F2F), 45, 0.2));
+            await et.Document.AddHeaderFooterAsync(new[] { 0, 1 }, new HeaderFooterSettings(new[] { new HeaderFooterItem(HFPosition.BottomCenter, "Sayfa {sayfa} / {toplam}") }, new TextStyle(fd, 9, 0x444444)));
+            await et.Document.SetBackgroundAsync(new[] { 1 }, 0xFFF8D6);
+            et.Tool = ViewerTool.Select;
+            await WaitRendered();
+            Shot("16-filigran-sayfa-no");
+            var t1 = (await et.Document.GetPageTextAsync(1)).Text;
+            int wm = await et.Document.RemoveWatermarksAsync(new[] { 0, 1 });
+            int bg = await et.Document.RemoveBackgroundAsync(new[] { 0, 1 });
+            var t0 = (await et.Document.GetPageTextAsync(0)).Text;
+            await et.Document.SaveAsync(editPath);
+            using var re = await PdfDocument.OpenAsync(editPath);
+            var rt = (await re.GetPageTextAsync(0)).Text.Replace("\r\n", " ").Replace("\n", " ");
+            bool ok = t1.Contains("Sayfa 2 / 2") && t1.Contains("GİZLİ") && wm == 2 && bg == 1 && !t0.Contains("GİZLİ") && rt.Contains("kırk beş gün") && rt.Contains("Sayfa 1 / 2");
+            return (ok, $"filigran silinen={wm}, arka plan silinen={bg}, kaydedilen dosyada yeni metin={rt.Contains("kırk beş gün")}, sayfa no={rt.Contains("Sayfa 1 / 2")}");
+        });
+
         // ── Büyük belge ──
         string big = Path.Combine(work, "bin-sayfa.pdf");
         await Step("Performans", "1.000 sayfalık belge", "Hızlı açılır, son sayfaya gidilir, bellek sınırlı", async () =>

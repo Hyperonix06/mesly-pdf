@@ -12,7 +12,7 @@ using MeslyPdfReader.Pdf;
 
 namespace MeslyPdfReader.App.ViewModels;
 
-public enum RibbonTab { File, Home, Pages, Convert, View }
+public enum RibbonTab { File, Home, Edit, Pages, Convert, View }
 
 public sealed partial class MainViewModel : BusyViewModel
 {
@@ -44,7 +44,7 @@ public sealed partial class MainViewModel : BusyViewModel
         if (oldValue is not null) oldValue.IsActive = false;
         if (newValue is not null) newValue.IsActive = true;
         DocumentViewModel? value = newValue;
-        if (value is null && Ribbon is RibbonTab.Pages or RibbonTab.View) Ribbon = RibbonTab.Home;
+        if (value is null && Ribbon is RibbonTab.Pages or RibbonTab.View or RibbonTab.Edit) Ribbon = RibbonTab.Home;
     }
 
     [RelayCommand] private void ShowHome() => ActiveTab = null;

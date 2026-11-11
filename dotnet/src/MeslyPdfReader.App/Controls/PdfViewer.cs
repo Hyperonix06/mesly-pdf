@@ -13,7 +13,7 @@ namespace MeslyPdfReader.App.Controls;
 
 public enum ZoomMode { Custom, FitWidth, FitPage, ActualSize }
 public enum PageLayoutMode { Continuous, SinglePage, TwoPageContinuous, TwoPage }
-public enum ViewerTool { Select, Hand }
+public enum ViewerTool { Select, Hand, Edit }
 
 public readonly record struct TextPosition(int Page, int Char) : IComparable<TextPosition>
 {
@@ -24,7 +24,7 @@ public readonly record struct TextPosition(int Page, int Char) : IComparable<Tex
 /// Sanal kaydırmalı PDF görüntüleyici. Yalnızca görünen sayfalar çizilir; çizim istekleri PDF motoruna
 /// öncelikli ve iptal edilebilir olarak gönderilir. Arayüz iş parçacığı PDF motorunu hiç beklemez.
 /// </summary>
-public sealed class PdfViewer : FrameworkElement, IScrollInfo
+public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
 {
     private const double PageMargin = 18, Gap = 14;
     private const long FullRenderPixelLimit = 14_000_000;
@@ -59,7 +59,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
     public bool DarkMode { get => (bool)GetValue(DarkModeProperty); set => SetValue(DarkModeProperty, value); }
 
     public static readonly DependencyProperty ToolProperty = DependencyProperty.Register(nameof(Tool), typeof(ViewerTool), typeof(PdfViewer),
-        new PropertyMetadata(ViewerTool.Select));
+        new PropertyMetadata(ViewerTool.Select, (d, e) => ((PdfViewer)d).OnToolChanged()));
     public ViewerTool Tool { get => (ViewerTool)GetValue(ToolProperty); set => SetValue(ToolProperty, value); }
 
     public static readonly DependencyProperty CurrentPageProperty = DependencyProperty.Register(nameof(CurrentPage), typeof(int), typeof(PdfViewer),
@@ -104,7 +104,8 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         public PageGeometry? Geometry;
         public IReadOnlyList<LinkInfo>? Links;
         public PageText? Text;
-        public bool LoadingBasic, LoadingText;
+        public List<EditItem>? EditItems;
+        public bool LoadingBasic, LoadingText, LoadingEdit;
     }
 
     // seçim
@@ -154,6 +155,8 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         CancelAll();
         _cache.Clear(); _aux.Clear(); _errors.Clear();
         ClearSelection();
+        CommitEditor(cancel: true);
+        SetSelection(null);
         _offset = default;
         _singleRowPage = 0;
         if (newDoc is not null)
@@ -173,6 +176,8 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         CancelAll();
         _cache.Clear(); _aux.Clear(); _errors.Clear();
         ClearSelection();
+        _hoverItem = null;
+        if (_sel is not null) SetSelection(null);
         int page = Math.Clamp(CurrentPage, 0, Math.Max(0, doc.PageCount - 1));
         _singleRowPage = page;
         if (ZoomMode != ZoomMode.Custom) ApplyZoomMode(keepPage: true);
@@ -286,6 +291,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         if (clearCache) { CancelAll(); _cache.Clear(); }
         if (LayoutMode is PageLayoutMode.SinglePage or PageLayoutMode.TwoPage) _singleRowPage = CurrentPage;
         BuildLayout();
+        if (_editor is not null) InvalidateArrange();
         if (keepPage && Document is not null && keep < _pageRects.Length && _inLayout[keep])
         {
             var r = _pageRects[keep];
@@ -351,6 +357,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
     {
         var w = double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width;
         var h = double.IsInfinity(availableSize.Height) ? 600 : availableSize.Height;
+        _editor?.Measure(new Size(w, double.PositiveInfinity));
         return new Size(w, h);
     }
 
@@ -362,6 +369,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
             if (ZoomMode != ZoomMode.Custom) ApplyZoomMode(keepPage: true);
             else Relayout(keepPage: true);
         }
+        ArrangeEditor();
         return finalSize;
     }
 
@@ -579,6 +587,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
             var (x, y, w, hh) = g.ToDevice(link.Rect, r.X, r.Y, r.Width, r.Height, ViewRotation);
             dc.DrawRoundedRectangle(LinkHoverBrush, null, new Rect(x, y, w, hh), 2, 2);
         }
+        DrawEditOverlay(dc, page, r);
         dc.Pop();
     }
 
@@ -639,6 +648,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         }
         foreach (var i in prefetch) RequestPage(i, allowRegion: false, lowPriority: true);
         if (Tool == ViewerTool.Select) foreach (var i in visible) EnsureText(i);
+        if (Tool == ViewerTool.Edit) foreach (var i in visible) EnsureEditItems(i);
         _cache.Trim(wanted);
     }
 
@@ -883,6 +893,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
             e.Handled = true;
             return;
         }
+        if (EditMouseDown(e, p)) { e.Handled = true; return; }
         _linkCandidate = HitLink(p) is not null;
         if (e.ClickCount == 2) { SelectWordAt(p); e.Handled = true; return; }
         var pos = HitText(p, exact: false);
@@ -914,6 +925,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
             SetOffsets(_panStartOffset.X - (p.X - _mouseDown.X), _panStartOffset.Y - (p.Y - _mouseDown.Y));
             return;
         }
+        if (EditMouseMove(e, p)) return;
         if (_selecting && e.LeftButton == MouseButtonState.Pressed)
         {
             if ((p - _mouseDown).Length > 3) _linkCandidate = false;
@@ -953,6 +965,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         ReleaseMouseCapture();
         _autoScroll.IsEnabled = false;
         if (_panning) { _panning = false; Cursor = Tool == ViewerTool.Hand ? Cursors.Hand : Cursors.Arrow; return; }
+        if (EditMouseUp(p)) return;
         bool wasSelecting = _selecting;
         _selecting = false;
         if (_linkCandidate && (p - _mouseDown).Length <= 3 && HitLink(p) is { } link)
@@ -1001,6 +1014,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
     {
         bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
         bool continuous = LayoutMode is PageLayoutMode.Continuous or PageLayoutMode.TwoPageContinuous;
+        if (EditKeyDown(e)) { e.Handled = true; return; }
         switch (e.Key)
         {
             case Key.Down: LineDown(); break;
@@ -1043,6 +1057,7 @@ public sealed class PdfViewer : FrameworkElement, IScrollInfo
         if (changed)
         {
             ScrollOwner?.InvalidateScrollInfo();
+            if (_editor is not null) InvalidateArrange();
             InvalidateVisual();
             QueueRender();
         }

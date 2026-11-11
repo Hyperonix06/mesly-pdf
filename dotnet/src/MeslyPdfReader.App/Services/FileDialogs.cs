@@ -34,6 +34,9 @@ public static class FileDialogs
         return dlg.ShowDialog() == true ? dlg.FileName : null;
     }
 
+    /// <summary>Tek bir görüntü dosyası seçtirir.</summary>
+    public static string? OpenImage(string title = "Görsel seçin") => OpenFiles(ImageFilter, multi: false, title).FirstOrDefault();
+
     public static string? PickFolder(string title = "Klasör seçin", string? initial = null)
     {
         var dlg = new OpenFolderDialog { Title = title, InitialDirectory = Dir(initial) ?? Dir(Settings?.DefaultSaveFolder) ?? InitialOpen };
