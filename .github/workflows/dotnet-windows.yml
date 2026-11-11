@@ -90,7 +90,7 @@ jobs:
           dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ..\publish-multi
           $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DPublishDir=..\..\publish-multi" "/O..\compare" "/FMeslyPdfReader-Setup-cokdosya" installer\MeslyPdfReader.iss
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DPublishDir=..\..\publish-multi" "/Ocompare" "/FMeslyPdfReader-Setup-cokdosya" installer\MeslyPdfReader.iss
           Write-Host "Çok dosyalı yayın: $((Get-ChildItem ..\publish-multi -Recurse -File).Count) dosya; tek dosya yayını: $((Get-ChildItem ..\publish -Recurse -File).Count) dosya"
 
       - uses: actions/upload-artifact@v4
