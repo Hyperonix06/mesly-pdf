@@ -63,8 +63,10 @@ jobs:
         run: dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -o ../publish "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR"
 
       - name: LibreOffice (Office → PDF yolunu sınamak için)
+        timeout-minutes: 8
+        continue-on-error: true
         run: |
-          choco install libreoffice-fresh -y --no-progress --timeout 1200
+          choco install libreoffice-fresh -y --no-progress --timeout 420
           $so = "C:\Program Files\LibreOffice\program\soffice.exe"
           if (Test-Path $so) { Write-Host "✔ LibreOffice kuruldu: $so" } else { Write-Warning "LibreOffice kurulamadı; öz test 'araç yok' yolunu sınayacak" }
 
