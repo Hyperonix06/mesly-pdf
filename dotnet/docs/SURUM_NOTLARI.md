@@ -1,5 +1,25 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.5.0 (11 Kasım 2026) — Aşama 4: OCR, otomatik tarama düzeltme, yeni arayüz
+
+### Tarama artık kendini düzeltiyor
+* Tarayıcı sayfayı yan veya ters verse bile sayfa **metne bakılarak otomatik dik çevrilir**; eğik taranan satırlar düzeltilir, kapak gölgesi gibi koyu kenarlar temizlenir. Düzeltilen küçük resim tarama penceresinde hemen görünür.
+* Tarama bitince **metin tanınır**: PDF aranabilir, kopyalanabilir ve düzenlenebilir olur. Her ikisi tarama penceresinden kapatılabilir.
+
+### Yeni: Tanıma (OCR) sekmesi
+* **Metni tanı:** Türkçe ve İngilizce; seçilen sayfalar aynı anda birden çok çekirdekte tanınır. Sayfa aynı görünür, altına görünmez metin katmanı eklenir.
+* **Görüntüyü düzelt:** var olan taranmış PDF'lerde yön, eğiklik, kenar ve arka plan düzeltme.
+* **Doğrula:** düşük güvenle tanınan sözcükler sayfadaki görüntüsüyle yan yana gösterilir; Enter ile düzeltip sonrakine geçilir.
+* Taranmış bir sayfa açıldığında üstte “Metni tanı” bilgi şeridi çıkar.
+* **Taranmış sayfada düzenleme:** tanınan metni Düzenle aracıyla değiştirdiğinizde görüntüdeki eski yazı da silinir (kâğıt rengiyle), yeni metin gerçek metin olarak yazılır.
+* Tanıma tamamen bilgisayarınızda yapılır; belgeler hiçbir yere gönderilmez.
+
+### Arayüz toplandı
+* Office / FineReader düzeninde **gruplu şerit**: büyük ana düğmeler, yanında küçük ikincil düğmeler, grup başlıkları; taşma ve kaydırma çubuğu yok.
+* Sekmeler: Dosya · Okuma · Düzenle · Tanıma (OCR) · Sayfalar · Dönüştür. Yinelenen “Ana Sayfa” kaldırıldı; Kaydet, Geri al, Yinele, Yazdır her zaman sağ üstte.
+* **Düzenle sekmesine geçmek düzenleme kipini açar** (FineReader gibi): metne çift tıklayıp yazın; sekmeden çıkınca kip kapanır.
+* Belge yokken yalnız ilgili düğmeler görünür (devre dışı düğme kalabalığı yok). Başlangıç ekranı 8 eşit kartla yeniden düzenlendi: PDF aç, PDF düzenle, Tara, Metni tanı, Görüntülerden PDF, Birleştir, Dönüştür, Böl.
+
 ## 0.4.0 (11 Kasım 2026) — Aşama 3: gerçek PDF düzenleme
 
 ### Yeni: Düzenle aracı ve Düzenle sekmesi

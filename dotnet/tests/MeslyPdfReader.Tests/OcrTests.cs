@@ -182,6 +182,8 @@ public class OcrTests(ITestOutputHelper log)
         await OcrPageAsync(doc, 0);
         var paras = await doc.GetParagraphsAsync(0);
         var p = paras.First(x => x.Text.Contains("otuz gün"));
+        // OCR katmanından gelen yazı boyutu özgün 14 pt'ye yakın olmalı (düzenlenen metin aynı büyüklükte yazılsın).
+        Assert.InRange(p.FontSize, 12.5, 15.5);
         // Paragraf alanındaki mürekkep (görüntüde)
         double Ink(BgraImage im, RectF r)
         {

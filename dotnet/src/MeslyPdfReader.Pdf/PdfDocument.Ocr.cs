@@ -49,7 +49,16 @@ public sealed unsafe partial class PdfDocument
         double sx = W / ocr.Width, sy = H / ocr.Height;
         int added = 0;
         // Satır başına tek yazı boyutu (en yüksek sözcük ≈ yazı tipi em yüksekliği): paragraf algılama tutarlı olsun.
-        var lineSize = ocr.Words.Where(w => w.Height > 0).GroupBy(w => w.Line).ToDictionary(g => g.Key, g => g.Max(w => w.Height) * sy * 0.9);
+        // Yazı boyutu: taban çizgisinden harf üstüne uzaklık (büyük harf/yükselen harf ≈ 0,74 em). Satırdaki sözcüklerin
+        // %75'lik değeri kullanılır; yalnız küçük harfli sözcükler (x yüksekliği) tahmini aşağı çekmesin.
+        var lineSize = ocr.Words.Where(w => w.Height > 0).GroupBy(w => w.Line).ToDictionary(g => g.Key, g =>
+        {
+            var hs = g.Select(w => (double)Math.Max(1, Math.Clamp(w.BaselineY, w.Top, w.Bottom) - w.Top)).OrderBy(h => h).ToList();
+            double h = hs[(int)Math.Min(hs.Count - 1, Math.Floor(hs.Count * 0.75))];
+            double em = h / 0.74;
+            // Taban çizgisi bulunamadıysa kutu yüksekliğine dön.
+            return (em > 1 ? em : g.Max(w => w.Height) * 0.9) * sy;
+        });
         foreach (var w in ocr.Words)
         {
             if (w.Text.Length == 0 || w.Width <= 0 || w.Height <= 0) continue;

@@ -1,5 +1,29 @@
 # Mesly PDF Reader — Test Raporu
 
+## 0.5.0 (Aşama 4: OCR, tarama düzeltme, yeni arayüz) — GitHub Actions
+
+| Test grubu | Ortam | Sonuç |
+|---|---|---|
+| Birim testleri (133; yeni: 14 OCR / görüntü düzeltme testi, gerçek Tesseract ile) | Linux (tessdata_fast) ve Windows (tessdata_best) | ✅ 133 / 133 |
+| Arayüz öz testi (42 adım; yeni: OCR motoru, yan+eğik tarama düzeltme, taranmış PDF → aranabilir, taranmış sayfada düzenleme, şerit taşma denetimi) | Tek dosya exe, Windows | ✅ 42 / 42 |
+| Kurulu uygulamada öz test (OCR DLL'leri ve dil verilerinin kurulumla geldiği de doğrulanır) | Windows Server 2022 / 2025 | ✅ 42 / 42 · ✅ 42 / 42 |
+
+**Ölçülenler (Windows, CI makinesi):**
+* Sürücünün yan (90°) ve 2° eğik verdiği A4 300 DPI sayfa: 270° döndürülüp eğiklik +2,0° düzeltildi, **0,5 sn**.
+* Taranmış sayfanın tanınması: 29 sözcük, ortalama güven **%96**, 4 satırın **4'ü de birebir** doğru (ı, ğ, ş, İ dahil), “İstanbul” araması 1 isabet; **0,7–1,2 sn/sayfa**.
+* Taranmış sayfada metin değiştirme: eski metin yok, yeni metin var, sayfaya hiçbir yol/kutu nesnesi eklenmedi (görüntü pikselleri silindi).
+
+**Birim testlerinin denetledikleri:** Türkçe satırların ≥%95 benzerlikle tanınması; 90/180/270° yön algılama ve düzeltme; dik sayfanın döndürülmemesi; +3°, −2,2°, +0,8° eğikliğin ±0,2° içinde ölçülüp düzeltilmesi; boş sayfada düzeltme yapılmaması; kenar gölgesi temizlemenin metni silmemesi; arka plan beyazlatma; aranabilir PDF'nin çizim piksellerini **hiç değiştirmemesi** ve /Rotate'li sayfada konumun doğru olması; OCR paragrafından gelen yazı boyutunun özgün boyuta yakın olması; taranmış sayfada düzenlemenin görüntüdeki eski yazıyı silmesi.
+
+**Bu sürümde testle bulunup düzeltilen hatalar:**
+* Şerit 1024 px'lik ekranda iki sekmede taşıyordu ve küçük düğmelerin 3. satırı kırpılıyordu (ç, ş çengelleri kesik); öz testteki taşma denetimi yakaladı, şerit sıkılaştırıldı.
+* OCR katmanındaki yazı boyutu sözcük kutusundan tahmin edildiği için düzenlenen taranmış metin ~%20 küçük çıkıyordu; boyut artık taban çizgisi–harf yüksekliğinden hesaplanıyor (testle sabitlendi).
+* OCR hizmetinde statik alan başlatma sırası hatası (ilk testte yakalandı).
+
+**Test edilemeyen:** gerçek tarayıcı (CI'da yok). Otomatik düzeltme, sürücünün yan ve eğik verdiği sayfanın birebir benzetimiyle test edildi; kendi tarayıcınızla denemeniz gerekir. Gerçek, gürültülü taramalarda OCR doğruluğu tarama kalitesine bağlıdır.
+
+Ekran görüntüleri: `ekran-goruntuleri/01-ana-ekran-acik.png`, `17-taranmis-sayfa-bilgi-seridi.png`, `18-ocr-sonrasi.png`, `20…25-serit-*.png`.
+
 ## 0.4.0 (Aşama 3: gerçek PDF düzenleme) — GitHub Actions çalışması `43028853171`
 
 | Test grubu | Ortam | Sonuç |

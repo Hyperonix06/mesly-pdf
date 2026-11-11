@@ -3,7 +3,7 @@
 Durumlar: ✅ çalışıyor ve testle doğrulandı · 🟡 kısmen / sınırlı · ⏳ planlandı (aşama numarası) · ⛔ bu sürümde yok
 Test kaynakları: **B** = birim testi (`dotnet/tests`, Linux + Windows), **Ö** = Windows'ta gerçek pencerede arayüz öz testi (`--selftest`), **K** = CI kurulum testi (Windows Server 2022 + 2025).
 
-Sürüm 0.3.0 — Aşama 1 ve 2 tamamlandı; tarama (WIA) ve hızlı kurulum eklendi.
+Sürüm 0.5.0 — Aşama 1–4 tamamlandı: okuyucu, sayfa yönetimi, tarama, gerçek PDF düzenleme, OCR ve görüntü düzeltme.
 
 ## 2. Teknoloji ve mimari
 | Madde | Durum | Not |
@@ -36,8 +36,8 @@ Sürüm 0.3.0 — Aşama 1 ve 2 tamamlandı; tarama (WIA) ve hızlı kurulum ekl
 | Son belgeler, hızlı işlemler, bırakma alanı | ✅ Ö | Sabitleme, klasörde göster, listeden kaldır |
 | Editör: sol panel küçük resim / yer imi / arama | ✅ Ö | |
 | Editör: katmanlar paneli | ⏳ | Aşama 6 ile (açıklamalar) birlikte |
-| Üst menü: Dosya, Ana Sayfa, Düzenle, Sayfalar, Dönüştür, Görünüm | ✅ Ö | |
-| Üst menü: OCR, Açıklamalar, Formlar, Güvenlik | ⏳ 4–6 | Çalışmayan menü olmaması için gizli |
+| Üst menü (gruplu şerit): Dosya, Okuma, Düzenle, Tanıma (OCR), Sayfalar, Dönüştür | ✅ Ö | 1024 px genişlikte taşmadığı öz testte denetlenir; Düzenle sekmesi düzenleme kipini açar |
+| Üst menü: Açıklamalar, Formlar, Güvenlik | ⏳ 6 | Çalışmayan menü olmaması için gizli |
 | Sağ panel: özellikler | ✅ Ö | Belge, sayfa ve seçili nesne (metin biçimi, konum/boyut, şekil renkleri) |
 | Durum çubuğu: sayfa, toplam, yakınlaştırma, boyut, durum | ✅ Ö | |
 
@@ -85,8 +85,26 @@ Tüm düzenlemeler sayfanın gerçek içerik akışına uygulanır: nesneler sil
 | Döndürülmüş metin | 🟡 | Seçilir, taşınır, silinir; yeniden yazılırsa yatay yazılır |
 | Katmanlar paneli | ⏳ | |
 
-## 6. OCR — ⏳ Aşama 4
-Taranmış belgede metin bulunamazsa kullanıcıya açıkça söylenir (TXT dışa aktarımı).
+## 6. OCR ve görüntü düzeltme — ✅ Aşama 4 (0.5.0)
+Tanıma tamamen bu bilgisayarda yapılır (Tesseract 5, tessdata_best Türkçe + İngilizce); belge hiçbir yere gönderilmez.
+
+| Madde | Durum | Test |
+|---|---|---|
+| Türkçe / İngilizce metin tanıma | ✅ | B (Linux: tessdata_fast) Ö (Windows: tessdata_best — 4/4 satır birebir, ort. güven %96) |
+| Sayfa yönünü otomatik düzeltme (90° / 180° / 270°) | ✅ | B (üç yön) Ö — önce Tesseract yön algılama, emin değilse dört yönde hızlı tanıma karşılaştırması; PDF sayfalarında kayıpsız sayfa döndürme |
+| Eğiklik düzeltme | ✅ | B (+3°, −2,2°, +0,8° ölçülüp ±0,2° içinde düzeltilir) Ö (2° eğik tarama) — boş sayfada düzeltme yapılmaz |
+| Tarayıcı kenar gölgesi temizleme, arka plan beyazlatma | ✅ | B |
+| Aranabilir PDF (görünmez metin katmanı, görünüm değişmez) | ✅ | B (çizim pikselleri birebir aynı; döndürülmüş sayfada konum doğru) Ö |
+| Taranmış sayfada metni düzenleme | ✅ | B Ö — OCR metni değiştirilince görüntüdeki eski yazı pikselleri kâğıt rengiyle silinir, yeni metin gerçek metin olarak yazılır; üstüne kutu çizilmez |
+| Tanıma doğrulama (düşük güvenli sözcükler görüntüsüyle) | ✅ | Arayüz; düzeltmeler metin katmanına yazılır |
+| Taranmış sayfa algılama ve “Metni tanı” bilgi şeridi | ✅ | Ö |
+| Metin katmanını kaldırma, yeniden tanıma | ✅ | B |
+| Çok çekirdekli tanıma | ✅ | Aynı anda en fazla 4 sayfa (çekirdek sayısına göre) |
+| Tablo / sütun yapısını Word'e aktarma | ⏳ 5 | Dönüştürme aşamasında |
+| El yazısı tanıma | ⛔ | Tesseract el yazısını güvenilir tanımaz; sözde sonuç üretilmez |
+| Diğer diller (Almanca, Arapça…) | ⏳ | Dil verisi eklenerek; şimdilik Türkçe + İngilizce kurulur |
+
+**Sınırlama (dürüst):** OCR doğruluğu tarama kalitesine bağlıdır; 300 DPI ve üzeri önerilir. Tesseract kendi dil modeliyle sözcükleri düzeltir; ek olarak güveni %60'ın altındaki sözcükler “Doğrula” penceresinde kullanıcıya gösterilir. Otomatik “yazım düzeltme” ile anlamı değiştirme riski alınmaz.
 
 ## 7. Dönüştürme
 | Madde | Durum | Test |
@@ -135,6 +153,7 @@ Açıklamalar (9), imza ve güvenlik (10), formlar (11), karşılaştırma (12),
 | Windows yazdırma sistemi | ✅ | Yazıcı listesi, PrintTicket |
 | Tarayıcı — WIA: düz cam, belge besleyici, çift taraflı besleyici | 🟡 B Ö | İş mantığı testli; WIA hizmetiyle iletişim ve pencere Windows'ta testli. **Gerçek tarayıcıyla CI'da test edilemedi** — kullanıcı cihazında doğrulanmalı |
 | Tarayıcının kendi (sürücü) tarama penceresi | 🟡 | Aynı şekilde gerçek cihazla doğrulanmalı |
+| Tarama sonrası otomatik düzeltme (yan/ters sayfa, eğiklik, kenar) ve metin tanıma | ✅ Ö | Sürücünün yan verdiği sayfa simülasyonuyla testli (90° + 2° → dik ve düz); varsayılan açık, tarama penceresinden kapatılabilir |
 | TWAIN (yalnız TWAIN sürücüsü olan tarayıcılar) | ⏳ | WIA sürücüsü olmayan cihazlar için |
 
 ## 17. Ayarlar
