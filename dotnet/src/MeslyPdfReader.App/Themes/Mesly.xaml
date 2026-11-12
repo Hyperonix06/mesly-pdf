@@ -625,9 +625,9 @@
     <!-- Görev kutusu (Ana Sayfa: PDF Aç / OCR / Dönüştür / Tarama) -->
     <Style x:Key="TaskBox" TargetType="Button">
         <Setter Property="Background" Value="{DynamicResource MeslyPanelBrush}" />
-        <Setter Property="Width" Value="150" />
-        <Setter Property="Height" Value="116" />
-        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="MinWidth" Value="130" />
+        <Setter Property="Height" Value="124" />
+        <Setter Property="Margin" Value="0,0,14,0" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">

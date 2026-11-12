@@ -81,24 +81,6 @@
                         <RadioButton Style="{StaticResource NavItem}" GroupName="nav" Content="OCR (Metin Tanıma)" Tag="ScanText24" IsChecked="{Binding Screen, Mode=OneWay, Converter={StaticResource EqualsToBool}, ConverterParameter=Ocr}" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppScreen.Ocr}" />
                         <RadioButton Style="{StaticResource NavItem}" GroupName="nav" Content="Araçlar" Tag="Toolbox24" IsChecked="{Binding Screen, Mode=OneWay, Converter={StaticResource EqualsToBool}, ConverterParameter=Tools}" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppScreen.Tools}" />
                         <RadioButton Style="{StaticResource NavItem}" GroupName="nav" Content="Tarama" Tag="Scan24" IsChecked="{Binding Screen, Mode=OneWay, Converter={StaticResource EqualsToBool}, ConverterParameter=Scan}" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:AppScreen.Scan}" />
-                        <!-- Açık belgeler: görüntüleyiciye dönüş -->
-                        <StackPanel Margin="0,18,0,0" Visibility="{Binding HasDocument, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="AÇIK BELGELER" FontSize="10.5" FontWeight="SemiBold" Foreground="{DynamicResource MeslyMutedTextBrush}" Margin="12,0,0,6" />
-                            <ItemsControl ItemsSource="{Binding Tabs}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:DocumentViewModel}">
-                                        <Button Style="{StaticResource OpenDocItem}" ToolTip="{Binding FilePath}"
-                                                Command="{Binding DataContext.ShowDocumentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="15" Foreground="{DynamicResource MeslyAccentBrush}" Margin="0,0,8,0" />
-                                                <TextBlock Text="{Binding Title}" MaxWidth="140" TextTrimming="CharacterEllipsis" FontSize="12.5" VerticalAlignment="Center" />
-                                                <TextBlock Text=" •" FontWeight="Bold" Foreground="{DynamicResource MeslyAccentBrush}" Visibility="{Binding IsModified, Converter={StaticResource BoolToVis}}" />
-                                            </StackPanel>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
                     </StackPanel>
                 </DockPanel>
             </Border>

@@ -4,7 +4,7 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vm="clr-namespace:MeslyPdfReader.App.ViewModels">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28,24,28,24" MaxWidth="1100" HorizontalAlignment="Left">
+        <StackPanel Margin="28,24,28,24">
             <!-- Hoş Geldiniz -->
             <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True" Height="190">
                 <Grid>
@@ -40,7 +40,7 @@
             </Border>
 
             <!-- Görev kutuları -->
-            <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+            <UniformGrid Columns="4" Margin="0,18,-14,0">
                 <Button Style="{StaticResource TaskBox}" Command="{Binding OpenCommand}" ToolTip="Bir PDF belgesi seçip görüntüleyin (Ctrl+O)">
                     <StackPanel>
                         <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="32" Foreground="{DynamicResource MeslyAccentBrush}" HorizontalAlignment="Center" />
@@ -69,23 +69,23 @@
                         <TextBlock Text="Kağıt belgeyi PDF'e aktar" FontSize="11.5" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource MeslyMutedTextBrush}" HorizontalAlignment="Center" />
                     </StackPanel>
                 </Button>
-            </StackPanel>
+            </UniformGrid>
 
             <!-- Hızlı Erişim + Gösterge Paneli -->
             <Grid Margin="0,18,0,0">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions>
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="Hızlı Erişim" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" />
                         <Button Style="{StaticResource SecondaryButton}" HorizontalContentAlignment="Stretch" Margin="0,0,0,8" Height="38" Click="Recent_Click" ToolTip="Son kullanılan belgeler">
-                            <DockPanel LastChildFill="False" Width="320">
+                            <DockPanel LastChildFill="False">
                                 <ui:SymbolIcon Symbol="History24" FontSize="16" Foreground="{DynamicResource MeslyAccentBrush}" Margin="0,0,10,0" />
                                 <TextBlock VerticalAlignment="Center"><Run Text="Son Belgeler (" /><Run Text="{Binding Library.RecentCount, Mode=OneWay}" /><Run Text=")" /></TextBlock>
                                 <ui:SymbolIcon DockPanel.Dock="Right" Symbol="ChevronRight24" FontSize="14" />
                             </DockPanel>
                         </Button>
                         <Button Style="{StaticResource SecondaryButton}" HorizontalContentAlignment="Stretch" Height="38" Click="Favorites_Click" ToolTip="Yıldızladığınız belgeler">
-                            <DockPanel LastChildFill="False" Width="320">
+                            <DockPanel LastChildFill="False">
                                 <ui:SymbolIcon Symbol="Star24" Filled="True" FontSize="16" Foreground="{DynamicResource MeslyAccentBrush}" Margin="0,0,10,0" />
                                 <TextBlock VerticalAlignment="Center"><Run Text="Sık Kullanılanlar (" /><Run Text="{Binding Library.FavoriteCount, Mode=OneWay}" /><Run Text=")" /></TextBlock>
                                 <ui:SymbolIcon DockPanel.Dock="Right" Symbol="ChevronRight24" FontSize="14" />

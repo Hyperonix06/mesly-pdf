@@ -164,7 +164,7 @@ namespace MeslyPdfReader.App.Views.Screens
         public ConvertScreen()
         {
             AllowDrop = true;
-            var body = new StackPanel { MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
+            var body = new StackPanel();
 
             body.Children.Add(Kit.Card(_sourceHost, new Thickness(16, 12, 12, 12)));
 

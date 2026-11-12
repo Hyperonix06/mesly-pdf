@@ -70,6 +70,13 @@ jobs:
           $so = "C:\Program Files\LibreOffice\program\soffice.exe"
           if (Test-Path $so) { Write-Host "✔ LibreOffice kuruldu: $so" } else { Write-Warning "LibreOffice kurulamadı; öz test 'araç yok' yolunu sınayacak" }
 
+      - name: Ekran çözünürlüğü 1920x1080 (ekran görüntüleri gerçek boyutta olsun)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Host "Set-DisplayResolution: $_" }
+          Add-Type -AssemblyName System.Windows.Forms
+          Write-Host ("Ekran: " + [System.Windows.Forms.Screen]::PrimaryScreen.Bounds)
       - name: Arayüz öz testi (yayınlanmış exe, gerçek pencere)
         id: selftest
         run: |
@@ -212,6 +219,13 @@ jobs:
           if (-not (Test-Path "$([Environment]::GetFolderPath('Desktop'))\Mesly PDF Reader.lnk")) { throw "Masaüstü kısayolu yok" }
           Write-Host "✔ Başlat menüsü ve masaüstü kısayolları"
 
+      - name: Ekran çözünürlüğü 1920x1080 (ekran görüntüleri gerçek boyutta olsun)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Host "Set-DisplayResolution: $_" }
+          Add-Type -AssemblyName System.Windows.Forms
+          Write-Host ("Ekran: " + [System.Windows.Forms.Screen]::PrimaryScreen.Bounds)
       - name: Kurulu uygulamada öz test
         run: |
           $out = Join-Path $env:GITHUB_WORKSPACE "selftest-installed"

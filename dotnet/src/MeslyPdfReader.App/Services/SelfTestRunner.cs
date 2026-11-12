@@ -118,7 +118,7 @@ public sealed partial class SelfTestRunner
 
     public async Task<int> RunAsync()
     {
-        _w.Width = 1440; _w.Height = 900;
+        _w.Width = 1600; _w.Height = 900;
         _w.WindowState = WindowState.Normal;
         _w.Left = 20; _w.Top = 20;
         await WaitUntil(() => _w.IsLoaded, 10000);

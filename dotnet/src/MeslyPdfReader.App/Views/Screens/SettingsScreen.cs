@@ -30,7 +30,7 @@ public sealed class SettingsScreen : UserControl
         ("advanced", "Gelişmiş", "Gelişmiş", SymbolRegular.WrenchScrewdriver24),
     };
 
-    private readonly StackPanel _content = new() { Margin = new Thickness(28, 20, 28, 28), MaxWidth = 720, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly StackPanel _content = new() { Margin = new Thickness(28, 20, 28, 28) };
     private readonly TextBlock _header = new() { FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
     private readonly Dictionary<string, RadioButton> _cats = new();
     private string _current = "general";

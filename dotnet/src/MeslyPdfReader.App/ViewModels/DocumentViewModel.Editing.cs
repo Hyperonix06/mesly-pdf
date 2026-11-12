@@ -75,12 +75,19 @@ public sealed partial class DocumentViewModel : IPdfEditHost
         if (value == ViewerTool.Edit)
         {
             if (ReferenceEquals(Main.ActiveTab, this) && !Main.IsEditMode) Main.Ribbon = RibbonTab.EditHome;
-            ShowProperties = true;
+            UpdatePropertiesPanel();
             _ = LoadFontsAsync();
             _ = RecognizeForEditAsync();
         }
         else ShowProperties = false; // sağ panel yalnız düzenleme ayarlarını gösterir
     }
+
+    // Özellikler paneli afişteki gibi sayfayı daraltmasın: yalnız bir nesne seçiliyken ya da metin eklenirken açılır.
+    partial void OnEditSelectionChanged(EditSelection? value) => UpdatePropertiesPanel();
+    partial void OnPlacementChanged(EditPlacement value) => UpdatePropertiesPanel();
+
+    private void UpdatePropertiesPanel() =>
+        ShowProperties = Tool == ViewerTool.Edit && (EditSelection is not null || Placement == EditPlacement.Text);
 
     /// <summary>
     /// Düzenleme kipine geçilen sayfa taranmış (metinsiz) bir görüntüyse, FineReader'daki gibi önce kendiliğinden tanınır;

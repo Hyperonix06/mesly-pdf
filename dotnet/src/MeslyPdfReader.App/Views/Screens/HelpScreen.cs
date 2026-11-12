@@ -164,7 +164,7 @@ public sealed class HelpScreen : UserControl
 
     private FrameworkElement HelpTab()
     {
-        var st = new StackPanel { Margin = new Thickness(28, 22, 28, 28), MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
+        var st = new StackPanel { Margin = new Thickness(28, 22, 28, 28) };
         st.Children.Add(H("Hızlı başlangıç"));
         foreach (var (t, d) in HelpTopics)
         {

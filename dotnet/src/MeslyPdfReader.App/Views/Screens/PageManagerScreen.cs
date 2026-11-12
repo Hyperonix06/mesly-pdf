@@ -258,7 +258,7 @@ public sealed class PageManagerScreen : UserControl
 
     private FrameworkElement MergeView()
     {
-        var st = new StackPanel { MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
+        var st = new StackPanel();
         var tools = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
         tools.Children.Add(Kit.Secondary("Dosya Ekle", SymbolRegular.Add24, () =>
         {
@@ -349,7 +349,7 @@ public sealed class PageManagerScreen : UserControl
     {
         if (_splitSource?.Tab is { } st0 && _main is not null && !_main.Tabs.Contains(st0)) _splitSource = null;
         if (_splitSource is null && _main?.ActiveTab is { } t) _splitSource = SourcePdf.FromTab(t);
-        var st = new StackPanel { MaxWidth = 720, HorizontalAlignment = HorizontalAlignment.Left };
+        var st = new StackPanel();
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
         var pick = Kit.Secondary(_splitSource is null ? "PDF Seç" : "Değiştir", SymbolRegular.FolderOpen24, async () =>
         {
