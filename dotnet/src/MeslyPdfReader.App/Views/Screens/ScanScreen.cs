@@ -35,7 +35,8 @@ public sealed class ScanScreen : UserControl
     private readonly RadioButton _tImages = new() { Content = "Resim olarak kaydet\n(PNG/JPG)", GroupName = "scanTarget", Margin = new Thickness(0, 4, 0, 4) };
     private readonly System.Windows.Controls.CheckBox _crop = new() { Content = "Otomatik kırpma", Margin = new Thickness(0, 6, 0, 0) };
     private readonly System.Windows.Controls.CheckBox _align = new() { Content = "Sayfaları otomatik hizala (düzelt)", Margin = new Thickness(0, 6, 0, 0) };
-    private readonly System.Windows.Controls.CheckBox _feeder = new() { Content = "Çok sayfalı tarama (besleyici)", Margin = new Thickness(0, 6, 0, 0) };
+    private readonly ComboBox _source = Kit.Combo(new[] { "Düz cam", "Belge besleyici", "Belge besleyici (çift taraflı)" }, 0);
+    private ScannerCapabilities? _caps;
     private readonly System.Windows.Controls.CheckBox _ocr = new() { Content = "Metni tanı (aranabilir PDF)", Margin = new Thickness(0, 6, 0, 0) };
     private readonly Image _preview = new() { Stretch = Stretch.Uniform };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 10, 0, 0) };
@@ -60,14 +61,15 @@ public sealed class ScanScreen : UserControl
         var refresh = Kit.IconButton(SymbolRegular.ArrowClockwise24, "Tarayıcıları yeniden ara", () => _ = LoadDevices());
         Grid.SetColumn(refresh, 1); devRow.Children.Add(refresh);
         left.Children.Add(Kit.Field("Tarayıcı:", devRow, 96));
+        left.Children.Add(Kit.Field("Kâğıt kaynağı:", _source, 96));
         left.Children.Add(Kit.Field("Renk:", _color, 96));
         left.Children.Add(Kit.Field("Çözünürlük:", _dpi, 96));
         left.Children.Add(Kit.Field("Dosya Türü:", _type, 96));
         left.Children.Add(Kit.Divider(14, 4));
-        left.Children.Add(_crop); left.Children.Add(_align); left.Children.Add(_feeder); left.Children.Add(_ocr);
+        left.Children.Add(_crop); left.Children.Add(_align); left.Children.Add(_ocr);
         _crop.ToolTip = "Kâğıdın dışında kalan, kâğıttan farklı renkteki tarayıcı zemini kırpılır.";
         _align.ToolTip = "Yan/ters sayfalar dik çevrilir, eğiklik ve kenar gölgeleri giderilir.";
-        _feeder.ToolTip = "Belge besleyicili tarayıcılarda tüm kâğıtlar tek seferde taranır.";
+        _source.ToolTip = "Düz cam: kâğıdı camın üzerine koyun (her taramada bir sayfa). Belge besleyici: üstteki besleyiciye konan tüm kâğıtlar tek seferde taranır; çift taraflıda her kâğıdın iki yüzü de taranır.";
         _ocr.ToolTip = "PDF'deki taranmış sayfaların metni bu bilgisayarda tanınır; metin seçilebilir ve aranabilir olur.";
         grid.Children.Add(Kit.Card(left, new Thickness(18)).Also(c => c.VerticalAlignment = VerticalAlignment.Top));
 
@@ -105,9 +107,12 @@ public sealed class ScanScreen : UserControl
         _dpi.SelectionChanged += (_, _) => { if (_s is not null && _dpi.SelectedIndex >= 0) _s.ScanDpi = DpiValues[_dpi.SelectedIndex]; };
         _crop.Click += (_, _) => { if (_s is not null) _s.ScanAutoCrop = _crop.IsChecked == true; };
         _align.Click += (_, _) => { if (_s is not null) _s.ScanAutoCorrect = _align.IsChecked == true; };
-        _feeder.Click += (_, _) => { if (_s is not null) _s.ScanFeeder = _feeder.IsChecked == true; };
+        _source.SelectionChanged += (_, _) => { if (_s is not null && _source.SelectedIndex >= 0) { _s.ScanSource = _source.SelectedIndex; _s.ScanFeeder = _source.SelectedIndex > 0; } };
         _ocr.Click += (_, _) => { if (_s is not null) _s.ScanOcr = _ocr.IsChecked == true; };
-        _device.SelectionChanged += (_, _) => { if (_s is not null && _device.SelectedIndex >= 0 && _device.SelectedIndex < _devices.Count) _s.ScanDevice = _devices[_device.SelectedIndex].Id; };
+        _device.SelectionChanged += (_, _) =>
+        {
+            if (_s is not null && _device.SelectedIndex >= 0 && _device.SelectedIndex < _devices.Count) { _s.ScanDevice = _devices[_device.SelectedIndex].Id; _ = LoadCapabilities(_devices[_device.SelectedIndex].Id); }
+        };
 
         DataContextChanged += (_, _) => { _main = DataContext as MainViewModel; _s = _main?.Settings; LoadSettings(); };
         IsVisibleChanged += (_, e) =>
@@ -124,7 +129,8 @@ public sealed class ScanScreen : UserControl
         _color.SelectedIndex = Math.Clamp(_s.ScanColor, 0, 2);
         _dpi.SelectedIndex = Math.Max(0, Array.IndexOf(DpiValues, _s.ScanDpi) is var i && i >= 0 ? i : 2);
         _type.SelectedIndex = _s.ScanFileType;
-        _crop.IsChecked = _s.ScanAutoCrop; _align.IsChecked = _s.ScanAutoCorrect; _feeder.IsChecked = _s.ScanFeeder; _ocr.IsChecked = _s.ScanOcr;
+        _crop.IsChecked = _s.ScanAutoCrop; _align.IsChecked = _s.ScanAutoCorrect; _ocr.IsChecked = _s.ScanOcr;
+        _source.SelectedIndex = Math.Clamp(_s.ScanSource, 0, 2);
         (_s.ScanTarget switch { 1 => _tAppend, 2 => _tImages, _ => _tNew }).IsChecked = true;
     }
 
@@ -161,8 +167,25 @@ public sealed class ScanScreen : UserControl
         UpdateGo();
     }
 
+    /// <summary>Seçili tarayıcının desteklediği kâğıt kaynakları: desteklenmeyenler seçilemez.</summary>
+    private async Task LoadCapabilities(string id)
+    {
+        try { _caps = await WiaScanner.GetCapabilitiesAsync(id); }
+        catch (Exception ex) { _caps = null; Log.Warn("Tarayıcı yetenekleri okunamadı: " + ex.Message); return; }
+        var c = _caps;
+        var names = new[] { ("Düz cam", c.HasFlatbed), ("Belge besleyici", c.HasFeeder), ("Belge besleyici (çift taraflı)", c.HasDuplex) };
+        int sel = _source.SelectedIndex;
+        _source.Items.Clear();
+        foreach (var (n, ok) in names) _source.Items.Add(new ComboBoxItem { Content = ok ? n : n + " — bu tarayıcıda yok", IsEnabled = ok });
+        if (sel < 0 || !names[sel].Item2) sel = Array.FindIndex(names, x => x.Item2);
+        _source.SelectedIndex = Math.Max(0, sel);
+        if (c.HasFeeder && !c.FeederLoaded && _source.SelectedIndex > 0) _status.Text = "Belge besleyicide kâğıt görünmüyor; kâğıtları besleyiciye yerleştirip tarayın.";
+    }
+
+    private ScanSource SelectedSource => _source.SelectedIndex switch { 1 => ScanSource.Feeder, 2 => ScanSource.FeederDuplex, _ => ScanSource.Flatbed };
+
     private ScanSettings Settings(int? dpiOverride = null) => new(
-        _feeder.IsChecked == true ? ScanSource.Feeder : ScanSource.Flatbed,
+        SelectedSource,
         (ScanColorMode)Math.Max(0, _color.SelectedIndex), dpiOverride ?? DpiValues[Math.Max(0, _dpi.SelectedIndex)], null);
 
     private async Task<IReadOnlyList<ScannedPage>> AcquireAsync(ScanSettings s)
@@ -185,7 +208,12 @@ public sealed class ScanScreen : UserControl
     private async Task PreviewScan()
     {
         if (_devices.Count == 0) return;
-        SetBusy(true, "Önizleme taranıyor (düşük çözünürlük)…");
+        if (_caps is { HasFlatbed: false })
+        {
+            _status.Text = "Bu tarayıcıda düz cam yok; önizleme yapılamaz (besleyici kâğıdı çekip tarar). Doğrudan taramayı kullanın.";
+            return;
+        }
+        SetBusy(true, "Önizleme düz camdan taranıyor (düşük çözünürlük)…");
         try
         {
             var pages = await AcquireAsync(Settings(75) with { Source = ScanSource.Flatbed });
@@ -219,7 +247,7 @@ public sealed class ScanScreen : UserControl
         if (_main is null || _s is null || _devices.Count == 0) return;
         var s = _s;
         SaveTarget();
-        SetBusy(true, _feeder.IsChecked == true ? "Belge besleyiciden taranıyor…" : "Taranıyor…");
+        SetBusy(true, SelectedSource == ScanSource.Flatbed ? "Düz camdan taranıyor…" : "Belge besleyiciden taranıyor…");
         IReadOnlyList<ScannedPage> pages;
         try { pages = await AcquireAsync(Settings()); }
         catch (Exception ex) { SetBusy(false, ex is ScanException ? ex.Message : "Tarama başarısız: " + ex.Message); return; }

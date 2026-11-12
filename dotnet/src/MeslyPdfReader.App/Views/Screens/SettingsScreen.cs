@@ -205,7 +205,7 @@ public sealed class SettingsScreen : UserControl
         Add(Setting("Otomatik kırpma", "Tarayıcı camının boş kısımları kesilir, yalnız kâğıt kalır.", Toggle(s.ScanAutoCrop, v => s.ScanAutoCrop = v)));
         Add(Setting("Sayfaları otomatik hizala (düzelt)", "Yan/ters sayfalar dik çevrilir, eğiklik giderilir.", Toggle(s.ScanAutoCorrect, v => s.ScanAutoCorrect = v)));
         Add(Setting("Taramadan sonra metni tanı (OCR)", null, Toggle(s.ScanOcr, v => s.ScanOcr = v)));
-        Add(Setting("Çok sayfalı tarama (besleyici)", "Belge besleyicili tarayıcılarda tüm kâğıtlar tek seferde taranır.", Toggle(s.ScanFeeder, v => s.ScanFeeder = v)));
+        Add(Setting("Kâğıt kaynağı", "Düz cam: her taramada camdaki bir sayfa. Belge besleyici: besleyicideki tüm kâğıtlar tek seferde; çift taraflıda iki yüz de taranır.", Choice(new[] { "Düz cam", "Belge besleyici", "Belge besleyici (çift taraflı)" }, Math.Clamp(s.ScanSource, 0, 2), i => { s.ScanSource = i; s.ScanFeeder = i > 0; })));
     }
 
     private void Security(AppSettings s)
