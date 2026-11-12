@@ -89,6 +89,9 @@ public sealed partial class DocumentViewModel : IPdfEditHost
     private async Task RecognizeForEditAsync()
     {
         if (IsAutoOcrRunning) return; // arka plan işi geçerli sayfayı öncelikle işler
+        // Otomatik tanıma açıksa ayrı bir tanıma başlatılmaz (aynı sayfada iki iş çakışmasın): arka plan işi
+        // başlatılır ve geçerli sayfayı ilk işler.
+        if (_settings.OcrAutoOnOpen && !_autoStoppedByUser) { StartAutoOcr(); return; }
         try
         {
             int page = CurrentPage;

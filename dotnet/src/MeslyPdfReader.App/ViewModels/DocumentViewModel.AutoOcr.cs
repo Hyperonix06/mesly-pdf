@@ -58,12 +58,16 @@ public sealed partial class DocumentViewModel
         bool checkpointed = false;
         try
         {
+            await WaitWhileBusyAsync(ct);
+            if (_autoPauseRequested) return;
             var remaining = await ConvertWorkflow.ScannedPagesAsync(Document, Enumerable.Range(0, PageCount).ToList(), ct);
             if (remaining.Count == 0 || ct.IsCancellationRequested) return;
             int total = remaining.Count;
             IsAutoOcrRunning = true;
             AutoOcrProgress = 0;
             AutoOcrText = $"Taranmış {total} sayfa otomatik olarak düzeltilip tanınacak…";
+            await WaitWhileBusyAsync(ct);
+            if (_autoPauseRequested) return;
             await CheckpointAsync(); // tamamı tek adımda geri alınabilir
             checkpointed = true;
             CanUndo = true;
@@ -77,6 +81,10 @@ public sealed partial class DocumentViewModel
                     : remaining.Where(p => p > CurrentPage).DefaultIfEmpty(remaining[0]).First();
                 remaining.Remove(page);
                 int n = total - remaining.Count;
+                // Kullanıcı işlemi sürüyorsa bitmesini bekle; sayfa bu arada (ör. elle) tanındıysa atla.
+                await WaitWhileBusyAsync(ct);
+                if (_autoPauseRequested) return;
+                if (await Document.CountRealTextCharsAsync(page) >= 10 || await Document.HasOcrLayerAsync(page)) continue;
                 AutoOcrText = $"Taranmış sayfalar otomatik düzeltiliyor ve tanınıyor — sayfa {page + 1} ({n}/{total})";
                 var res = await OcrWorkflow.RecognizeAsync(Document, new[] { page }, opts,
                     new Progress<double>(x => AutoOcrProgress = (n - 1 + x) / total * 100), ct);
@@ -112,6 +120,12 @@ public sealed partial class DocumentViewModel
             _bannerCheckRev = -1;
             _ = UpdateScanBannerAsync();
         }
+    }
+
+    /// <summary>Kullanıcı işlemi (IsBusy) sürerken belgeye dokunmamak için bekler.</summary>
+    private async Task WaitWhileBusyAsync(CancellationToken ct)
+    {
+        while (IsBusy && !_autoPauseRequested) await Task.Delay(150, ct);
     }
 
     protected override async Task BeforeBusyAsync()

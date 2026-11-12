@@ -609,6 +609,8 @@ public sealed class SelfTestRunner
 
         await Step("Tanıma", "Taranmış PDF: bilgi şeridi → metni tanı → aranabilir", "Şerit görünür; tanımadan sonra Türkçe metin aranır, görünüm değişmez", async () =>
         {
+            _vm.Ribbon = RibbonTab.Document; // düzenleme kipi açıkken sayfa kendiliğinden tanınırdı; burada elle tanıma sınanır
+            await Idle();
             await _vm.OpenFilesAsync(new[] { scanPdf });
             var st = _vm.ActiveTab!;
             await WaitRendered();
@@ -664,6 +666,9 @@ public sealed class SelfTestRunner
             using (var doc = await ScanPdfBuilder.BuildAsync(new[] { new ScannedPage { Data = ImageCodec.EncodeJpeg(raw, 90), Format = ScannedFormat.Jpeg, Dpi = 300 } }))
                 await doc.SaveAsync(rawPdf);
             _settings.OcrAutoOnOpen = true;
+            // Zor durum: İçeriği Düzenle kipindeyken açılır — düzenleme kipinin tanıması ile arka plan işi çakışmamalı.
+            _vm.Ribbon = RibbonTab.EditContent;
+            await Idle();
             try
             {
                 var sw = Stopwatch.StartNew();
@@ -683,6 +688,8 @@ public sealed class SelfTestRunner
                 int okLines = ocrLines.Count(l => text.Contains(l.TrimEnd('.')));
                 bool upright = size.Height > size.Width;
                 bool modified = st.Document.IsModified && st.CanUndo;
+                _vm.Ribbon = RibbonTab.Document;
+                await Idle();
                 st.UndoCommand.Execute(null);
                 await WaitUntil(() => !st.IsBusy, 10000);
                 await Idle();
