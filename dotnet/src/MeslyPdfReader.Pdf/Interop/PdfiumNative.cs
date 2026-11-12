@@ -171,6 +171,7 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial nint FPDFPageObj_GetMark(nint obj, CULong index);
     [LibraryImport(Lib)] public static partial int FPDFPageObjMark_GetName(nint mark, ushort* buffer, CULong buflen, out CULong outLen);
     [LibraryImport(Lib)] public static partial int FPDFPageObjMark_SetStringParam(nint doc, nint obj, nint mark, byte* key, byte* value);
+    [LibraryImport(Lib)] public static partial int FPDFPageObjMark_GetParamStringValue(nint mark, byte* key, ushort* buffer, CULong buflen, out CULong outLen);
     [LibraryImport(Lib)] public static partial nint FPDFPageObj_CreateNewPath(float x, float y);
     [LibraryImport(Lib)] public static partial int FPDFPath_MoveTo(nint path, float x, float y);
     [LibraryImport(Lib)] public static partial int FPDFPath_LineTo(nint path, float x, float y);
@@ -208,5 +209,6 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial int FPDFText_GetFillColor(nint textPage, int index, out uint r, out uint g, out uint b, out uint a);
     [LibraryImport(Lib)] public static partial int FPDFText_GetCharOrigin(nint textPage, int index, out double x, out double y);
     [LibraryImport(Lib)] public static partial nint FPDFText_GetTextObject(nint textPage, int index);
+    [LibraryImport(Lib)] public static unsafe partial int FPDFText_SetPositions(nint textObj, float* positions, nuint count);
     [LibraryImport(Lib)] public static partial float FPDFText_GetCharAngle(nint textPage, int index);
 }

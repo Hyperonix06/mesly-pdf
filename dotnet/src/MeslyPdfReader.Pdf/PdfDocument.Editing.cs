@@ -12,6 +12,8 @@ namespace MeslyPdfReader.Pdf;
 /// </summary>
 public sealed unsafe partial class PdfDocument
 {
+    /// <summary>Mesly ile yazılmış paragraf metni; "box" parametresinde paragraf kutusu saklanır.</summary>
+    public const string MarkText = "MeslyText";
     public const string MarkWatermark = "MeslyWatermark", MarkHeaderFooter = "MeslyHeaderFooter",
         MarkBackground = "MeslyBackground", MarkUnderline = "MeslyUnderline", MarkArtifact = "Artifact";
 
@@ -119,15 +121,54 @@ public sealed unsafe partial class PdfDocument
             Native.FPDFPageObj_GetMatrix(o, out var m);
             var (font, size, bold, italic) = FontInfo(o);
             Native.FPDFPageObj_GetFillColor(o, out var fr, out var fg, out var fb, out _);
-            bool rotated = Math.Abs(m.b) > 0.01 * Math.Abs(m.a) || Math.Abs(m.c) > 0.01 * Math.Abs(m.d);
-            items.Add(new TextItem(i, new RectF(l, b, r, t).Normalize(), text, font, size > 0 ? size : 10, (fr << 16) | (fg << 8) | fb, bold, italic, m.f, m.e, rotated));
+            bool rotated = Math.Abs(m.b) > 0.01 * Math.Abs(m.a) || Math.Abs(m.c) > 0.01 * Math.Abs(m.d) || m.a < 0;
+            double angle = rotated ? Math.Atan2(m.b, m.a) * 180 / Math.PI : 0;
+            items.Add(new TextItem(i, new RectF(l, b, r, t).Normalize(), text, font, size > 0 ? size : 10, (fr << 16) | (fg << 8) | fb, bold, italic, m.f, m.e, rotated, angle, BlockTag(o)));
         }
-        return (IReadOnlyList<TextParagraph>)BuildParagraphs(items);
+        // Sayfanın görünen kutusu (kırpma kutusu; yoksa ortam kutusu): ortalı / sağa yaslı tek satırları anlamak için.
+        float pl, pr;
+        if (Native.FPDFPage_GetCropBox(page, out pl, out _, out pr, out _) == 0 && Native.FPDFPage_GetMediaBox(page, out pl, out _, out pr, out _) == 0) { pl = 0; pr = 0; }
+        return (IReadOnlyList<TextParagraph>)BuildParagraphs(items, Math.Min(pl, pr), Math.Max(pl, pr));
     }, ct);
 
-    internal sealed record TextItem(int Index, RectF Box, string Text, string? Font, double Size, uint Rgb, bool Bold, bool Italic, double Baseline, double X, bool Rotated);
+    internal sealed record TextItem(int Index, RectF Box, string Text, string? Font, double Size, uint Rgb, bool Bold, bool Italic, double Baseline, double X, bool Rotated, double Angle = 0, string? Tag = null);
 
-    internal static List<TextParagraph> BuildParagraphs(List<TextItem> items)
+    private static readonly byte[] BoxKey = Encoding.ASCII.GetBytes("box\0");
+
+    /// <summary>Nesnedeki MeslyText işaretinin "box" değeri.</summary>
+    private static string? BlockTag(nint o)
+    {
+        int n = Native.FPDFPageObj_CountMarks(o);
+        for (int k = 0; k < n; k++)
+        {
+            var mark = Native.FPDFPageObj_GetMark(o, new CULong((uint)k));
+            if (mark == 0) continue;
+            var nb = stackalloc ushort[32];
+            if (Native.FPDFPageObjMark_GetName(mark, nb, new CULong(64u), out var nl) == 0) continue;
+            if (new string((char*)nb, 0, Math.Max(0, Math.Min(31, (int)nl.Value / 2 - 1))) != MarkText) continue;
+            var buf = stackalloc ushort[128];
+            fixed (byte* key = BoxKey)
+                if (Native.FPDFPageObjMark_GetParamStringValue(mark, key, buf, new CULong(256u), out var len) == 0) return null;
+                else return new string((char*)buf, 0, Math.Max(0, Math.Min(127, (int)len.Value / 2 - 1)));
+        }
+        return null;
+    }
+
+    internal static string FormatBlock(TextBlockInfo b) => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"{(int)b.Align};{b.Left:0.###};{b.Width:0.###};{b.FirstIndent:0.###}");
+
+    internal static TextBlockInfo? ParseBlock(string? tag)
+    {
+        if (tag is null) return null;
+        var p = tag.Split(';');
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        if (p.Length != 4 || !int.TryParse(p[0], out var a) || a is < 0 or > 3) return null;
+        if (!double.TryParse(p[1], System.Globalization.NumberStyles.Float, ci, out var l) || !double.TryParse(p[2], System.Globalization.NumberStyles.Float, ci, out var w)
+            || !double.TryParse(p[3], System.Globalization.NumberStyles.Float, ci, out var ind) || w <= 0) return null;
+        return new TextBlockInfo((TextAlign)a, l, w, ind);
+    }
+
+    internal static List<TextParagraph> BuildParagraphs(List<TextItem> items, double pageLeft = 0, double pageRight = 0)
     {
         var result = new List<TextParagraph>();
         // 1) Satırlar
@@ -147,8 +188,23 @@ public sealed unsafe partial class PdfDocument
         foreach (var L in lines) L.Sort((a, b) => a.Box.Left.CompareTo(b.Box.Left));
         lines = lines.OrderByDescending(L => L[0].Baseline).ThenBy(L => L[0].Box.Left).ToList();
 
+        // Sayfanın metin alanı (tek satırlık paragrafların hizasını anlamak için)
+        double lm = lines.Count > 0 ? lines.Min(L => L[0].Box.Left) : 0;
+        double rm = lines.Count > 0 ? lines.Max(L => L.Max(x => x.Box.Right)) : 0;
+        // Ortak sağ kenar: en az 3 satırın (≤1 pt içinde) paylaştığı en sağdaki sağ kenar — iki yana yaslı sütunun kenarı.
+        var rightsAll = lines.Select(L => L.Max(x => x.Box.Right)).OrderBy(r => r).ToList();
+        double colEdge = 0;
+        for (int i = 0; i < rightsAll.Count; i++)
+            if (rightsAll.Count(r => Math.Abs(r - rightsAll[i]) <= 1.0) >= 3) colEdge = Math.Max(colEdge, rightsAll[i]);
+        // Sayfa kenarları tek bir aşırı satıra (ör. taşan bir satır) değil, en az 3 satırın paylaştığı kenarlara dayanır.
+        var leftsAll = lines.Select(L => L[0].Box.Left).ToList();
+        var sharedLefts = leftsAll.Where(l => leftsAll.Count(o => Math.Abs(o - l) <= 1.0) >= 3).ToList();
+        if (sharedLefts.Count > 0) lm = sharedLefts.Min();
+        if (colEdge > 0) rm = colEdge;
+
         // 2) Paragraflar
         var used = new bool[lines.Count];
+        var groups = new List<(List<List<TextItem>> Group, double Step)>();
         for (int s = 0; s < lines.Count; s++)
         {
             if (used[s]) continue;
@@ -168,19 +224,57 @@ public sealed unsafe partial class PdfDocument
                 bool overlapH = Math.Min(pr, cr) - Math.Max(pl, cl) > 0;
                 bool consistent = step < 0 || Math.Abs(dy - step) <= 0.35 * step;
                 if (!sameStyle || !overlapH || !consistent || dy < 0.8 * size) continue;
+                // Önceki satır kısa kaldıysa paragraf orada biter: cümle sonuyla bitiyor ya da sonraki satırın ilk
+                // sözcüğü önceki satıra sığacakken alta geçmiş (boş satırsız ardışık paragraflar).
+                double colRight = Math.Max(group.Max(L => L.Max(x => x.Box.Right)), cr);
+                double free = colRight - pr;
+                if (free > 2 * size)
+                {
+                    var prevText = string.Concat(prev.Select(x => x.Text)).TrimEnd();
+                    var firstWord = string.Concat(cur.Select(x => x.Text)).TrimStart().Split(' ')[0];
+                    bool sentenceEnd = prevText.Length > 0 && ".:!?…\"”»)".Contains(prevText[^1]);
+                    if (sentenceEnd || firstWord.Length * 0.55 * size < free - size) break;
+                }
                 group.Add(cur); used[k] = true; step = dy;
             }
-            result.Add(MakeParagraph(group, step));
+            groups.Add((group, step));
         }
-        // 3) Döndürülmüş metin: her nesne kendi paragrafı
+        var horizontal = items.Where(i => !i.Rotated).ToList();
+        foreach (var (group, step) in groups)
+            result.Add(MakeParagraph(group, step, lm, rm, colEdge, RightLimitOf(group, horizontal), pageLeft, pageRight));
+        // 3) Döndürülmüş metin: her nesne kendi paragrafı; açısı ve kökeni korunur
         foreach (var it in items.Where(i => i.Rotated))
-            result.Add(new TextParagraph(new[] { it.Index }, it.Box, it.Text, it.Font, it.Size, it.Rgb, it.Bold, it.Italic, it.Baseline, it.Size * 1.2, TextAlign.Left));
+            result.Add(new TextParagraph(new[] { it.Index }, it.Box, it.Text, it.Font, it.Size, it.Rgb, it.Bold, it.Italic, it.Baseline, it.Size * 1.2, TextAlign.Left,
+                new[] { new TextLineInfo(it.Text, it.X, it.Baseline, it.Box.Right) }, 0, it.Angle));
         return result;
     }
 
-    private static TextParagraph MakeParagraph(List<List<TextItem>> group, double step)
+    /// <summary>
+    /// Paragrafın sağa doğru büyüyebileceği sınır: aynı satır hizasında sağdaki ilk başka metnin (ör. yandaki tablo
+    /// hücresi, sağ sütun) biraz solu. Yoksa 0 (sınır yok).
+    /// </summary>
+    private static double RightLimitOf(List<List<TextItem>> group, List<TextItem> all)
+    {
+        var mine = group.SelectMany(x => x).Select(x => x.Index).ToHashSet();
+        double limit = double.MaxValue;
+        foreach (var line in group)
+        {
+            double right = line.Max(x => x.Box.Right), size = line[0].Size;
+            double top = line.Max(x => x.Box.Top), bottom = line.Min(x => x.Box.Bottom);
+            foreach (var o in all)
+            {
+                if (mine.Contains(o.Index) || o.Box.Left < right - 0.5) continue;
+                if (o.Box.Top <= bottom || o.Box.Bottom >= top) continue;
+                limit = Math.Min(limit, o.Box.Left - Math.Max(2, 0.3 * size));
+            }
+        }
+        return limit == double.MaxValue ? 0 : limit;
+    }
+
+    private static TextParagraph MakeParagraph(List<List<TextItem>> group, double step, double lm, double rm, double colEdge, double rightLimit, double pageLeft = 0, double pageRight = 0)
     {
         var sb = new StringBuilder();
+        var infos = new List<TextLineInfo>();
         foreach (var line in group)
         {
             var ls = new StringBuilder();
@@ -192,33 +286,71 @@ public sealed unsafe partial class PdfDocument
                 ls.Append(it.Text);
                 prev = it;
             }
-            var lineText = ls.ToString().TrimEnd();
+            var lineText = ls.ToString().Trim();
+            infos.Add(new TextLineInfo(lineText, line[0].X, line[0].Baseline, line.Max(x => x.Box.Right)));
             if (sb.Length > 0)
             {
                 var cur = sb.ToString();
                 if (cur.EndsWith('-') && lineText.Length > 0 && char.IsLower(lineText[0])) sb.Length--;
                 else sb.Append(' ');
             }
-            sb.Append(lineText.TrimStart());
+            sb.Append(lineText);
         }
         var all = group.SelectMany(x => x).ToList();
         var bounds = all.Select(i => i.Box).Aggregate((a, b) => a.Union(b));
         var first = group[0][0];
-        // Hizalama: sol kenarlar tutarlıysa sola, sağ kenarlar tutarlıysa sağa, merkezler tutarlıysa ortaya.
-        var align = TextAlign.Left;
-        if (group.Count >= 2)
-        {
-            var lefts = group.Select(L => L[0].Box.Left).ToList();
-            var rights = group.Select(L => L.Max(x => x.Box.Right)).ToList();
-            var centers = lefts.Zip(rights, (a, b) => (a + b) / 2).ToList();
-            double tol = first.Size * 0.6;
-            bool leftOk = lefts.Max() - lefts.Min() < tol, rightOk = rights.Max() - rights.Min() < tol, centerOk = centers.Max() - centers.Min() < tol;
-            align = leftOk ? TextAlign.Left : centerOk ? TextAlign.Center : rightOk ? TextAlign.Right : TextAlign.Left;
-        }
+        // Mesly ile yazılmış paragraf: tüm nesneler aynı kutuyu taşıyorsa hizalama tahmin edilmez, kayıttan okunur.
+        var tags = all.Select(i => i.Tag).Distinct().ToList();
+        var block = tags.Count == 1 ? ParseBlock(tags[0]) : null;
+        var align = block?.Align ?? DetectAlign(group, lm, rm, colEdge, pageLeft, pageRight);
         var bold = all.Count(i => i.Bold) * 2 > all.Count;
         var italic = all.Count(i => i.Italic) * 2 > all.Count;
         return new TextParagraph(all.Select(i => i.Index).OrderBy(i => i).ToArray(), bounds, sb.ToString(), first.Font, first.Size, first.Rgb,
-            bold, italic, first.Baseline, step > 0 ? step : first.Size * 1.2, align);
+            bold, italic, first.Baseline, step > 0 ? step : first.Size * 1.2, align, infos, rightLimit, 0, block);
+    }
+
+    /// <summary>
+    /// Hizalama: çok satırda sol/sağ/orta kenarların tutarlılığı (ilk satır girintisi ve son satır hesaba katılır);
+    /// tek satırda sayfanın metin alanına göre konum (ortalanmış başlık, sağa yaslı tarih).
+    /// </summary>
+    internal static TextAlign DetectAlign(List<List<TextItem>> group, double lm, double rm, double colEdge = 0, double pageLeft = 0, double pageRight = 0)
+    {
+        var first = group[0][0];
+        double size = first.Size;
+        var lefts = group.Select(L => L[0].Box.Left).ToList();
+        var rights = group.Select(L => L.Max(x => x.Box.Right)).ToList();
+        if (group.Count == 1)
+        {
+            double l = lefts[0], r = rights[0], c = (l + r) / 2, mid = (lm + rm) / 2, wArea = rm - lm;
+            if (wArea <= 0 || l - lm < 1.5 * size) return TextAlign.Left;
+            double tolC = Math.Max(2, 0.012 * wArea);
+            bool page = pageRight - pageLeft > 0;
+            // Ortalı: metin alanının ortasında ya da (kenar boşlukları eşitse) sayfanın ortasında.
+            if (Math.Abs(c - mid) <= tolC || page && Math.Abs(c - (pageLeft + pageRight) / 2) <= tolC) return TextAlign.Center;
+            // Sağa yaslı: metin alanının sağ kenarında ya da sol boşluğun sayfanın sağındaki simetriğinde.
+            if (Math.Abs(r - rm) <= 1.5 || page && Math.Abs(r - (pageRight - (lm - pageLeft))) <= 1.5) return TextAlign.Right;
+            return TextAlign.Left;
+        }
+        double tol = size * 0.6;
+        var restLefts = lefts.Skip(1).ToList();
+        bool leftOk = restLefts.Max() - restLefts.Min() < tol && lefts[0] >= restLefts.Min() - tol; // ilk satır girintili olabilir
+        bool rightAll = rights.Max() - rights.Min() < tol;
+        var centers = lefts.Zip(rights, (a, b) => (a + b) / 2).ToList();
+        bool centerOk = centers.Max() - centers.Min() < tol;
+        if (leftOk)
+        {
+            // İki yana yaslı: son satır dışındaki tüm satırların sağ kenarı aynı (≤1 pt) ve son satır daha kısa ya da 3+ satır.
+            var body = rights.Take(rights.Count - 1).ToList();
+            bool flushRight = body.Max() - body.Min() <= 1.0;
+            // İki satırlık paragrafta tek kanıt, ilk satırın sayfadaki ortak sütun kenarına (≥3 satırın paylaştığı) denk gelmesi.
+            bool fullWidth = colEdge > 0 && Math.Abs(body.Max() - colEdge) <= 1.0;
+            if (flushRight && (group.Count >= 3 || fullWidth) && rights[^1] < body.Max() - size) return TextAlign.Justify;
+            if (flushRight && group.Count >= 3 && rightAll) return TextAlign.Justify;
+            return TextAlign.Left;
+        }
+        if (centerOk) return TextAlign.Center;
+        if (rightAll) return TextAlign.Right;
+        return TextAlign.Left;
     }
 
     // ─────────────── Metin oluşturma / değiştirme ───────────────
@@ -242,8 +374,10 @@ public sealed unsafe partial class PdfDocument
     }
 
     /// <summary>
-    /// Paragrafı değiştirir: eski metin nesneleri sayfadan gerçekten silinir, yeni metin aynı konumdan başlayarak
-    /// kutu genişliğine göre yeniden akıtılır. Döndürülen dikdörtgen yeni metnin kapladığı alandır.
+    /// Paragrafı değiştirir: eski metin nesneleri sayfadan gerçekten silinir, yeni metin özgün satırların başlangıç
+    /// noktasından, özgün taban çizgisinden ve hizalamasıyla yeniden akıtılır. Genişlik özgün satırların hem özgün hem
+    /// yeni yazı tipindeki genişliğinden hesaplanır: metin aynıysa satırlar aynı yerden kırılır, tek satırlık metin
+    /// (başlık, tablo hücresi) alt satıra düşmez. Döndürülen dikdörtgen yeni metnin kapladığı alandır.
     /// </summary>
     public Task<RectF> ReplaceParagraphAsync(int pageIndex, TextParagraph paragraph, string newText, TextStyle style, double? width = null) => _engine.RunAsync(() =>
     {
@@ -252,58 +386,245 @@ public sealed unsafe partial class PdfDocument
         var targets = paragraph.ObjectIndices.Select(i => Native.FPDFPage_GetObject(page, i)).Where(o => o != 0).ToList();
         // Taranmış sayfa: metin görünmez OCR katmanıysa, eski yazı görüntünün içindedir → görüntüdeki pikseller de silinir.
         bool ocrText = targets.Count > 0 && targets.All(o => Native.FPDFPageObj_GetType(o) == Native.FPDF_PAGEOBJ_TEXT && Native.FPDFTextObj_GetTextRenderMode(o) == 3);
-        if (ocrText) EraseImageUnder(page, paragraph.Bounds);
         foreach (var o in AllObjects(page).Where(o => RoleOf(o) == MarkUnderline && Intersects(Bounds(o), paragraph.Bounds))) targets.Add(o);
-        foreach (var o in targets.Distinct())
+        targets = targets.Distinct().ToList();
+
+        double lh = style.LineSpacing > 0 ? style.Size * style.LineSpacing : paragraph.LineHeight;
+        RectF result = default;
+        bool placed = false;
+        // 1) Özgün gömülü yazı tipi (eski nesneler silinmeden önce: yazı tipi onlar tarafından canlı tutulur).
+        if (style.UseOriginalFont && !ocrText && OriginalFont(targets) is { } orig)
+        {
+            var created = new List<(nint Obj, string Text)>();
+            double M(string t) => Measure(t, orig, style.Size);
+            var plan = PlanParagraph(paragraph, newText, style, width, M);
+            try { result = LayoutText(page, newText, style, plan.Left, plan.Baseline, plan.Width, lh, null, paragraph.Angle, plan.FirstIndent, orig, created, paragraph.Lines, tagBlock: true); }
+            catch { }
+            if (created.Count > 0 && VerifyGlyphs(page, created)) placed = true;
+            else
+                foreach (var (o, _) in created)
+                    if (Native.FPDFPage_RemoveObject(page, o) != 0) Native.FPDFPageObj_Destroy(o);
+            LastUsedOriginalFont = placed;
+        }
+        else LastUsedOriginalFont = false;
+        // 2) Seçilen / eşleştirilen sistem yazı tipi.
+        if (!placed)
+        {
+            var font = LoadFont(style.FontData);
+            double M(string t) => Measure(t, font, style.Size);
+            var plan = PlanParagraph(paragraph, newText, style, width, M);
+            result = LayoutText(page, newText, style, plan.Left, plan.Baseline, plan.Width, lh, null, paragraph.Angle, plan.FirstIndent, font, null, paragraph.Lines, tagBlock: true);
+        }
+        if (ocrText) EraseImageUnder(page, paragraph.Bounds);
+        foreach (var o in targets)
             if (Native.FPDFPage_RemoveObject(page, o) != 0) Native.FPDFPageObj_Destroy(o);
-        double w = width ?? Math.Max(paragraph.Bounds.Width, style.Size * 4);
-        var result = LayoutText(page, newText, style, paragraph.Bounds.Left, paragraph.FirstBaseline, w,
-            style.LineSpacing > 0 ? style.Size * style.LineSpacing : paragraph.LineHeight);
         Commit(pageIndex, page);
         return result;
     });
+
+    /// <summary>Son paragraf değişiminde özgün gömülü yazı tipinin kullanılıp kullanılmadığı (durum iletisi ve testler için).</summary>
+    public bool LastUsedOriginalFont { get; private set; }
+
+    /// <summary>Paragrafın tüm metin nesneleri aynı yazı tipini kullanıyorsa o yazı tipi.</summary>
+    private static nint? OriginalFont(List<nint> objs)
+    {
+        nint font = 0;
+        foreach (var o in objs)
+        {
+            if (Native.FPDFPageObj_GetType(o) != Native.FPDF_PAGEOBJ_TEXT) continue;
+            var f = Native.FPDFTextObj_GetFont(o);
+            if (f == 0) return null;
+            if (font == 0) font = f; else if (font != f) return null;
+        }
+        return font == 0 ? null : font;
+    }
+
+    /// <summary>Oluşturulan nesnelerin metni, istenen metinle aynı okunuyor mu (yazı tipinde eksik karakter yok mu).</summary>
+    private static bool VerifyGlyphs(nint page, List<(nint Obj, string Text)> created)
+    {
+        var tp = Native.FPDFText_LoadPage(page);
+        if (tp == 0) return false;
+        try
+        {
+            foreach (var (o, text) in created)
+            {
+                var got = new string(ReadObjText(o, tp).Where(c => !char.IsWhiteSpace(c)).ToArray());
+                var want = new string(text.Where(c => !char.IsWhiteSpace(c)).ToArray());
+                if (got != want) return false;
+                var b = Bounds(o);
+                if (want.Length > 0 && b.Width < 0.05) return false;
+            }
+            return true;
+        }
+        finally { Native.FPDFText_ClosePage(tp); }
+    }
+
+    /// <summary>Yeni metnin yerleşimi: sütunun sol kenarı (köken), ilk taban çizgisi, satır genişliği ve ilk satır girintisi.</summary>
+    internal readonly record struct ParagraphPlan(double Left, double Baseline, double Width, double FirstIndent);
+
+    internal static ParagraphPlan PlanParagraph(TextParagraph p, string newText, TextStyle style, double? width, Func<string, double> measure)
+    {
+        const double Slack = 0.75; // ölçüm yuvarlaması için pay (pt)
+        var L = p.Lines;
+        if (L is null || L.Count == 0)
+            return new(p.Bounds.Left, p.FirstBaseline, width ?? Math.Max(p.Bounds.Width, style.Size * 4), 0);
+        double restX = L.Count > 1 ? L.Skip(1).Min(l => l.X) : L[0].X;
+        double indent = L.Count > 1 && L[0].X - restX > 0.5 ? L[0].X - restX : 0;
+        string flat = newText.Replace("\r\n", " ").Replace('\n', ' ');
+
+        // Döndürülmüş metin: kökeninden, kendi açısıyla; satır kırılmaz.
+        if (Math.Abs(p.Angle) > 0.01)
+            return new(L[0].X, L[0].Baseline, width ?? Math.Max(measure(flat), L[0].Right - L[0].X) + Slack, 0);
+
+        // Kullanıcı genişliği değiştirdi (yeniden boyutlandırma): yeni kutunun solundan, girinti korunarak.
+        if (width is { } w)
+            return new(p.Bounds.Left + (L[0].X - p.Bounds.Left) - indent, L[0].Baseline, Math.Max(w, style.Size * 2), indent);
+
+        // Daha önce Mesly ile yazılmış paragraf: kayıtlı kutu birebir kullanılır (tek satır büyüyebilir).
+        if (p.Block is { } bk)
+        {
+            double needB = measure(flat) + Slack;
+            // Mevcut satırlar yeni yazı tipinde de sığsın: metin aynıysa satırlar aynı yerden kırılır.
+            double fitW = L.Max(l => measure(l.Text) + (l.X - restX)) + Slack;
+            if (L.Count > 1 || flat.Contains('\n')) return new(bk.Left, L[0].Baseline, Math.Max(bk.Width, fitW), bk.FirstIndent);
+            switch (style.Align)
+            {
+                case TextAlign.Center: { double wB = Math.Max(bk.Width, needB); return new(bk.Left + bk.Width / 2 - wB / 2, L[0].Baseline, wB, 0); }
+                case TextAlign.Right: { double wB = Math.Max(bk.Width, needB); return new(bk.Left + bk.Width - wB, L[0].Baseline, wB, 0); }
+                default:
+                {
+                    double room = p.RightLimit > 0 ? p.RightLimit - bk.Left : double.MaxValue;
+                    return new(bk.Left, L[0].Baseline, Math.Max(bk.Width, Math.Min(needB, room)), bk.FirstIndent);
+                }
+            }
+        }
+
+        // Özgün satırların genişliği: hem özgün mürekkep genişliği hem yeni yazı tipinde ölçülen genişlik.
+        double colW = 0;
+        foreach (var l in L)
+            colW = Math.Max(colW, Math.Max(l.Right - restX, measure(l.Text) + (l.X - restX)));
+        colW += Slack;
+
+        if (L.Count == 1)
+        {
+            var l = L[0];
+            double need = measure(flat) + Slack;
+            switch (style.Align)
+            {
+                case TextAlign.Center:
+                {
+                    double c = (l.X + l.Right) / 2, wC = Math.Max(colW, need);
+                    return new(c - wC / 2, l.Baseline, wC, 0);
+                }
+                case TextAlign.Right:
+                {
+                    double wR = Math.Max(colW, need);
+                    return new(l.Right - wR, l.Baseline, wR, 0); // ölçüm kökenden mürekkebin sağına: sağ kenar birebir korunur
+                }
+                default:
+                {
+                    // Sola yaslı tek satır: sağdaki komşu metne (hücre/sütun) kadar uzayabilir; sonra kırılır.
+                    double room = p.RightLimit > 0 ? p.RightLimit - l.X : double.MaxValue;
+                    double wL = Math.Max(colW, Math.Min(need, room));
+                    return new(l.X, l.Baseline, wL, 0);
+                }
+            }
+        }
+
+        return style.Align switch
+        {
+            // İki yana yaslı: satırlar özgün sağ kenara (pay eklemeden) yaslanır.
+            TextAlign.Justify when p.Align == TextAlign.Justify => new(restX, L[0].Baseline, Math.Max(L.Max(l => l.Right) - restX, colW - Slack), indent),
+            TextAlign.Center => new(L.Average(l => (l.X + l.Right) / 2) - colW / 2, L[0].Baseline, colW, 0),
+            TextAlign.Right => new(L.Max(l => l.Right) - colW, L[0].Baseline, colW, 0),
+            _ => new(restX, L[0].Baseline, colW, indent),
+        };
+    }
 
     /// <summary>Yeni metin kutusu ekler (sol üst köşe + genişlik).</summary>
     public Task<RectF> AddTextBlockAsync(int pageIndex, double left, double top, double width, string text, TextStyle style) => _engine.RunAsync(() =>
     {
         var page = Page(pageIndex);
-        var r = LayoutText(page, text, style, left, top - style.Size * 0.8, Math.Max(width, style.Size * 2), style.Size * style.LineSpacing);
+        var r = LayoutText(page, text, style, left, top - style.Size * 0.8, Math.Max(width, style.Size * 2), style.Size * style.LineSpacing, tagBlock: true);
         Commit(pageIndex, page);
         return r;
     });
 
-    private RectF LayoutText(nint page, string text, TextStyle style, double left, double firstBaseline, double width, double lineHeight, string? mark = null, double angleDeg = 0)
+    private RectF LayoutText(nint page, string text, TextStyle style, double left, double firstBaseline, double width, double lineHeight,
+        string? mark = null, double angleDeg = 0, double firstIndent = 0, nint fontHandle = 0, List<(nint Obj, string Text)>? created = null,
+        IReadOnlyList<TextLineInfo>? original = null, bool tagBlock = false)
     {
-        var font = LoadFont(style.FontData);
-        var lines = TextLayout.Wrap(text, width, s => Measure(s, font, style.Size));
+        var font = fontHandle != 0 ? fontHandle : LoadFont(style.FontData);
+        string? tag = tagBlock && Math.Abs(angleDeg) < 0.01 ? FormatBlock(new TextBlockInfo(style.Align, left, width, firstIndent)) : null;
+        double M(string t) => Measure(t, font, style.Size);
+        var lines = TextLayout.WrapEx(text, Math.Max(1, width - firstIndent), width, M);
+        double a = angleDeg * Math.PI / 180, cos = Math.Cos(a), sin = Math.Sin(a);
         RectF total = default;
         for (int i = 0; i < lines.Count; i++)
         {
-            var line = lines[i];
+            var (line, endsPara) = lines[i];
             if (line.Length == 0) continue;
-            double lw = Measure(line, font, style.Size);
-            double x = style.Align switch { TextAlign.Center => left + (width - lw) / 2, TextAlign.Right => left + width - lw, _ => left };
-            double y = firstBaseline - i * lineHeight;
-            var o = CreateText(font, line, style, x, y, angleDeg, mark);
-            Native.FPDFPage_InsertObject(page, o);
-            var bounds = Bounds(o);
-            total = total.IsEmpty ? bounds : total.Union(bounds);
+            double indent = i == 0 ? firstIndent : 0;
+            double avail = width - indent;
+            // Metni değişmeyen iki yana yaslı satır, kendi özgün sağ kenarına yaslanır (alt-piksel birebir).
+            double lw = M(line);
+            if (style.Align == TextAlign.Justify && original is not null && i < original.Count && original[i].Text == line && Math.Abs(angleDeg) < 0.01
+                && original[i].Right - (left + indent) >= lw)
+                avail = original[i].Right - (left + indent);
+            double dx = style.Align switch
+            {
+                TextAlign.Center => indent + (avail - lw) / 2,
+                TextAlign.Right => indent + avail - lw,
+                _ => indent,
+            };
+            // Satır kökeni: sütun solundan dx kadar sağda, ilk taban çizgisinden i satır aşağıda (döndürülmüşse eksenler boyunca).
+            double ox = left + dx * cos + i * lineHeight * sin, oy = firstBaseline + dx * sin - i * lineHeight * cos;
+            if (Math.Abs(angleDeg) < 0.01) { ox = left + dx; oy = firstBaseline - i * lineHeight; }
+            var words = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            double lineW = lw;
+            if (style.Align == TextAlign.Justify && !endsPara && words.Length > 1 && avail >= lw && avail - lw < avail * 0.35)
+            {
+                // İki yana yasla (PDF'nin Tw sözcük aralığı gibi): satırın doğal genişliğinden kalan pay her boşluğa
+                // eşit eklenir; sözcükler ayrı nesneler olarak kendi kesin konumlarına yerleştirilir.
+                double extra = (avail - lw) / (words.Length - 1);
+                for (int k = 0; k < words.Length; k++)
+                {
+                    // Sözcüğün doğal başlangıcı: (önceki sözcükler + bu sözcük) genişliği − bu sözcüğün genişliği.
+                    double start = k == 0 ? 0 : M(string.Join(' ', words, 0, k + 1)) - M(words[k]);
+                    double x = start + k * extra;
+                    var o = CreateText(font, words[k], style, ox + x * cos, oy + x * sin, angleDeg, mark, tag);
+                    Native.FPDFPage_InsertObject(page, o);
+                    created?.Add((o, words[k]));
+                    var bw = Bounds(o);
+                    total = total.IsEmpty ? bw : total.Union(bw);
+                }
+                lineW = avail;
+            }
+            else
+            {
+                var o = CreateText(font, line, style, ox, oy, angleDeg, mark, tag);
+                Native.FPDFPage_InsertObject(page, o);
+                created?.Add((o, line));
+                var bounds = Bounds(o);
+                total = total.IsEmpty ? bounds : total.Union(bounds);
+            }
             if (style.Underline)
             {
-                double uy = y - style.Size * 0.12;
-                var path = Native.FPDFPageObj_CreateNewPath((float)x, (float)uy);
-                Native.FPDFPath_LineTo(path, (float)(x + lw), (float)uy);
+                double ux = ox + style.Size * 0.12 * sin, uy = oy - style.Size * 0.12 * cos;
+                var path = Native.FPDFPageObj_CreateNewPath((float)ux, (float)uy);
+                Native.FPDFPath_LineTo(path, (float)(ux + lineW * cos), (float)(uy + lineW * sin));
                 Native.FPDFPageObj_SetStrokeColor(path, (style.Rgb >> 16) & 0xFF, (style.Rgb >> 8) & 0xFF, style.Rgb & 0xFF, style.Alpha);
                 Native.FPDFPageObj_SetStrokeWidth(path, (float)Math.Max(0.5, style.Size * 0.06));
                 Native.FPDFPath_SetDrawMode(path, Native.FPDF_FILLMODE_NONE, 1);
                 AddMark(path, MarkUnderline);
                 Native.FPDFPage_InsertObject(page, path);
+                created?.Add((path, ""));
             }
         }
         return total;
     }
 
-    private nint CreateText(nint font, string text, TextStyle style, double x, double y, double angleDeg, string? mark)
+    private nint CreateText(nint font, string text, TextStyle style, double x, double y, double angleDeg, string? mark, string? blockTag = null)
     {
         var o = Native.FPDFPageObj_CreateTextObj(_doc, font, (float)style.Size);
         if (o == 0) throw new PdfException(PdfErrorKind.Unknown, "Metin nesnesi oluşturulamadı.");
@@ -312,6 +633,16 @@ public sealed unsafe partial class PdfDocument
         double a = angleDeg * Math.PI / 180;
         Native.FPDFPageObj_Transform(o, Math.Cos(a), Math.Sin(a), -Math.Sin(a), Math.Cos(a), x, y);
         if (mark is not null) { AddMark(o, mark); AddMark(o, MarkArtifact); }
+        else if (blockTag is not null)
+        {
+            var nm = Encoding.ASCII.GetBytes(MarkText + "\0");
+            var val = Encoding.ASCII.GetBytes(blockTag + "\0");
+            fixed (byte* pn = nm) fixed (byte* pk = BoxKey) fixed (byte* pv = val)
+            {
+                var mk = Native.FPDFPageObj_AddMark(o, pn);
+                if (mk != 0) Native.FPDFPageObjMark_SetStringParam(_doc, o, mk, pk, pv);
+            }
+        }
         return o;
     }
 
@@ -339,7 +670,7 @@ public sealed unsafe partial class PdfDocument
 
     private void Commit(int pageIndex, nint page)
     {
-        if (Native.FPDFPage_GenerateContent(page) == 0) throw new PdfException(PdfErrorKind.Unknown, "Sayfa içeriği yazılamadı.");
+        GenerateContent(pageIndex, page);
         ClosePage(pageIndex);
         MarkChanged(structure: false);
     }

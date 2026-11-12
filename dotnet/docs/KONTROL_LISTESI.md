@@ -106,6 +106,17 @@ Tanıma tamamen bu bilgisayarda yapılır (Tesseract 5, tessdata_best Türkçe +
 
 **Sınırlama (dürüst):** OCR doğruluğu tarama kalitesine bağlıdır; 300 DPI ve üzeri önerilir. Tesseract kendi dil modeliyle sözcükleri düzeltir; ek olarak güveni %60'ın altındaki sözcükler “Doğrula” penceresinde kullanıcıya gösterilir. Otomatik “yazım düzeltme” ile anlamı değiştirme riski alınmaz.
 
+## 6b. Metin düzenleme sadakati — ✅ 0.6.1
+| Madde | Durum | Test |
+|---|---|---|
+| Paragraf düzenlenince sayfadaki diğer metinler (Tw/Tc ile yaslanmış dahil) piksel düzeyinde değişmez | ✅ | B (3 belge türü, tüm paragraflar) |
+| Düzenlenen paragraf: başlangıç noktası, taban çizgisi, satır kırılımı, hizalama, ilk satır girintisi korunur; art arda düzenlemede kayma yok | ✅ | B |
+| Tek satırlık metin (başlık, tablo hücresi) alt satıra düşmez; ortalı/sağa yaslı çıpası korunur | ✅ | B |
+| İki yana yaslı paragraf algılanır ve iki yana yaslı yazılır | ✅ | B |
+| Özgün gömülü yazı tipi korunur; eksik karakterde sistem yazı tipine geçilir ve bildirilir | ✅ | B |
+| Döndürülmüş metin açısıyla yeniden yazılır | ✅ | B |
+| Paragraf içinde karışık biçim (tek kalın sözcük) korunması | ⏳ | Paragraf tek biçimle yeniden yazılır |
+
 ## 7. Dönüştürme — ✅ Aşama 5 (0.6.0)
 | Madde | Durum | Test |
 |---|---|---|

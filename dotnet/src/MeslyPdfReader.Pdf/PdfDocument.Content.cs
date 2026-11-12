@@ -28,7 +28,7 @@ public sealed unsafe partial class PdfDocument
             Native.FPDFPageObj_SetFillColor(obj, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, 255);
             Native.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, y);
             Native.FPDFPage_InsertObject(page, obj);
-            if (Native.FPDFPage_GenerateContent(page) == 0) throw new PdfException(PdfErrorKind.Unknown, "Sayfa içeriği yazılamadı.");
+            GenerateContent(pageIndex, page);
             ClosePage(pageIndex);
             MarkChanged(structure: false);
         });
@@ -42,7 +42,7 @@ public sealed unsafe partial class PdfDocument
         Native.FPDFPageObj_SetFillColor(obj, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, 255);
         Native.FPDFPath_SetDrawMode(obj, 1, 0);
         Native.FPDFPage_InsertObject(page, obj);
-        Native.FPDFPage_GenerateContent(page);
+        GenerateContent(pageIndex, page);
         ClosePage(pageIndex);
         MarkChanged(structure: false);
     });
@@ -119,7 +119,7 @@ public sealed unsafe partial class PdfDocument
                 Native.FPDFImageObj_SetMatrix(obj, drawW, 0, 0, drawH, x, y);
                 Native.FPDFPage_InsertObject(page, obj);
                 obj = 0; // sahiplik sayfaya geçti
-                Native.FPDFPage_GenerateContent(page);
+                Native.FPDFPage_GenerateContent(page); // yeni boş sayfa: korunacak metin yok
             }
             finally { Native.FPDF_ClosePage(page); }
             RefreshStructure();

@@ -26,7 +26,7 @@ public sealed partial class DocumentViewModel : IPdfEditHost
     [ObservableProperty] private bool _editBold;
     [ObservableProperty] private bool _editItalic;
     [ObservableProperty] private bool _editUnderline;
-    [ObservableProperty] private int _editAlign; // 0 sol, 1 orta, 2 sağ
+    [ObservableProperty] private int _editAlign; // 0 sol, 1 orta, 2 sağ, 3 iki yana
     [ObservableProperty] private double _editLineSpacing = 1.2;
     // Konum/boyut (mm, sol-alt köşe sayfa koordinatında)
     [ObservableProperty] private double _objX, _objY, _objW, _objH;
@@ -35,7 +35,7 @@ public sealed partial class DocumentViewModel : IPdfEditHost
     [ObservableProperty] private double _shapeStrokeWidth = 1.5;
 
     public ObservableCollection<string> FontFamilies { get; } = new();
-    public static IReadOnlyList<string> AlignNames { get; } = new[] { "Sola", "Ortaya", "Sağa" };
+    public static IReadOnlyList<string> AlignNames { get; } = new[] { "Sola", "Ortaya", "Sağa", "İki yana" };
 
     public bool HasEditSelection => EditSelection is not null;
     public bool IsTextSelection => EditSelection?.Single?.IsText == true;
@@ -63,6 +63,8 @@ public sealed partial class DocumentViewModel : IPdfEditHost
         _ => "",
     };
     private bool _invisibleText;
+    /// <summary>Seçim anındaki yazı tipi ailesi ve biçimi: kullanıcı değiştirmediyse özgün gömülü yazı tipi korunur.</summary>
+    private (string Family, bool Bold, bool Italic) _selFont;
 
     partial void OnToolChanged(ViewerTool value)
     {
@@ -103,6 +105,7 @@ public sealed partial class DocumentViewModel : IPdfEditHost
             var fam = TextLayout.ParseFontName(p.FontName).Family;
             var match = FontFamilies.FirstOrDefault(f => FontMatching.Key(f) == FontMatching.Key(fam));
             EditFontFamily = match ?? (fam.Length > 0 ? fam : EditFontFamily);
+            _selFont = (EditFontFamily, p.Bold, p.Italic);
             EditFontSize = Math.Round(p.FontSize, 1);
             EditColor = Hex(p.Rgb);
             EditBold = p.Bold; EditItalic = p.Italic;
@@ -206,13 +209,20 @@ public sealed partial class DocumentViewModel : IPdfEditHost
 
     // ─────────────── Biçim ───────────────
 
-    private TextStyle CurrentStyleFrom(TextParagraph p) =>
-        new(Array.Empty<byte>(), EditFontSize > 0 ? EditFontSize : p.FontSize, ParseRgb(EditColor) ?? p.Rgb, (TextAlign)Math.Clamp(EditAlign, 0, 2), EditUnderline, EditLineSpacing);
+    private TextStyle CurrentStyleFrom(TextParagraph p)
+    {
+        // Arayüzdeki değerler yuvarlanmış gösterilir; kullanıcı değiştirmediyse özgün kesin değer kullanılır
+        // (yoksa uzun paragraflarda satırlar birikerek kayar).
+        double size = EditFontSize > 0 && Math.Abs(EditFontSize - Math.Round(p.FontSize, 1)) > 0.001 ? EditFontSize : p.FontSize;
+        double exactLs = p.FontSize > 0 ? p.LineHeight / p.FontSize : 1.2;
+        double ls = Math.Abs(EditLineSpacing - Math.Round(exactLs, 2)) > 0.001 ? EditLineSpacing : exactLs;
+        return new(Array.Empty<byte>(), size, ParseRgb(EditColor) ?? p.Rgb, (TextAlign)Math.Clamp(EditAlign, 0, 3), EditUnderline, ls);
+    }
 
     private async Task<(TextStyle Style, string? Note)> BuildStyleAsync(TextParagraph? p, string text, string? family, TextStyle? baseStyle = null)
     {
         var (data, choice) = await FontResolver.Instance.ResolveAsync(p?.FontName, text, EditBold, EditItalic, family);
-        var s = baseStyle ?? new TextStyle(data, EditFontSize, ParseRgb(EditColor) ?? 0, (TextAlign)Math.Clamp(EditAlign, 0, 2), EditUnderline, EditLineSpacing);
+        var s = baseStyle ?? new TextStyle(data, EditFontSize, ParseRgb(EditColor) ?? 0, (TextAlign)Math.Clamp(EditAlign, 0, 3), EditUnderline, EditLineSpacing);
         string? note = choice.Note;
         if (choice.Font is { } f && note is null && (f.Bold != EditBold || f.Italic != EditItalic))
             note = $"“{f.Family}” için istenen kalın/eğik biçim kurulu değil; normal biçim kullanıldı.";
@@ -223,7 +233,22 @@ public sealed partial class DocumentViewModel : IPdfEditHost
     {
         var fam = string.IsNullOrWhiteSpace(EditFontFamily) ? null : EditFontFamily;
         var (s, note) = await BuildStyleAsync(p, text, fam, style);
-        return await EditAsync("Metin yazılıyor…", () => Document.ReplaceParagraphAsync(page, p, text, s, width), Status(status, note));
+        // Yazı tipi ailesi ve kalın/eğik değiştirilmediyse belgenin kendi gömülü yazı tipi denenir: düzeltilen metin
+        // özgünüyle birebir aynı görünür. Yeni karakter o yazı tipinde yoksa eşleştirilen sistem yazı tipi kullanılır.
+        bool keep = string.Equals(EditFontFamily, _selFont.Family, StringComparison.OrdinalIgnoreCase) && EditBold == _selFont.Bold && EditItalic == _selFont.Italic;
+        s = s with { UseOriginalFont = keep };
+        bool usedOriginal = false;
+        var ok = await EditAsync("Metin yazılıyor…", async () =>
+        {
+            await Document.ReplaceParagraphAsync(page, p, text, s, width);
+            usedOriginal = Document.LastUsedOriginalFont;
+        }, Status(status, note));
+        if (ok)
+        {
+            if (usedOriginal) StatusText = Status(status + " Belgenin özgün yazı tipi korundu.", null);
+            else if (keep) StatusText = Status(status, $"Yazılan karakterlerin bir kısmı belgenin gömülü yazı tipinde bulunmadığından “{EditFontFamily}” kullanıldı." + (note is null ? "" : " " + note));
+        }
+        return ok;
     }
 
     private static string Status(string s, string? note) => note is null ? s : $"{s} Not: {note}";

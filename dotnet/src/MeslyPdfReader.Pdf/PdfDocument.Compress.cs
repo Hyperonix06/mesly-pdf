@@ -85,7 +85,7 @@ public sealed unsafe partial class PdfDocument
             }
             if (pageChanged)
             {
-                Native.FPDFPage_GenerateContent(page);
+                GenerateContent(p, page);
                 ClosePage(p);
             }
             progress?.Report((p + 1.0) / PageCount);

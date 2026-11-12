@@ -1,5 +1,15 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.6.1 (12 Kasım 2026) — Metin düzenleme: metin artık yerinden kaymıyor
+
+Kullanıcı bildirimi: “Düzenledikten sonra metin aynı yerinde durmuyor, kayıyor.” Ayrıntılı inceleme beş ayrı neden buldu; hepsi düzeltildi ve 14 yeni testle kalıcı olarak denetleniyor.
+
+* **Sayfadaki diğer metinler kayıyordu:** Bir paragraf düzenlenince PDF motoru (PDFium) sayfayı yeniden yazarken sözcük ve harf aralığı ayarlarını (Tw/Tc) atıyordu; iki yana yaslı paragraflar daralıyordu. Artık her karakterin gerçek konumu korunuyor — düzenlenen paragrafın dışında tek bir piksel bile değişmiyor (Word/LibreOffice, Chrome ve reportlab çıktılarında ölçüldü).
+* **Satırlar alt satıra düşüyordu:** Yeni metin özgün mürekkep genişliğine sıkıştırılıyordu; başlıklar ve tablo hücreleri bölünüp alttaki metne karışıyordu. Artık satırlar, metin aynıysa özgün yerlerinden kırılıyor; tek satırlık metin (başlık, hücre) yandaki komşu metne kadar sağa uzayabiliyor.
+* **Hizalama korunuyor:** Ortalanmış satır ortasından, sağa yaslı satır sağ kenarından sabit kalıyor; ilk satır girintisi korunuyor; **iki yana yaslı** paragraflar iki yana yaslı yazılıyor (yeni “İki yana” hizalama seçeneği). Boş satırsız art arda gelen paragraflar artık ayrı paragraflar olarak tanınıyor.
+* **Özgün yazı tipi:** Yazı tipini değiştirmediyseniz düzeltilen metin belgenin kendi gömülü yazı tipiyle yazılıyor — özgünüyle birebir aynı görünüyor. Yeni bir karakter o yazı tipinde yoksa en yakın sistem yazı tipine geçiliyor ve durum çubuğunda söyleniyor.
+* **Art arda düzenleme:** Aynı paragraf defalarca düzenlense de birikimli kayma yok (paragraf kutusu PDF'nin içinde saklanıyor). Döndürülmüş metin kendi açısıyla yeniden yazılıyor. Yazı boyutu ve satır aralığı, arayüzde yuvarlanmış değerle değil kesin değerle kullanılıyor.
+
 ## 0.6.0 (11 Kasım 2026) — Aşama 5: Word, Excel, Office → PDF, sıkıştırma
 
 ### PDF → Microsoft Word (.docx)

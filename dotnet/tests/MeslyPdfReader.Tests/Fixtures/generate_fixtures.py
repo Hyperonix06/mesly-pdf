@@ -102,3 +102,40 @@ c = canvas.Canvas(os.path.join(out, 'masked_image.pdf'), pagesize=A4)
 c.setFillColorRGB(0.95, 0.85, 0.2); c.rect(60, 500, 300, 220, fill=1, stroke=0)
 c.drawImage('/tmp/mesly_masked.png', 80, 520, width=120, height=90, mask='auto')
 c.showPage(); c.save()
+
+# 9) Metin düzenleme sadakati fikstürleri
+#  edit_chrome.pdf — Chrome/Skia tarzı: y ekseni ters, 0,75 ölçekli CTM; ayrıca 90° döndürülmüş etiket.
+c = canvas.Canvas(os.path.join(out, 'edit_chrome.pdf'), pagesize=(612, 792))
+c.saveState()
+c.transform(0.75, 0, 0, -0.75, 0, 792)
+for i, (y, t) in enumerate([(120, 'Web sayfası başlığı: Öğrenci Başvuruları'),
+                            (160, 'Birinci paragraf satırı burada başlıyor ve devam ediyor;'),
+                            (182, 'ikinci satır aynı paragrafın devamıdır, çok güzel.')]):
+    tx = c.beginText(); tx.setTextTransform(1, 0, 0, -1, 96, y); tx.setFont('DV', 20 if i == 0 else 14); tx.textOut(t); c.drawText(tx)
+c.restoreState()
+c.saveState(); c.translate(560, 300); c.rotate(90); c.setFont('DV', 12); c.drawString(0, 0, 'Döndürülmüş etiket: Arşiv No 42'); c.restoreState()
+c.showPage(); c.save()
+#  edit_word.pdf — LibreOffice ile Word belgesinden üretilmiş: başlık, iki yana yaslı, ilk satır girintili,
+#  ortalanmış, sağa yaslı ve sol girintili paragraflar. LibreOffice ve python-docx gerektirir; yoksa depodaki dosya kullanılır.
+try:
+    import docx, subprocess, tempfile, shutil
+    from docx.shared import Pt, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    d = docx.Document()
+    st = d.styles['Normal']; st.font.name = 'Liberation Serif'; st.font.size = Pt(12)
+    d.add_heading('Kira Sözleşmesi Özeti', level=1)
+    d.add_paragraph('Bu belge İstanbul Şişli’deki dairenin kira koşullarını özetler. Kiracı Çağrı Öztürk, aylık kirayı her ayın beşinci gününe kadar ödemeyi kabul eder.')
+    p = d.add_paragraph('İki yana yaslı paragraf: Taraflar, sözleşmenin uygulanmasından doğacak uyuşmazlıklarda İstanbul mahkemelerinin ve icra dairelerinin yetkili olduğunu kabul eder. Bu madde bütün ekleri kapsar ve değiştirilemez.')
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p = d.add_paragraph('İlk satırı girintili paragraf: Depozito tutarı sözleşme bitiminde, dairenin teslim alındığı hâliyle geri verilmesi şartıyla iade edilir ve faiz işletilmez.')
+    p.paragraph_format.first_line_indent = Cm(1.25)
+    p = d.add_paragraph('Ortalanmış satır: Ek-1 Demirbaş Listesi'); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p = d.add_paragraph('Sağa yaslı: 12.11.2026'); p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p = d.add_paragraph('Sol girintili blok paragraf metni burada iki satıra uzayacak kadar uzun yazılmıştır, böylece sol kenar boşluğu korunmalıdır.')
+    p.paragraph_format.left_indent = Cm(2)
+    tmp = tempfile.mkdtemp(); src = os.path.join(tmp, 'edit_word.docx'); d.save(src)
+    if shutil.which('soffice'):
+        subprocess.run(['soffice', '--headless', '--convert-to', 'pdf', '--outdir', tmp, src], check=True, capture_output=True)
+        shutil.copy(os.path.join(tmp, 'edit_word.pdf'), os.path.join(out, 'edit_word.pdf'))
+except ImportError:
+    pass

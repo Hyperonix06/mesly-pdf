@@ -221,7 +221,7 @@ public sealed partial class PdfViewer
     {
         var single = _sel?.Single;
         if (single is null || ViewRotation != 0) return false;
-        if (single.IsText) return (h == 3 || h == 7) && single.Paragraph!.Align is TextAlign.Left or TextAlign.Center or TextAlign.Right;
+        if (single.IsText) return (h == 3 || h == 7) && single.Paragraph!.Align is TextAlign.Left or TextAlign.Center or TextAlign.Right or TextAlign.Justify;
         return single.Object?.Kind is PageObjectKind.Image or PageObjectKind.Path or PageObjectKind.Form or PageObjectKind.Shading;
     }
 
@@ -476,7 +476,7 @@ public sealed partial class PdfViewer
             Padding = new Thickness(0), VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
             ToolTip = "Ctrl+Enter: uygula · Esc: vazgeç",
         };
-        _editor.TextAlignment = para?.Align switch { TextAlign.Center => TextAlignment.Center, TextAlign.Right => TextAlignment.Right, _ => TextAlignment.Left };
+        _editor.TextAlignment = para?.Align switch { TextAlign.Center => TextAlignment.Center, TextAlign.Right => TextAlignment.Right, TextAlign.Justify => TextAlignment.Justify, _ => TextAlignment.Left };
         _editor.PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) { CommitEditor(cancel: true); Focus(); e.Handled = true; }
