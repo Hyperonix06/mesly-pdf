@@ -74,7 +74,7 @@ public sealed partial class DocumentViewModel : IPdfEditHost
         _ = UpdateScanBannerAsync();
         if (value == ViewerTool.Edit)
         {
-            if (ReferenceEquals(Main.ActiveTab, this) && Main.Ribbon != RibbonTab.EditContent) Main.Ribbon = RibbonTab.EditContent;
+            if (ReferenceEquals(Main.ActiveTab, this) && !Main.IsEditMode) Main.Ribbon = RibbonTab.EditHome;
             ShowProperties = true;
             _ = LoadFontsAsync();
             _ = RecognizeForEditAsync();
@@ -207,6 +207,14 @@ public sealed partial class DocumentViewModel : IPdfEditHost
                     _pendingImage = null;
                     if (img is null) return false;
                     return await EditAsync("Görsel ekleniyor…", () => Document.AddImageAsync(page, img, rect.Normalize()), "Görsel eklendi.");
+                }
+            case EditPlacement.Stamp:
+                {
+                    var text = _pendingStamp;
+                    _pendingStamp = null;
+                    if (string.IsNullOrEmpty(text)) return false;
+                    var r = rect.Normalize();
+                    return await AddTextAsync(page, r.Left, r.Top, Math.Max(r.Width, 40 + text.Length * 8), text);
                 }
             case EditPlacement.Link:
                 {

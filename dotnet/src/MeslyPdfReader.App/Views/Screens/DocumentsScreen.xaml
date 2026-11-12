@@ -1,0 +1,119 @@
+<UserControl x:Class="MeslyPdfReader.App.Views.Screens.DocumentsScreen"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:MeslyPdfReader.App.ViewModels"
+             x:Name="Root">
+    <UserControl.Resources>
+        <Style x:Key="BarButton" TargetType="Button" BasedOn="{StaticResource ToolButtonStyle}">
+            <Setter Property="Width" Value="Auto" />
+            <Setter Property="Height" Value="54" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+    </UserControl.Resources>
+    <Grid Margin="0">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <!-- Araç çubuğu -->
+        <Border Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="0,0,0,1" Padding="16,6">
+            <DockPanel>
+                <ui:TextBox DockPanel.Dock="Right" Width="240" Height="32" VerticalAlignment="Center" PlaceholderText="Belge ara..." ClearButtonEnabled="True"
+                            Text="{Binding Library.SearchText, UpdateSourceTrigger=PropertyChanged}">
+                    <ui:TextBox.Icon><ui:SymbolIcon Symbol="Search24" /></ui:TextBox.Icon>
+                </ui:TextBox>
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource BarButton}" Command="{Binding OpenCommand}" ToolTip="PDF belgesi aç (Ctrl+O)">
+                        <StackPanel><ui:SymbolIcon Symbol="FolderOpen24" FontSize="20" Foreground="{DynamicResource MeslyAccentBrush}" HorizontalAlignment="Center" /><TextBlock Text="PDF Aç" FontSize="11.5" Margin="0,3,0,0" HorizontalAlignment="Center" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource BarButton}" Command="{Binding Library.OpenNewWindowCommand}" ToolTip="Mesly Pdf Reader'ı yeni bir pencerede aç">
+                        <StackPanel><ui:SymbolIcon Symbol="WindowNew24" FontSize="20" Foreground="{DynamicResource MeslyAccentBrush}" HorizontalAlignment="Center" /><TextBlock Text="Yeni Pencere" FontSize="11.5" Margin="0,3,0,0" HorizontalAlignment="Center" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource BarButton}" Click="Recent_Click" ToolTip="Son kullanılan belgeler">
+                        <StackPanel><ui:SymbolIcon Symbol="History24" FontSize="20" Foreground="{DynamicResource MeslyAccentBrush}" HorizontalAlignment="Center" /><TextBlock Text="Son Kullanılanlar" FontSize="11.5" Margin="0,3,0,0" HorizontalAlignment="Center" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource BarButton}" Command="{Binding Library.RefreshCommand}" ToolTip="Listeyi yenile (F5)">
+                        <StackPanel><ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="20" Foreground="{DynamicResource MeslyAccentBrush}" HorizontalAlignment="Center" /><TextBlock Text="Yenile" FontSize="11.5" Margin="0,3,0,0" HorizontalAlignment="Center" /></StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource BarButton}" Command="{Binding Library.ToggleViewCommand}" ToolTip="Liste / kart görünümü">
+                        <StackPanel><ui:SymbolIcon Symbol="Grid24" FontSize="20" Foreground="{DynamicResource MeslyAccentBrush}" HorizontalAlignment="Center" /><TextBlock Text="Görünüm" FontSize="11.5" Margin="0,3,0,0" HorizontalAlignment="Center" /></StackPanel>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="28,20,28,16">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <TextBlock Text="Belgelerim" Style="{StaticResource ScreenTitle}" Margin="0,0,0,10" />
+            <Border Grid.Row="1" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="0,0,0,1" Margin="0,0,0,8">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Style="{StaticResource UnderlineTab}" GroupName="lib" Content="Son Kullanılanlar" IsChecked="{Binding Library.Tab, Converter={StaticResource EqualsToBool}, ConverterParameter=Recent}" />
+                    <RadioButton Style="{StaticResource UnderlineTab}" GroupName="lib" Content="Tüm Belgeler" IsChecked="{Binding Library.Tab, Converter={StaticResource EqualsToBool}, ConverterParameter=All}" />
+                    <RadioButton Style="{StaticResource UnderlineTab}" GroupName="lib" Content="Sık Kullanılanlar" IsChecked="{Binding Library.Tab, Converter={StaticResource EqualsToBool}, ConverterParameter=Favorites}" />
+                    <ui:ProgressRing IsIndeterminate="True" Width="16" Height="16" Margin="12,0,0,0" Visibility="{Binding Library.IsScanning, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Border>
+            <!-- Sütun başlıkları (liste görünümü) -->
+            <Grid Grid.Row="2" Margin="12,0,12,4" Visibility="{Binding Library.IsCardView, Converter={StaticResource BoolInvertVis}}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /><ColumnDefinition Width="90" /><ColumnDefinition Width="36" /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions>
+                <TextBlock Text="Ad" FontSize="12" Foreground="{DynamicResource MeslyMutedTextBrush}" Margin="30,0,0,0" />
+                <TextBlock Grid.Column="1" Text="Değiştirme Tarihi" FontSize="12" Foreground="{DynamicResource MeslyMutedTextBrush}" />
+                <TextBlock Grid.Column="2" Text="Boyut" FontSize="12" Foreground="{DynamicResource MeslyMutedTextBrush}" />
+            </Grid>
+            <Border Grid.Row="3" Style="{StaticResource Card}" Padding="4">
+                <Grid>
+                    <!-- Liste -->
+                    <ListBox x:Name="List" ItemsSource="{Binding Library.Items}" BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource ListItemPlain}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" MouseDoubleClick="List_DoubleClick" KeyDown="List_KeyDown"
+                             Visibility="{Binding Library.IsCardView, Converter={StaticResource BoolInvertVis}}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:LibraryItem}">
+                                <Grid Height="38" Margin="8,0" ToolTip="{Binding Path}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /><ColumnDefinition Width="90" /><ColumnDefinition Width="36" /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="18" Foreground="{DynamicResource MeslyAccentBrush}" Margin="0,0,10,0" />
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="460" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding ModifiedText}" VerticalAlignment="Center" FontSize="12.5" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SizeText}" VerticalAlignment="Center" FontSize="12.5" />
+                                    <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Width="30" Height="30" ToolTip="Sık kullanılanlara ekle / çıkar"
+                                            Command="{Binding DataContext.Library.TogglePinCommand, ElementName=Root}" CommandParameter="{Binding}">
+                                        <ui:SymbolIcon Symbol="Star24" FontSize="16" Filled="{Binding Pinned}" Foreground="{DynamicResource MeslyStarBrush}" />
+                                    </Button>
+                                    <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Width="30" Height="30" ToolTip="Diğer işlemler" Click="More_Click">
+                                        <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <!-- Kartlar -->
+                    <ListBox ItemsSource="{Binding Library.Items}" BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource ListItemPlain}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="List_DoubleClick"
+                             Visibility="{Binding Library.IsCardView, Converter={StaticResource BoolToVis}}">
+                        <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:LibraryItem}">
+                                <Border Width="168" Height="150" Margin="8" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource MeslyBorderBrush}" Background="{DynamicResource MeslyPanelBrush}" ToolTip="{Binding Path}">
+                                    <Grid Margin="10">
+                                        <StackPanel>
+                                            <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="44" Foreground="{DynamicResource MeslyAccentBrush}" HorizontalAlignment="Center" Margin="0,6,0,8" />
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" TextAlignment="Center" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding ModifiedText}" FontSize="11.5" TextAlignment="Center" Foreground="{DynamicResource MeslyMutedTextBrush}" Margin="0,4,0,0" />
+                                            <TextBlock Text="{Binding SizeText}" FontSize="11.5" TextAlignment="Center" Foreground="{DynamicResource MeslyMutedTextBrush}" />
+                                        </StackPanel>
+                                        <Button Style="{StaticResource ToolButtonStyle}" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-6,0"
+                                                Command="{Binding DataContext.Library.TogglePinCommand, ElementName=Root}" CommandParameter="{Binding}" ToolTip="Sık kullanılanlara ekle / çıkar">
+                                            <ui:SymbolIcon Symbol="Star24" FontSize="15" Filled="{Binding Pinned}" Foreground="{DynamicResource MeslyStarBrush}" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <TextBlock Text="{Binding Library.EmptyText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center"
+                               Foreground="{DynamicResource MeslyMutedTextBrush}" Visibility="{Binding Library.Items.Count, Converter={StaticResource ZeroToVisible}}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

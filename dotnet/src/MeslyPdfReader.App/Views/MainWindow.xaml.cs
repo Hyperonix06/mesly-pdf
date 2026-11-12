@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using MeslyPdfReader.App.Controls;
+using MeslyPdfReader.App.Views;
 using MeslyPdfReader.App.Services;
 using MeslyPdfReader.App.ViewModels;
 using MeslyPdfReader.Data;
@@ -41,6 +42,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
+        if (!_closingConfirmed || _vm.Tabs.Count > 0) _vm.SaveSession();
         if (_closingConfirmed) return;
         if (_vm.Tabs.All(t => !t.Document.IsModified))
         {
@@ -70,6 +72,11 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
         if (key == Key.F11 && doc is not null) { Run(ToggleFullScreen); return; }
         if (key == Key.Escape && _vm.IsFullScreen) { Run(ToggleFullScreen); return; }
+        // Esc: düzenleme kipinde seçim/yerleştirme yoksa kipten çık (seçim varsa önce görüntüleyici seçimi kaldırır).
+        if (key == Key.Escape && _vm.IsViewer && _vm.IsEditMode && !inText && doc is not null && doc.Placement == EditPlacement.None && !doc.HasEditSelection
+            && doc.Tool is ViewerTool.Edit or ViewerTool.Select)
+        { Run(() => _vm.SetEditMode(false)); return; }
+        if (key == Key.F5 && _vm.Screen == AppScreen.Documents) { Run(() => _ = _vm.Library.RefreshAsync()); return; }
 
         if (ctrl)
         {
@@ -88,7 +95,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
                 case Key.P: Exec(doc.PrintCommand); return;
                 case Key.F: Run(FocusSearch); return;
                 case Key.G: Exec(doc.GoToPagePromptCommand); return;
-                case Key.E when !inText: Run(() => { _vm.Ribbon = RibbonTab.EditContent; doc.Tool = ViewerTool.Edit; }); return; // FineReader: Ctrl+E İçeriği Düzenle
+                case Key.E when !inText: Run(() => _vm.SetEditMode(true)); return; // FineReader: Ctrl+E İçeriği Düzenle
                 case Key.D: Exec(doc.AddBookmarkCommand); return;
                 case Key.R when shift: Exec(doc.RotatePagesLeftCommand); return;
                 case Key.R: Exec(doc.RotatePagesRightCommand); return;
@@ -117,17 +124,39 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
             case Key.H when mods == ModifierKeys.None: doc.Tool = ViewerTool.Hand; e.Handled = true; return;
             case Key.V when mods == ModifierKeys.None: doc.Tool = ViewerTool.Select; e.Handled = true; return;
             case Key.E when mods == ModifierKeys.None:
-                _vm.Ribbon = RibbonTab.EditContent; doc.Tool = ViewerTool.Edit; e.Handled = true; return;
+                _vm.SetEditMode(true); e.Handled = true; return;
         }
     }
 
     private void CycleTab(int dir)
     {
-        var list = new List<DocumentViewModel?> { null };
-        list.AddRange(_vm.Tabs);
-        int i = list.IndexOf(_vm.ActiveTab);
-        _vm.ActiveTab = list[(i + dir + list.Count) % list.Count];
+        if (_vm.Tabs.Count == 0) return;
+        if (!_vm.IsViewer) { _vm.ShowDocumentCommand.Execute(_vm.ActiveTab ?? _vm.Tabs[0]); return; }
+        int i = _vm.ActiveTab is null ? 0 : _vm.Tabs.IndexOf(_vm.ActiveTab);
+        _vm.ShowDocumentCommand.Execute(_vm.Tabs[(i + dir + _vm.Tabs.Count) % _vm.Tabs.Count]);
     }
+
+    /// <summary>Şeritteki “Sayfa” kutusu: Enter → sayfaya git, Esc → geri al.</summary>
+    private void PageBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb || _vm.ActiveTab is not { } doc) return;
+        if (e.Key == Key.Enter)
+        {
+            tb.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            tb.Text = doc.PageNumber.ToString();
+            doc.Viewer?.Focus();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            tb.Text = doc.PageNumber.ToString();
+            doc.Viewer?.Focus();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Ayarlar ekranı (Yardım'dan kısayol listesine geçiş için).</summary>
+    public Screens.SettingsScreen SettingsScreenControl => SettingsScreen;
 
     // ─────────────── Arama / tam ekran / tema ───────────────
 

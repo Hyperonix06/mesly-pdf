@@ -14,10 +14,14 @@ using MeslyPdfReader.Pdf;
 
 namespace MeslyPdfReader.App.ViewModels;
 
-/// <summary>FineReader PDF düzenindeki sekmeler: Belge, Sayfaları Düzenle, İçeriği Düzenle.</summary>
-public enum HomeSection { Open, Scan, Recent }
+/// <summary>Sol menüdeki ekranlar (afiş düzeni) ve belge görüntüleyici.</summary>
+public enum AppScreen { Home, Documents, Convert, BatchConvert, Ocr, OcrEditor, Tools, Scan, Settings, Help, Viewer }
 
-public enum RibbonTab { Document, Organize, EditContent }
+/// <summary>
+/// Belge penceresinin şerit sekmeleri. Görüntüleme kipi: Giriş, Görünüm, Araçlar.
+/// Düzenleme kipi (PDF Düzenleme): Giriş, Düzenle, Açıklama, İmza, Form. “Dosya” her iki kipte menüdür.
+/// </summary>
+public enum RibbonTab { Home, View, Tools, EditHome, Edit, Annotate, Sign, Form }
 
 public sealed partial class MainViewModel : BusyViewModel
 {
@@ -29,18 +33,85 @@ public sealed partial class MainViewModel : BusyViewModel
     public MainViewModel(AppSettings settings, AppDatabase db, ThemeService theme, RecoveryService recovery)
     {
         _settings = settings; _db = db; Db = db; Theme = theme; Recovery = recovery;
+        Library = new LibraryViewModel(this, settings, db);
+        Converter = new ConvertScreenViewModel(this, settings);
+        Batch = new BatchViewModel(this, settings, db);
+        OcrScreen = new OcrScreenViewModel(this, settings);
+        OcrEditor = new OcrEditorViewModel();
         Recovery.Start(() => Tabs);
         LoadRecent();
     }
 
+    public AppSettings Settings => _settings;
+    public AppDatabase Database => _db;
+    public LibraryViewModel Library { get; }
+    public ConvertScreenViewModel Converter { get; }
+    public BatchViewModel Batch { get; }
+    public OcrScreenViewModel OcrScreen { get; }
+    public OcrEditorViewModel OcrEditor { get; }
+
+    /// <summary>Ekranların uzun işlemleri: ortak meşgul katmanı, iptal, hata gösterimi ve görev geçmişi.</summary>
+    public Task<bool> RunTaskAsync(string text, Func<IProgress<double>, CancellationToken, Task> work, string? historyKind = null, string? historyInput = null, Func<string?>? historyOutput = null)
+        => RunBusyAsync(text, work, historyKind, historyInput, historyOutput);
+
     public ObservableCollection<DocumentViewModel> Tabs { get; } = new();
     public ObservableCollection<RecentItem> Recent { get; } = new();
 
-    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsHome), nameof(HasDocument))] private DocumentViewModel? _activeTab;
-    [ObservableProperty] private RibbonTab _ribbon = RibbonTab.Document;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsHome), nameof(HasDocument), nameof(WindowTitle))] private DocumentViewModel? _activeTab;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsEditMode))] private RibbonTab _ribbon = RibbonTab.Home;
     [ObservableProperty] private bool _isFullScreen;
 
-    public bool IsHome => ActiveTab is null;
+    /// <summary>Uygulama ekranı (sol menü). Belge açıkken <see cref="AppScreen.Viewer"/>.</summary>
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsViewer), nameof(IsShell), nameof(WindowTitle), nameof(IsHome))] private AppScreen _screen = AppScreen.Home;
+    public bool IsViewer => Screen == AppScreen.Viewer && ActiveTab is not null;
+    public bool IsShell => !IsViewer;
+    /// <summary>PDF Düzenleme kipi: şeritte Giriş / Düzenle / Açıklama / İmza / Form sekmeleri.</summary>
+    public bool IsEditMode => Ribbon >= RibbonTab.EditHome;
+    public bool HasManyTabs => Tabs.Count > 1;
+
+    public string WindowTitle => IsViewer && ActiveTab is { } t ? $"Mesly Pdf Reader - {t.Title}" : Screen switch
+    {
+        AppScreen.Documents => "Mesly Pdf Reader - Belgelerim",
+        AppScreen.Convert => "Mesly Pdf Reader - Dönüştür",
+        AppScreen.BatchConvert => "Mesly Pdf Reader - Toplu Dönüştürme",
+        AppScreen.Ocr => "Mesly Pdf Reader - OCR (Metin Tanıma)",
+        AppScreen.OcrEditor => "Mesly Pdf Reader - OCR Sonucu",
+        AppScreen.Tools => "Mesly Pdf Reader - Sayfa Yönetimi",
+        AppScreen.Scan => "Mesly Pdf Reader - Tarama",
+        AppScreen.Settings => "Mesly Pdf Reader - Ayarlar",
+        AppScreen.Help => "Mesly Pdf Reader - Hakkında",
+        _ => "Mesly Pdf Reader",
+    };
+
+    /// <summary>Sol menü: ekrana geç. Görüntüleyiciye yalnız açık belge varken geçilir.</summary>
+    [RelayCommand]
+    public void Navigate(AppScreen screen)
+    {
+        if (screen == AppScreen.Viewer && ActiveTab is null) screen = AppScreen.Home;
+        if (screen != AppScreen.Viewer && IsEditMode) Ribbon = RibbonTab.Home;
+        Screen = screen;
+        if (screen == AppScreen.Documents) { LoadRecent(); _ = Library.RefreshAsync(); }
+    }
+
+    /// <summary>Açık belgeye (görüntüleyiciye) geç.</summary>
+    [RelayCommand]
+    private void ShowDocument(DocumentViewModel? vm)
+    {
+        if (vm is not null) ActiveTab = vm;
+        if (ActiveTab is not null) Screen = AppScreen.Viewer;
+    }
+
+    [RelayCommand] private void EnterEditMode() => SetEditMode(true);
+    [RelayCommand] private void ExitEditMode() => SetEditMode(false);
+
+    /// <summary>PDF Düzenleme kipini aç / kapat.</summary>
+    public void SetEditMode(bool on)
+    {
+        Ribbon = on ? RibbonTab.EditHome : RibbonTab.Home;
+        if (ActiveTab is { } t) t.Tool = on ? ViewerTool.Edit : ViewerTool.Select;
+    }
+
+    public bool IsHome => Screen == AppScreen.Home;
     public bool HasDocument => ActiveTab is not null;
     public string AppVersion => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
@@ -49,26 +120,23 @@ public sealed partial class MainViewModel : BusyViewModel
         if (oldValue is not null) oldValue.IsActive = false;
         if (newValue is not null) newValue.IsActive = true;
         DocumentViewModel? value = newValue;
-        // Yeni bir belgeye geçilince Belge sekmesinden başlanır; İçeriği Düzenle açıkken geçilirse o belgede de düzenleme açılır.
-        if (value is not null && Ribbon == RibbonTab.EditContent) value.Tool = ViewerTool.Edit;
-        if (oldValue is not null && oldValue.Tool == ViewerTool.Edit && Ribbon == RibbonTab.EditContent) oldValue.Tool = ViewerTool.Select;
-        if (value is not null) value.IsOrganizeMode = Ribbon == RibbonTab.Organize;
-        if (oldValue is not null) oldValue.IsOrganizeMode = false;
+        // Düzenleme kipi açıkken başka belgeye geçilirse o belgede de düzenleme aracı açılır.
+        if (value is not null && IsEditMode) value.Tool = ViewerTool.Edit;
+        if (oldValue is not null && oldValue.Tool != ViewerTool.Select && IsEditMode) oldValue.Tool = ViewerTool.Select;
+        if (value is null && Screen == AppScreen.Viewer) Screen = AppScreen.Home;
+        OnPropertyChanged(nameof(IsViewer)); OnPropertyChanged(nameof(IsShell));
     }
 
-    /// <summary>FineReader düzeni: “Düzenle” sekmesi düzenleme kipidir; sekmeye girince araç açılır, çıkınca kapanır.</summary>
+    /// <summary>Düzenleme kipinden çıkılınca araç seçmeye döner.</summary>
     partial void OnRibbonChanged(RibbonTab oldValue, RibbonTab newValue)
     {
         if (ActiveTab is not { } t) return;
-        if (newValue == RibbonTab.EditContent) t.Tool = ViewerTool.Edit;
-        else if (oldValue == RibbonTab.EditContent && t.Tool == ViewerTool.Edit) t.Tool = ViewerTool.Select;
-        t.IsOrganizeMode = newValue == RibbonTab.Organize;
+        bool wasEdit = oldValue >= RibbonTab.EditHome, isEdit = newValue >= RibbonTab.EditHome;
+        if (isEdit && !wasEdit) t.Tool = ViewerTool.Edit;
+        else if (!isEdit && wasEdit) t.Tool = ViewerTool.Select;
     }
 
-    [RelayCommand] private void ShowHome() => ActiveTab = null;
-
-    /// <summary>Yeni Görev ekranındaki bölüm (Aç, Tara, Son Kullanılanlar).</summary>
-    [ObservableProperty] private HomeSection _homeSection = HomeSection.Open;
+    [RelayCommand] private void ShowHome() => Navigate(AppScreen.Home);
 
     private static readonly string[] OcrLangCodes = { "tur+eng", "tur", "eng" };
     /// <summary>Yeni Görev alt çubuğundaki belge dilleri.</summary>
@@ -150,7 +218,7 @@ public sealed partial class MainViewModel : BusyViewModel
     }
 
     /// <summary>PDF'leri sekmede açar; görüntüler için görsellerden PDF akışını başlatır.</summary>
-    public async Task OpenFilesAsync(IEnumerable<string> paths)
+    public async Task OpenFilesAsync(IEnumerable<string> paths, bool activate = true)
     {
         var list = paths.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
         var images = list.Where(FileDialogs.IsImage).ToList();
@@ -158,11 +226,11 @@ public sealed partial class MainViewModel : BusyViewModel
         {
             var full = Path.GetFullPath(path);
             var existing = Tabs.FirstOrDefault(t => t.Document.FilePath is { } fp && string.Equals(fp, full, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null) { ActiveTab = existing; continue; }
+            if (existing is not null) { if (activate) { ActiveTab = existing; Screen = AppScreen.Viewer; } continue; }
             PdfDocument? doc = null;
             await RunBusyAsync($"{Path.GetFileName(path)} açılıyor…", async (_, _) => doc = await OpenWithPasswordAsync(full));
             if (doc is null) continue;
-            AddTab(doc);
+            AddTab(doc, activate: activate);
         }
         var office = list.Where(OfficeExport.IsOfficeFile).ToList();
         var unsupported = list.Where(p => !FileDialogs.IsPdf(p) && !FileDialogs.IsImage(p) && !OfficeExport.IsOfficeFile(p)).ToList();
@@ -189,11 +257,13 @@ public sealed partial class MainViewModel : BusyViewModel
         }
     }
 
-    public DocumentViewModel AddTab(PdfDocument doc, bool record = true)
+    public DocumentViewModel AddTab(PdfDocument doc, bool record = true, bool activate = true)
     {
         var vm = new DocumentViewModel(this, doc, _settings, _db);
         Tabs.Add(vm);
-        ActiveTab = vm;
+        if (activate || ActiveTab is null) ActiveTab = vm;
+        if (activate) Screen = AppScreen.Viewer;
+        OnPropertyChanged(nameof(HasManyTabs));
         if (record) RecordRecent(vm);
         return vm;
     }
@@ -214,6 +284,7 @@ public sealed partial class MainViewModel : BusyViewModel
         }
         int idx = Tabs.IndexOf(vm);
         Tabs.Remove(vm);
+        OnPropertyChanged(nameof(HasManyTabs));
         Recovery.Forget(vm);
         vm.Dispose();
         if (ReferenceEquals(ActiveTab, vm) || ActiveTab is null)
@@ -350,6 +421,8 @@ public sealed partial class MainViewModel : BusyViewModel
         }
     }
 
+    public Task<PdfDocument?> OpenWithPasswordCaptureAsync(string path, Action<string?> setPassword) => OpenWithPasswordAsyncCapture(path, setPassword);
+
     private async Task<PdfDocument?> OpenWithPasswordAsyncCapture(string path, Action<string?> setPassword)
     {
         string? password = null; bool wrong = false;
@@ -391,8 +464,7 @@ public sealed partial class MainViewModel : BusyViewModel
     {
         var vm = await PickAndOpenAsync("Düzenlenecek PDF'yi seçin");
         if (vm is null) return;
-        Ribbon = RibbonTab.EditContent;
-        vm.Tool = ViewerTool.Edit;
+        SetEditMode(true);
     }
 
     /// <summary>Ana ekran: taranmış PDF'yi seçip metin tanımayı başlatır.</summary>
@@ -401,7 +473,7 @@ public sealed partial class MainViewModel : BusyViewModel
     {
         var vm = await PickAndOpenAsync("Metni tanınacak (taranmış) PDF'yi seçin");
         if (vm is null) return;
-        Ribbon = RibbonTab.Document;
+        SetEditMode(false);
         await vm.RunOcrAsync(ocr: true, pages: null);
     }
 
@@ -504,11 +576,76 @@ public sealed partial class MainViewModel : BusyViewModel
     }
 
     [RelayCommand]
-    private void OpenSettings()
+    private void OpenSettings() => Navigate(AppScreen.Settings);
+
+    // ─────────────── Oturum ve güncelleme ───────────────
+
+    /// <summary>Kapanışta açık belgelerin yollarını saklar (Ana Sayfa yerine son oturumla başlama için).</summary>
+    public void SaveSession()
     {
-        SettingsWindow.ShowFor(this, _settings, _db);
-        LoadRecent();
-        Recovery.Refresh();
+        try
+        {
+            var files = Tabs.Select(t => t.Document.FilePath).Where(p => p is not null && File.Exists(p)).ToList();
+            _settings.LastSession = files.Count == 0 ? null : string.Join("\n", files);
+        }
+        catch { }
+    }
+
+    /// <summary>“Başlangıçta Ana Sayfa'yı göster” kapalıysa son oturumdaki belgeleri yeniden açar.</summary>
+    public async Task RestoreSessionAsync()
+    {
+        if (_settings.StartupHome || string.IsNullOrWhiteSpace(_settings.LastSession)) return;
+        var files = _settings.LastSession.Split("\n", StringSplitOptions.RemoveEmptyEntries).Where(File.Exists).ToList();
+        if (files.Count > 0) await OpenFilesAsync(files);
+    }
+
+    private bool _updateChecking;
+
+    /// <summary>
+    /// GitHub'daki en son sürümü sorar. Otomatik denetim günde bir kez yapılır; yeni sürüm varsa indirme ve kurma
+    /// kullanıcıya sorulur. <paramref name="manual"/>: kullanıcı istedi (sonuç her durumda bildirilir).
+    /// </summary>
+    public async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (_updateChecking) return;
+        if (!manual)
+        {
+            if (!_settings.UpdateCheck) return;
+            if (DateTime.TryParse(_settings.LastUpdateCheck, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var last) && (DateTime.UtcNow - last).TotalHours < 24) return;
+        }
+        _updateChecking = true;
+        try
+        {
+            UpdateInfo? info;
+            try { info = await UpdateService.CheckAsync(); }
+            catch (Exception ex)
+            {
+                Log.Warn("Güncelleme denetimi: " + ex.Message);
+                if (manual) MessageDialog.Show("Güncelleme denetlenemedi", "Sürüm bilgisine ulaşılamadı. İnternet bağlantınızı denetleyip tekrar deneyin.\n\n" + ex.Message, MessageKind.Warning);
+                return;
+            }
+            _settings.LastUpdateCheck = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+            if (info is null)
+            {
+                if (manual) MessageDialog.Show("Güncel", $"Mesly Pdf Reader {UpdateService.Current} en son sürüm.", MessageKind.Success);
+                return;
+            }
+            var notes = info.Notes.Length > 600 ? info.Notes[..600] + "…" : info.Notes;
+            if (info.InstallerUrl is null)
+            {
+                if (MessageDialog.Confirm("Yeni sürüm var", $"Mesly Pdf Reader {info.Version} yayımlandı (kullandığınız: {UpdateService.Current}).\n\n{notes}\n\nSürüm sayfası açılsın mı?", "Aç", "Daha sonra", MessageKind.Info))
+                    try { Process.Start(new ProcessStartInfo(info.PageUrl) { UseShellExecute = true }); } catch { }
+                return;
+            }
+            if (!MessageDialog.Confirm("Yeni sürüm var", $"Mesly Pdf Reader {info.Version} yayımlandı (kullandığınız: {UpdateService.Current}).\n\n{notes}\n\nŞimdi indirip kurulsun mu? Kurulum başlarken uygulama kapanır; açık belgeleriniz için kaydetme sorulur.", "İndir ve kur", "Daha sonra", MessageKind.Info)) return;
+            string? installer = null;
+            if (!await RunBusyAsync($"Mesly Pdf Reader {info.Version} indiriliyor…", async (p, ct) => installer = await UpdateService.DownloadAsync(info, p, ct)) || installer is null) return;
+            if (!await PrepareExitAsync()) return;
+            UpdateService.RunInstaller(installer);
+            if (Application.Current.MainWindow is Views.MainWindow mw) mw.SkipExitPrompt = true;
+            Application.Current.Shutdown();
+        }
+        finally { _updateChecking = false; }
     }
 
     /// <summary>Beklenmedik kapanmadan kalan kurtarma kopyalarını önerir.</summary>

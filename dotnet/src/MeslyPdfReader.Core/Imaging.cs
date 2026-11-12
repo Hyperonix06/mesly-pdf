@@ -11,16 +11,16 @@ public sealed class GrayImage
 }
 
 /// <summary>Tarama/görüntü düzeltme seçenekleri.</summary>
-public sealed record ImageCorrection(bool AutoRotate = true, bool Deskew = true, bool CleanBorders = true, bool WhitenBackground = false)
+public sealed record ImageCorrection(bool AutoRotate = true, bool Deskew = true, bool CleanBorders = true, bool WhitenBackground = false, bool Denoise = false)
 {
-    public static ImageCorrection None { get; } = new(false, false, false, false);
-    public bool Any => AutoRotate || Deskew || CleanBorders || WhitenBackground;
+    public static ImageCorrection None { get; } = new(false, false, false, false, false);
+    public bool Any => AutoRotate || Deskew || CleanBorders || WhitenBackground || Denoise;
 }
 
 /// <summary>Uygulanan düzeltmelerin raporu (kullanıcıya gösterilir).</summary>
-public sealed record CorrectionReport(int QuarterTurnsApplied, double DeskewDegrees, bool BordersCleaned, bool BackgroundWhitened, string? Note = null)
+public sealed record CorrectionReport(int QuarterTurnsApplied, double DeskewDegrees, bool BordersCleaned, bool BackgroundWhitened, string? Note = null, int SpecksRemoved = 0)
 {
-    public bool Changed => QuarterTurnsApplied != 0 || Math.Abs(DeskewDegrees) > 0.01 || BordersCleaned || BackgroundWhitened;
+    public bool Changed => QuarterTurnsApplied != 0 || Math.Abs(DeskewDegrees) > 0.01 || BordersCleaned || BackgroundWhitened || SpecksRemoved > 0;
 
     public string Describe()
     {
@@ -29,6 +29,7 @@ public sealed record CorrectionReport(int QuarterTurnsApplied, double DeskewDegr
         if (Math.Abs(DeskewDegrees) > 0.01) parts.Add($"eğiklik {DeskewDegrees:+0.0;-0.0}° düzeltildi");
         if (BordersCleaned) parts.Add("kenar gölgeleri temizlendi");
         if (BackgroundWhitened) parts.Add("arka plan beyazlatıldı");
+        if (SpecksRemoved > 0) parts.Add($"{SpecksRemoved} benek temizlendi");
         return parts.Count == 0 ? "düzeltme gerekmedi" : string.Join(", ", parts);
     }
 }
@@ -259,6 +260,112 @@ public static class ImageOps
     }
 
     /// <summary>Gri görüntüden BGRA.</summary>
+    /// <summary>
+    /// Gürültü azaltma: yalıtılmış küçük koyu benekleri (tarayıcı tozu, kâğıt lekesi) kâğıt rengiyle siler. Bir benek,
+    /// <paramref name="dpi"/>'ye göre küçükse ve çevresinde (~0,03 inç) başka mürekkep yoksa silinir; böylece nokta,
+    /// virgül ve i/ü noktaları (harfe yakın oldukları için) korunur. Silinen benek sayısını döndürür.
+    /// </summary>
+    public static int Denoise(BgraImage img, int dpi)
+    {
+        int w = img.Width, h = img.Height;
+        if (w < 8 || h < 8) return 0;
+        var gray = ToGray(img);
+        int thr = Math.Min(OtsuThreshold(gray), 200);
+        var dark = new bool[w * h];
+        for (int i = 0; i < dark.Length; i++) dark[i] = gray.Data[i] < thr;
+        // Koyu piksel sayıları için integral görüntü
+        var integ = new int[(w + 1) * (h + 1)];
+        for (int y = 0; y < h; y++)
+        {
+            int rowSum = 0;
+            for (int x = 0; x < w; x++)
+            {
+                rowSum += dark[y * w + x] ? 1 : 0;
+                integ[(y + 1) * (w + 1) + x + 1] = integ[y * (w + 1) + x + 1] + rowSum;
+            }
+        }
+        int Count(int x0, int y0, int x1, int y1)
+        {
+            x0 = Math.Clamp(x0, 0, w); x1 = Math.Clamp(x1, 0, w); y0 = Math.Clamp(y0, 0, h); y1 = Math.Clamp(y1, 0, h);
+            return integ[y1 * (w + 1) + x1] - integ[y0 * (w + 1) + x1] - integ[y1 * (w + 1) + x0] + integ[y0 * (w + 1) + x0];
+        }
+        double s = Math.Max(0.5, dpi / 300.0);
+        int maxArea = Math.Max(2, (int)Math.Round(12 * s * s));      // 300 DPI'de en çok 12 piksel
+        int maxSide = Math.Max(2, (int)Math.Round(5 * s));
+        int radius = Math.Max(3, (int)Math.Round(9 * s));            // ~0,03 inç
+        var seen = new bool[w * h];
+        var stack = new Stack<int>();
+        var comp = new List<int>();
+        int removed = 0;
+        for (int start = 0; start < dark.Length; start++)
+        {
+            if (!dark[start] || seen[start]) continue;
+            comp.Clear();
+            stack.Push(start); seen[start] = true;
+            int minX = w, minY = h, maxX = -1, maxY = -1;
+            bool big = false;
+            while (stack.Count > 0)
+            {
+                int i = stack.Pop();
+                if (!big) comp.Add(i);
+                int x = i % w, y = i / w;
+                if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+                if (comp.Count > maxArea) big = true;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, ny = y + dy;
+                        if ((uint)nx >= (uint)w || (uint)ny >= (uint)h) continue;
+                        int j = ny * w + nx;
+                        if (dark[j] && !seen[j]) { seen[j] = true; stack.Push(j); }
+                    }
+            }
+            if (big || maxX - minX + 1 > maxSide || maxY - minY + 1 > maxSide) continue;
+            // Çevrede başka mürekkep var mı? (benek kendi kutusunda; pencere sayımından kendi pikselleri çıkarılır)
+            int around = Count(minX - radius, minY - radius, maxX + radius + 1, maxY + radius + 1) - comp.Count;
+            if (around > 0) continue;
+            var (pb, pg, pr) = EstimatePaperColor(img, minX, minY, maxX + 1, maxY + 1);
+            foreach (var i in comp)
+            {
+                int o = (i / w) * img.Stride + (i % w) * 4;
+                img.Pixels[o] = pb; img.Pixels[o + 1] = pg; img.Pixels[o + 2] = pr;
+            }
+            removed++;
+        }
+        return removed;
+    }
+
+    /// <summary>
+    /// Otomatik kırpma: kenarlardan başlayarak kâğıttan belirgin biçimde farklı (genellikle koyu) ve tekdüze tarayıcı
+    /// zemini şeritlerini kırpar. Kâğıt rengi orta bölgeden ölçülür. Zemin kâğıtla aynı renkteyse (beyaz kapak) ayırt
+    /// edilemez ve görüntü değiştirilmez. Kırpıldıysa yeni görüntü, yoksa null.
+    /// </summary>
+    public static BgraImage? AutoCropToPaper(BgraImage img)
+    {
+        int w = img.Width, h = img.Height;
+        if (w < 50 || h < 50) return null;
+        var g = ToGray(img);
+        // Kâğıt parlaklığı: orta %50'lik alanın üst çeyreği (yazılar hariç)
+        var center = new List<byte>();
+        for (int y = h / 4; y < h * 3 / 4; y += 3) for (int x = w / 4; x < w * 3 / 4; x += 3) center.Add(g.Data[y * w + x]);
+        center.Sort();
+        int paper = center[center.Count * 3 / 4];
+        // Bir satır/sütun "zemin" sayılır: piksellerin %97'si kâğıttan en az 40 düzey koyu.
+        bool RowIsBed(int y) { int bed = 0; for (int x = 0; x < w; x++) if (g.Data[y * w + x] < paper - 40) bed++; return bed >= w * 0.97; }
+        bool ColIsBed(int x, int y0, int y1) { int bed = 0, n = 0; for (int y = y0; y < y1; y++, n++) if (g.Data[y * w + x] < paper - 40) bed++; return n > 0 && bed >= n * 0.97; }
+        int top = 0; while (top < h / 3 && RowIsBed(top)) top++;
+        int bottom = h; while (bottom > h * 2 / 3 && RowIsBed(bottom - 1)) bottom--;
+        int left = 0; while (left < w / 3 && ColIsBed(left, top, bottom)) left++;
+        int right = w; while (right > w * 2 / 3 && ColIsBed(right - 1, top, bottom)) right--;
+        int minCut = Math.Max(4, Math.Min(w, h) / 100);
+        if (top < minCut && h - bottom < minCut && left < minCut && w - right < minCut) return null;
+        int nw = right - left, nh = bottom - top;
+        if (nw < w / 3 || nh < h / 3) return null; // kâğıt bulunamadı; güvenli tarafta kal
+        var px = new byte[nw * nh * 4];
+        for (int y = 0; y < nh; y++) Buffer.BlockCopy(img.Pixels, (y + top) * img.Stride + left * 4, px, y * nw * 4, nw * 4);
+        return new BgraImage { Width = nw, Height = nh, Stride = nw * 4, Pixels = px };
+    }
+
     public static BgraImage FromGray(GrayImage g)
     {
         var px = new byte[g.Width * g.Height * 4];

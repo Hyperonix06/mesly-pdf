@@ -7,7 +7,11 @@ namespace MeslyPdfReader.Pdf;
 public abstract record ImagePageSource(double DpiX, double DpiY);
 /// <summary>JPEG verisi olduğu gibi (yeniden sıkıştırmadan, kalite kaybı olmadan) gömülür.</summary>
 public sealed record JpegImageSource(byte[] Data, double DpiX = 96, double DpiY = 96) : ImagePageSource(DpiX, DpiY);
-public sealed record BitmapImageSource(BgraImage Image, double DpiX = 96, double DpiY = 96) : ImagePageSource(DpiX, DpiY);
+public sealed record BitmapImageSource(BgraImage Image, double DpiX = 96, double DpiY = 96) : ImagePageSource(DpiX, DpiY)
+{
+    /// <summary>Saydamlık korunur (yumuşak maske): imza gibi görseller alttaki içeriği örtmez. false: beyaz zemine düzleştirilir.</summary>
+    public bool Transparent { get; init; }
+}
 
 /// <param name="Paper">null: sayfa görüntü boyutunda; değilse görüntü kâğıda sığdırılıp ortalanır.</param>
 public sealed record ImagePageLayout(SizeF? Paper = null, double MarginPt = 0, bool AutoRotate = true);

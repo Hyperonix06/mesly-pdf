@@ -6,7 +6,7 @@ using MeslyPdfReader.Data;
 
 namespace MeslyPdfReader.App.Services;
 
-public sealed record RecoveryEntry(string Id, string RecoveryFile, string? OriginalPath, string DisplayName, DateTime SavedAt, int PageCount);
+public sealed record RecoveryEntry(string Id, string RecoveryFile, string? OriginalPath, string DisplayName, DateTime SavedAt, int PageCount, int Pid = 0);
 
 /// <summary>
 /// Otomatik kurtarma: değiştirilmiş belgelerin kopyası belirli aralıklarla kurtarma klasörüne yazılır.
@@ -55,7 +55,7 @@ public sealed class RecoveryService : IDisposable
                 try
                 {
                     await vm.Document.SaveCopyAsync(file);
-                    var entry = new RecoveryEntry(vm.Id.ToString("N"), file, vm.Document.FilePath, vm.Title, DateTime.Now, vm.PageCount);
+                    var entry = new RecoveryEntry(vm.Id.ToString("N"), file, vm.Document.FilePath, vm.Title, DateTime.Now, vm.PageCount, Environment.ProcessId);
                     await File.WriteAllTextAsync(Path.ChangeExtension(file, ".json"), JsonSerializer.Serialize(entry));
                     _savedRevision[vm.Id] = vm.Document.Revision;
                 }
@@ -84,6 +84,7 @@ public sealed class RecoveryService : IDisposable
                 try
                 {
                     var e = JsonSerializer.Deserialize<RecoveryEntry>(File.ReadAllText(json));
+                    if (e is not null && IsLiveOtherWindow(e.Pid)) continue; // “Yeni Pencere” ile açılmış, hâlâ çalışan başka pencere
                     if (e is not null && File.Exists(e.RecoveryFile)) list.Add(e);
                     else File.Delete(json);
                 }
@@ -92,6 +93,17 @@ public sealed class RecoveryService : IDisposable
         }
         catch { }
         return list.OrderByDescending(e => e.SavedAt).ToList();
+    }
+
+    private static bool IsLiveOtherWindow(int pid)
+    {
+        if (pid <= 0 || pid == Environment.ProcessId) return false;
+        try
+        {
+            using var p = System.Diagnostics.Process.GetProcessById(pid);
+            return !p.HasExited && string.Equals(p.ProcessName, System.Diagnostics.Process.GetCurrentProcess().ProcessName, StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 
     public static void Discard(RecoveryEntry e)

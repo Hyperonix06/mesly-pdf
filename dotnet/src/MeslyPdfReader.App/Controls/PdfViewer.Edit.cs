@@ -9,7 +9,7 @@ using MeslyPdfReader.Pdf;
 namespace MeslyPdfReader.App.Controls;
 
 /// <summary>Düzenle aracında tıklayıp sürükleyerek eklenecek nesne türü.</summary>
-public enum EditPlacement { None, Text, Image, Rectangle, Ellipse, Line, Arrow, Link, RemoveLink }
+public enum EditPlacement { None, Text, Image, Rectangle, Ellipse, Line, Arrow, Link, RemoveLink, Stamp }
 
 /// <summary>Düzenlenebilir bir öğe: paragraf (bir veya daha çok metin nesnesi) ya da tek bir görsel/şekil/form nesnesi.</summary>
 public sealed record EditItem(int Page, RectF Bounds, int[] Indices, TextParagraph? Paragraph, PageObjectInfo? Object)
@@ -388,7 +388,7 @@ public sealed partial class PdfViewer
                         SetCurrentValue(PlacementProperty, EditPlacement.None);
                         break;
                     }
-                    if (click && kind is not (EditPlacement.Image)) { StatusMessage?.Invoke(this, "Eklemek için sayfada sürükleyerek bir alan çizin."); break; }
+                    if (click && kind is not (EditPlacement.Image or EditPlacement.Stamp)) { StatusMessage?.Invoke(this, "Eklemek için sayfada sürükleyerek bir alan çizin."); break; }
                     if (click) { b = (a.X + 200, a.Y - 150); }
                     SetCurrentValue(PlacementProperty, EditPlacement.None);
                     var ra = a; var rb = b;

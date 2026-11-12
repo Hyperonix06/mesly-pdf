@@ -13,6 +13,7 @@ public sealed partial class DocumentViewModel
 {
     [RelayCommand] private Task ConvertToWord() => ConvertAsync(ConvertFormat.Word);
     [RelayCommand] private Task ConvertToExcel() => ConvertAsync(ConvertFormat.Excel);
+    [RelayCommand] private Task ConvertToPowerPoint() => ConvertAsync(ConvertFormat.PowerPoint);
 
     /// <summary>Son dönüşümün sonucu (öz test ve durum çubuğu için).</summary>
     public ConvertResult? LastConvert { get; private set; }
@@ -29,19 +30,22 @@ public sealed partial class DocumentViewModel
         }
         if (target is null)
         {
-            var (ext, filter) = format == ConvertFormat.Word
-                ? (".docx", "Word belgesi (*.docx)|*.docx")
-                : (".xlsx", "Excel çalışma kitabı (*.xlsx)|*.xlsx");
+            var (ext, filter, caption) = format switch
+            {
+                ConvertFormat.Word => (".docx", "Word belgesi (*.docx)|*.docx", "Word belgesi olarak kaydet"),
+                ConvertFormat.PowerPoint => (".pptx", "PowerPoint sunusu (*.pptx)|*.pptx", "PowerPoint sunusu olarak kaydet"),
+                _ => (".xlsx", "Excel çalışma kitabı (*.xlsx)|*.xlsx", "Excel çalışma kitabı olarak kaydet"),
+            };
             target = FileDialogs.SaveFile(Path.GetFileNameWithoutExtension(Title) + ext, filter,
-                Document.FilePath is { } p ? Path.GetDirectoryName(p) : null, format == ConvertFormat.Word ? "Word belgesi olarak kaydet" : "Excel çalışma kitabı olarak kaydet");
+                Document.FilePath is { } p ? Path.GetDirectoryName(p) : null, caption);
             if (target is null) return null;
         }
         ConvertResult? result = null;
-        var kind = format == ConvertFormat.Word ? "Word" : "Excel";
-        var ok = await RunBusyAsync($"{kind} belgesine dönüştürülüyor ({request.Pages.Count} sayfa)…", async (progress, ct) =>
+        var kind = format switch { ConvertFormat.Word => "Word belgesine", ConvertFormat.PowerPoint => "PowerPoint sunusuna", ConvertFormat.Excel => "Excel çalışma kitabına", ConvertFormat.Image => "resme", _ => "metne" };
+        var ok = await RunBusyAsync($"{kind} dönüştürülüyor ({request.Pages.Count} sayfa)…", async (progress, ct) =>
         {
             result = await ConvertWorkflow.ConvertAsync(Document, target, request, progress, ct);
-        }, format == ConvertFormat.Word ? "convert-docx" : "convert-xlsx", Title, () => target);
+        }, ConvertWorkflow.TaskKind(format), Title, () => target);
         if (!ok || result is null) return null;
         LastConvert = result;
         StatusText = $"{Path.GetFileName(target)}: {ConvertWorkflow.Summarize(result)}";

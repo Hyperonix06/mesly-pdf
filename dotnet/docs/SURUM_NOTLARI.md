@@ -1,5 +1,41 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.7.0 (12 Kasım 2026) — Yeni tasarım: afişteki 12 ekran
+
+Arayüz, paylaşılan afiş tasarımına göre baştan kuruldu: kırmızı Mesly renkleri, solda menü (Ana Sayfa, PDF Aç, Dönüştür, OCR, Araçlar, Tarama, Ayarlar, Yardım) ve her işlem için ayrı ekran. Önceki sürümlerin tüm işlevleri korunuyor.
+
+### Ekranlar
+* **Ana Sayfa:** Hoş Geldiniz kartı, PDF Aç / OCR / Dönüştür / Tarama kutuları, Hızlı Erişim (Son Belgeler, Sık Kullanılanlar) ve bu ayın gerçek sayılarını gösteren gösterge paneli.
+* **Belgelerim:** Son Kullanılanlar, Tüm Belgeler (Belgeler, Masaüstü ve İndirilenler klasörlerindeki PDF'ler) ve Sık Kullanılanlar; arama, yıldızla sık kullanılanlara ekleme, liste/kart görünümü, satır menüsü (aç, yeni pencerede aç, klasörde göster, dönüştür, OCR, listeden kaldır), Yeni Pencere.
+* **PDF Görüntüleyici:** Giriş / Görünüm / Araçlar şeridi, sayfa küçük resimleri, sayfaya git kutusu, birden çok belge için sekmeler.
+* **PDF Düzenleme:** Giriş / Düzenle / Açıklama / İmza / Form sekmeleri.
+  * **Vurgula, Altını Çiz, Üstünü Çiz:** Metni sürükleyerek seçin; standart PDF açıklaması olarak eklenir (Acrobat dahil her okuyucuda görünür, silinebilir). Renk seçilebilir.
+  * **Açıklama (not):** Sayfaya tıklayıp yazın; Mesly'de yanında balon olarak, diğer okuyucularda not simgesi olarak görünür. Açıklamalar listesi: sayfasına git, seçerek sil; sayfadaki tüm açıklamaları kaldır.
+  * **İmza:** Fareyle/kalemle çizin, adınızı yazın veya imzanızın fotoğrafını seçin (kâğıt zemini otomatik saydam yapılır). İmza **saydam** yerleşir, alttaki yazıyı örtmez. İmzalar bu bilgisayarda kaydedilip yönetilebilir. **Tarih** ve **Ad Soyad** damgası.
+  * **Form:** Formu Doldur (metin, onay kutusu, radyo düğmesi, açılır liste), Formu Sıfırla, Düzleştir. Doldurulan değerler her PDF okuyucusunda aynı görünür.
+* **OCR (Metin Tanıma):** Kaynak (PDF, resim veya tarayıcı), dil, çıktı türü (Düzenlenebilir Metin, Aranabilir PDF, Word, TXT), sayfa yapısını koru, otomatik eğiklik düzeltme, **gürültü azaltma** (yeni: tek tük benekler temizlenir, nokta/virgül korunur), düzeltme önizlemesi.
+* **OCR Sonucu Düzenleme:** Tanınan metin sayfa görünümlü düzenleyicide: yazı tipi, boyut, kalın/eğik/altı çizili, renk, hizalama, madde işaretli ve numaralı liste, bağlantı; sayfa küçük resimleri; Word, TXT veya PDF olarak kaydet, yazdır, tümünü kopyala.
+* **Dönüştür:** Word, Excel, **PowerPoint (yeni)**, Resim, TXT; sayfa aralığı, gerektiğinde OCR. PowerPoint'te her sayfa bir slayt; metinler düzenlenebilir metin kutuları, tablolar gerçek PowerPoint tablosu.
+* **Toplu Dönüştürme:** Dosya / klasör ekle, satır başına biçim, durum (Beklemede, İşleniyor %, Tamamlandı, Hata), genel ilerleme, Durdur, çıktı klasörü.
+* **Sayfa Yönetimi:** Birleştir (sıra, dosya başına sayfa aralığı), Böl (her N sayfa, aralıklar, her sayfa, tek/çift), **Sırala** (küçük resimleri sürükleyip bırakın; Sıfırla / Uygula, Geri Al ile geri dönülür).
+* **Tarama:** Tarayıcı, renk, çözünürlük, dosya türü (PDF / JPG / PNG); hedef: yeni PDF, açık PDF'e ekle, resim olarak kaydet; **otomatik kırpma** (yeni), otomatik hizalama, besleyiciden çok sayfa, önizleme.
+* **Ayarlar:** Genel, Görüntüleme, Dönüştürme, OCR, Tarama, Güvenlik, Gelişmiş. Yeni: başlangıçta Ana Sayfa ya da son açık belgeler, otomatik güncelleme denetimi, varsayılan PDF görüntüleyici, tüm ayarları sıfırla, klavye kısayolları listesi.
+* **Hakkında / Yardım / Lisans:** sürüm, Windows 10/11 uyumluluğu, Lisans Sözleşmesi, Gizlilik Politikası, yardım konuları, üçüncü taraf lisansları.
+
+### Düzeltmeler
+* **Form alanları artık görüntüleniyor:** Önceki sürümlerde formlu PDF'lerde alanların çerçeveleri ve değerleri görüntüleyicide çizilmiyordu (PDF motoru form alanlarını ayrı bir adımda çizer). Düzeltildi.
+
+### Güncellemeler
+* Ayarlar'da açıksa uygulama günde bir kez GitHub'daki en son sürümü sorar (yalnız sürüm numarası; belge veya kişisel bilgi gönderilmez). Yeni sürüm varsa indirip kurmadan önce onayınız istenir.
+
+### Bilinen sınırlamalar (açıkça)
+* **Varsayılan PDF görüntüleyici:** Windows 10/11, programların kendini varsayılan yapmasına izin vermez. Anahtar, Windows'un Varsayılan uygulamalar sayfasını açar (Windows 11'de doğrudan Mesly'nin sayfası) ve gerçek durumu gösterir.
+* **İmza**, belgeye yerleştirilen el yazısı imza görüntüsüdür; nitelikli elektronik imza (e-imza) değildir.
+* **Arayüz dili** yalnızca Türkçedir.
+* **OCR sonucunu PDF olarak kaydet**, Windows'un yerleşik “Microsoft Print to PDF” yazıcısını kullanır; dosya adı Windows'un penceresinde sorulur. Bu yazıcı kapalıysa nasıl açılacağı söylenir.
+* **Otomatik kırpma**, kâğıttan farklı renkteki tarayıcı zeminini kırpar; zemin kâğıtla aynı renkteyse (beyaz kapak) kırpılacak bir şey ayırt edilemez ve görüntü değiştirilmez.
+* **Destek e-postası** henüz belirlenmedi; “Destek ile İletişim” şimdilik GitHub'daki sorun bildirme sayfasını açar.
+
 ## 0.6.2 (12 Kasım 2026) — Otomatik tanıma ve düzeltme
 
 * **Taranmış PDF açılınca her şey kendiliğinden:** Metni olmayan taranmış sayfalar arka planda düzeltilir (yan/ters sayfa dik çevrilir, eğiklik giderilir, kenar gölgeleri temizlenir) ve metni tanınır — önce ekrandaki sayfa. Belge bu sırada okunabilir; üstteki şeritte ilerleme ve **Durdur** düğmesi görünür.

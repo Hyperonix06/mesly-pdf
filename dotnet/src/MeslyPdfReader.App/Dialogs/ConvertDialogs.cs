@@ -14,8 +14,9 @@ public sealed class ConvertDialog : DialogBase
 
     public static ConvertRequest? Ask(ConvertFormat format, int pageCount, string range, int scannedPages, AppSettings s)
     {
-        bool word = format == ConvertFormat.Word;
-        var d = new ConvertDialog(word ? "Microsoft Word'e dönüştür" : "Microsoft Excel'e dönüştür");
+        bool word = format is ConvertFormat.Word or ConvertFormat.PowerPoint;
+        bool ppt = format == ConvertFormat.PowerPoint;
+        var d = new ConvertDialog(ppt ? "Microsoft PowerPoint'e dönüştür" : word ? "Microsoft Word'e dönüştür" : "Microsoft Excel'e dönüştür");
         var box = Form.Text(range);
         CheckBox Cb(string text, bool v, string tip) => new() { Content = text, IsChecked = v, Margin = new Thickness(0, 6, 0, 0), ToolTip = tip };
         var ocr = Cb("Taranmış sayfaların metnini önce tanı (OCR)", s.ConvertOcr,
@@ -28,7 +29,9 @@ public sealed class ConvertDialog : DialogBase
         var openAfter = Cb("Bitince dosyayı aç", s.ConvertOpenAfter, "Oluşturulan dosya varsayılan uygulamayla (Word, Excel, LibreOffice…) açılır.");
         var err = Error();
         var st = new StackPanel();
-        st.Children.Add(Paragraph(word
+        st.Children.Add(Paragraph(ppt
+            ? "Her sayfa bir slayta dönüşür: metinler özgün konumlarında düzenlenebilir metin kutuları, tablolar PowerPoint tablosu, resimler resim olarak aktarılır. Dönüşüm bu bilgisayarda yapılır."
+            : word
             ? "Sayfa düzeni çözümlenir: başlıklar, paragraflar, hizalama, yazı tipi ve renkler, tablolar ve resimler düzenlenebilir bir Word belgesine aktarılır. Dönüşüm bu bilgisayarda yapılır."
             : "Tablolar hücrelere, sayılar (1.250,50 · %18 · 3.437,50 TL) gerçek sayılara dönüştürülür; hesaplamada doğrudan kullanılabilir. Dönüşüm bu bilgisayarda yapılır."));
         st.Children.Add(Form.Labeled($"Sayfalar (1–{pageCount})", box));

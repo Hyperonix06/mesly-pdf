@@ -121,6 +121,28 @@ public sealed class AppDatabase
         return list;
     }
 
+    /// <summary>Belirli tarihten sonra açılmış (farklı) belge sayısı — gösterge paneli.</summary>
+    public int CountOpenedSince(DateTime since)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM recent_files WHERE last_opened >= $t";
+        cmd.Parameters.AddWithValue("$t", Iso(since));
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    /// <summary>Belirli tarihten sonra başarıyla biten, türü verilen öneklerden biriyle başlayan görev sayısı.</summary>
+    public int CountTasksSince(DateTime since, params string[] kindPrefixes)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        var ors = kindPrefixes.Select((k, i) => $"kind LIKE $k{i}").ToList();
+        cmd.CommandText = $"SELECT COUNT(*) FROM task_history WHERE status='ok' AND started >= $t" + (ors.Count > 0 ? $" AND ({string.Join(" OR ", ors)})" : "");
+        cmd.Parameters.AddWithValue("$t", Iso(since));
+        for (int i = 0; i < kindPrefixes.Length; i++) cmd.Parameters.AddWithValue($"$k{i}", kindPrefixes[i] + "%");
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
     public void SetPinned(string path, bool pinned)
     {
         using var c = Open();

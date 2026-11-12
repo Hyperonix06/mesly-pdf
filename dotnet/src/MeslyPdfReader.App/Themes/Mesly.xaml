@@ -3,16 +3,22 @@
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
     <!-- Mesly renkleri: ThemeService açık/koyu temada bu fırçaları günceller. -->
-    <SolidColorBrush x:Key="MeslyAccentBrush" Color="#3D7BFD" />
-    <SolidColorBrush x:Key="MeslyAccentSoftBrush" Color="#1F3D7BFD" />
+    <SolidColorBrush x:Key="MeslyAccentBrush" Color="#D91315" />
+    <SolidColorBrush x:Key="MeslyAccentSoftBrush" Color="#FDE7E6" />
+    <SolidColorBrush x:Key="MeslyAccentDarkBrush" Color="#B80F12" />
+    <SolidColorBrush x:Key="MeslyNavSelectedBrush" Color="#C4191A" />
+    <SolidColorBrush x:Key="MeslyCategorySelectedBrush" Color="#FCD3D1" />
+    <SolidColorBrush x:Key="MeslySubtleBrush" Color="#F3F4F6" />
+    <SolidColorBrush x:Key="MeslySuccessBrush" Color="#16A34A" />
+    <SolidColorBrush x:Key="MeslyStarBrush" Color="#F5A524" />
     <SolidColorBrush x:Key="MeslyCanvasBrush" Color="#E9ECF1" />
     <SolidColorBrush x:Key="MeslyPanelBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="MeslyChromeBrush" Color="#F6F7F9" />
     <SolidColorBrush x:Key="MeslyBorderBrush" Color="#E1E4EA" />
     <SolidColorBrush x:Key="MeslyHoverBrush" Color="#0F000000" />
-    <SolidColorBrush x:Key="MeslySelectedBrush" Color="#1F3D7BFD" />
+    <SolidColorBrush x:Key="MeslySelectedBrush" Color="#FDE7E6" />
     <SolidColorBrush x:Key="MeslyMutedTextBrush" Color="#6B7280" />
-    <SolidColorBrush x:Key="MeslyDropZoneBrush" Color="#F3F6FD" />
+    <SolidColorBrush x:Key="MeslyDropZoneBrush" Color="#FFF5F5" />
 
     <FontFamily x:Key="MeslyFont">Segoe UI Variable Text, Segoe UI, Arial</FontFamily>
     <FontFamily x:Key="MeslyDisplayFont">Segoe UI Variable Display, Segoe UI, Arial</FontFamily>
@@ -402,4 +408,248 @@
     </Style>
 
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+    <!-- ═══════════ Mesly tasarım dili (afiş) ═══════════ -->
+
+    <!-- Sol menü düğmesi: seçiliyken kırmızı dolgu, beyaz yazı -->
+    <Style x:Key="NavItem" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="12,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon x:Name="Ico" Symbol="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontSize="17" Margin="0,0,12,0" />
+                            <TextBlock x:Name="Txt" Text="{TemplateBinding Content}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyNavSelectedBrush}" />
+                            <Setter TargetName="Txt" Property="Foreground" Value="White" />
+                            <Setter TargetName="Ico" Property="Foreground" Value="White" />
+                            <Setter TargetName="Txt" Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Birincil (kırmızı) düğme -->
+    <Style x:Key="PrimaryButton" TargetType="ButtonBase">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{DynamicResource MeslyAccentBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ButtonBase">
+                    <Border x:Name="Bg" CornerRadius="6" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyAccentDarkBrush}" /></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Bg" Property="Opacity" Value="0.45" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- İkincil (çerçeveli) düğme -->
+    <Style x:Key="SecondaryButton" TargetType="ButtonBase">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource MeslyPanelBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource MeslyBorderBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ButtonBase">
+                    <Border x:Name="Bg" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource MeslyAccentBrush}" /></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Bg" Property="Opacity" Value="0.45" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Kart -->
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource MeslyPanelBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource MeslyBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <!-- Ekran başlığı ("Belgelerim", "PDF Dönüştürme"…) -->
+    <Style x:Key="ScreenTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource MeslyDisplayFont}" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+
+    <!-- Alt çizgili sekme (Son Kullanılanlar / Tüm Belgeler…, Birleştir / Böl / Sırala) -->
+    <Style x:Key="UnderlineTab" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid Background="Transparent">
+                        <TextBlock x:Name="Txt" Text="{TemplateBinding Content}" Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" />
+                        <Border x:Name="Bar" Height="2.5" VerticalAlignment="Bottom" Background="{DynamicResource MeslyAccentBrush}" Visibility="Hidden" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Txt" Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" /></Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Txt" Property="Foreground" Value="{DynamicResource MeslyAccentBrush}" />
+                            <Setter TargetName="Txt" Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Kutulu sekme (Birleştir / Böl / Sırala: seçili kırmızı dolgu) -->
+    <Style x:Key="SegmentTab" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="MinWidth" Value="104" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bg" CornerRadius="6" Background="{DynamicResource MeslySubtleBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1" Padding="14,0">
+                        <TextBlock x:Name="Txt" Text="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource MeslyAccentBrush}" /></Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyAccentBrush}" />
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource MeslyAccentBrush}" />
+                            <Setter TargetName="Txt" Property="Foreground" Value="White" />
+                            <Setter TargetName="Txt" Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Ayar kategorisi (seçili: açık pembe zemin) -->
+    <Style x:Key="CategoryItem" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="12,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ui:SymbolIcon x:Name="Ico" Symbol="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontSize="16" Margin="0,0,10,0" />
+                            <TextBlock x:Name="Txt" Text="{TemplateBinding Content}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyHoverBrush}" /></Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyCategorySelectedBrush}" />
+                            <Setter TargetName="Txt" Property="FontWeight" Value="SemiBold" />
+                            <Setter TargetName="Ico" Property="Foreground" Value="{DynamicResource MeslyAccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Biçim seçim kutusu (Word / Excel / PPT / Resim / TXT) -->
+    <Style x:Key="FormatTile" TargetType="RadioButton">
+        <Setter Property="Width" Value="76" />
+        <Setter Property="Height" Value="76" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Bg" CornerRadius="8" Background="{DynamicResource MeslyPanelBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1.5">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource MeslyAccentBrush}" /></Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource MeslyAccentBrush}" />
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyAccentSoftBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Görev kutusu (Ana Sayfa: PDF Aç / OCR / Dönüştür / Tarama) -->
+    <Style x:Key="TaskBox" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource MeslyPanelBrush}" />
+        <Setter Property="Width" Value="150" />
+        <Setter Property="Height" Value="116" />
+        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="1" Padding="10">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource MeslyAccentBrush}" />
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyDropZoneBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
 </ResourceDictionary>

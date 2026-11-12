@@ -48,7 +48,10 @@ public partial class App : Application
         Thread.CurrentThread.CurrentUICulture = tr;
         FrameworkElement.LanguageProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(System.Windows.Markup.XmlLanguage.GetLanguage("tr-TR")));
 
-        if (selfTestDir is null && benchFile is null)
+        // “Yeni Pencere”: tek örnek denetimi atlanır, bağımsız ikinci pencere açılır.
+        bool newWindow = args.Contains("--new-window");
+        args = args.Where(a => a != "--new-window").ToArray();
+        if (selfTestDir is null && benchFile is null && !newWindow)
         {
             _single = new SingleInstance();
             if (!_single.TryClaim(args.Where(File.Exists).ToArray()))
@@ -154,6 +157,9 @@ public partial class App : Application
         await vm.OfferRecoveryAsync();
         var files = args.Where(a => !a.StartsWith("--")).ToArray();
         if (files.Length > 0) await vm.OpenFilesAsync(files);
+        else await vm.RestoreSessionAsync();
+        // Güncelleme denetimi açılışı geciktirmesin
+        _ = Dispatcher.BeginInvoke(async () => { await Task.Delay(4000); await vm.CheckForUpdatesAsync(manual: false); }, DispatcherPriority.ApplicationIdle);
     }
 
     private void InstallCrashHandlers()

@@ -57,7 +57,8 @@ public static class OcrService
             if (Math.Abs(skew) >= 0.15) img = ImageOps.Rotate(img, -skew); else skew = 0;
         }
         if (c.WhitenBackground) whiten = ImageOps.WhitenBackground(img);
-        return (img, new CorrectionReport(turns, skew, borders, whiten, note));
+        int specks = c.Denoise ? ImageOps.Denoise(img, dpi) : 0;
+        return (img, new CorrectionReport(turns, skew, borders, whiten, note, specks));
     }
 
     /// <summary>Saat yönünde kaç çeyrek tur döndürülmesi gerektiği (0–3).</summary>

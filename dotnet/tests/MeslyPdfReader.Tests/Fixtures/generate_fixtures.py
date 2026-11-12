@@ -139,3 +139,20 @@ try:
         shutil.copy(os.path.join(tmp, 'edit_word.pdf'), os.path.join(out, 'edit_word.pdf'))
 except ImportError:
     pass
+
+# 10) form.pdf — AcroForm: metin alanı, onay kutusu, açılır liste, radyo düğmeleri (Formu Doldur / Sıfırla / Düzleştir testi)
+from reportlab.pdfgen import canvas as _fcanvas
+from reportlab.lib.colors import black as _black, white as _white
+_fc = _fcanvas.Canvas(os.path.join(out, "form.pdf"), pagesize=(595, 842))
+_fc.setFont("Helvetica-Bold", 16); _fc.drawString(72, 780, "Basvuru Formu")
+_fc.setFont("Helvetica", 11)
+_fc.drawString(72, 740, "Ad Soyad:")
+_fc.acroForm.textfield(name="adsoyad", x=160, y=732, width=260, height=20, borderColor=_black, fillColor=_white, textColor=_black, fontSize=11, value="")
+_fc.drawString(72, 700, "Onay:")
+_fc.acroForm.checkbox(name="onay", x=160, y=696, size=16, buttonStyle="check", borderColor=_black, fillColor=_white, checked=False)
+_fc.drawString(72, 660, "Sehir:")
+_fc.acroForm.choice(name="sehir", x=160, y=652, width=160, height=20, options=["Ankara", "Istanbul", "Izmir"], value="Ankara", fieldFlags="combo", borderColor=_black, fillColor=_white, textColor=_black, fontSize=11)
+_fc.drawString(72, 620, "Cinsiyet:")
+_fc.acroForm.radio(name="secim", value="evet", selected=False, x=160, y=616, size=14, buttonStyle="circle", borderColor=_black, fillColor=_white)
+_fc.acroForm.radio(name="secim", value="hayir", selected=True, x=220, y=616, size=14, buttonStyle="circle", borderColor=_black, fillColor=_white)
+_fc.save()

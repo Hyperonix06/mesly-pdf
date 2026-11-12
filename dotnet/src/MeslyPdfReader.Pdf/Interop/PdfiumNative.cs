@@ -8,6 +8,19 @@ namespace MeslyPdfReader.Pdf.Interop;
 internal struct FS_RECTF { public float left, top, right, bottom; }
 
 [StructLayout(LayoutKind.Sequential)]
+internal struct FS_QUADPOINTSF { public float x1, y1, x2, y2, x3, y3, x4, y4; }
+
+/// <summary>FPDF_FORMFILLINFO sürüm 1: tüm geri çağırmalar boş (PDFium her birini null denetler).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct FPDF_FORMFILLINFO
+{
+    public int version;
+    public nint Release, FFI_Invalidate, FFI_OutputSelectedRect, FFI_SetCursor, FFI_SetTimer, FFI_KillTimer, FFI_GetLocalTime,
+        FFI_OnChange, FFI_GetPage, FFI_GetCurrentPage, FFI_GetRotation, FFI_ExecuteNamedAction, FFI_SetTextFieldFocus,
+        FFI_DoURIAction, FFI_DoGoToAction, m_pJsPlatform;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 internal struct FS_SIZEF { public float width, height; }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -187,6 +200,46 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial nint FPDFPage_GetAnnot(nint page, int index);
     [LibraryImport(Lib)] public static partial int FPDFPage_RemoveAnnot(nint page, int index);
     [LibraryImport(Lib)] public static partial void FPDFPage_CloseAnnot(nint annot);
+
+    // ── Açıklamalar (işaretleme, not), formlar, düzleştirme ──
+    public const int FPDF_ANNOT_TEXT = 1, FPDF_ANNOT_FREETEXT = 3, FPDF_ANNOT_SQUARE = 5, FPDF_ANNOT_CIRCLE = 6, FPDF_ANNOT_HIGHLIGHT = 9,
+        FPDF_ANNOT_UNDERLINE = 10, FPDF_ANNOT_SQUIGGLY = 11, FPDF_ANNOT_STRIKEOUT = 12, FPDF_ANNOT_STAMP = 13, FPDF_ANNOT_INK = 15,
+        FPDF_ANNOT_POPUP = 16, FPDF_ANNOT_WIDGET = 20;
+    public const int FPDFANNOT_COLORTYPE_Color = 0;
+    public const int FPDF_ANNOT_FLAG_PRINT = 4;
+    public const int FPDF_FORMFIELD_UNKNOWN = 0, FPDF_FORMFIELD_PUSHBUTTON = 1, FPDF_FORMFIELD_CHECKBOX = 2, FPDF_FORMFIELD_RADIOBUTTON = 3,
+        FPDF_FORMFIELD_COMBOBOX = 4, FPDF_FORMFIELD_LISTBOX = 5, FPDF_FORMFIELD_TEXTFIELD = 6, FPDF_FORMFIELD_SIGNATURE = 7;
+    public const int FLAT_NORMALDISPLAY = 0, FLATTEN_FAIL = 0, FLATTEN_SUCCESS = 1, FLATTEN_NOTHINGTODO = 2;
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_SetColor(nint annot, int type, uint r, uint g, uint b, uint a);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_GetColor(nint annot, int type, out uint r, out uint g, out uint b, out uint a);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_AppendAttachmentPoints(nint annot, FS_QUADPOINTSF* quad);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_SetStringValue(nint annot, byte* key, ushort* value);
+    [LibraryImport(Lib)] public static partial CULong FPDFAnnot_GetStringValue(nint annot, byte* key, ushort* buffer, CULong buflen);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_SetFlags(nint annot, int flags);
+    [LibraryImport(Lib)] public static partial int FPDFPage_Flatten(nint page, int flag);
+    [LibraryImport(Lib)] public static partial nint FPDFDOC_InitFormFillEnvironment(nint doc, FPDF_FORMFILLINFO* info);
+    [LibraryImport(Lib)] public static partial void FPDFDOC_ExitFormFillEnvironment(nint handle);
+    [LibraryImport(Lib)] public static partial void FORM_OnAfterLoadPage(nint page, nint handle);
+    [LibraryImport(Lib)] public static partial void FORM_OnBeforeClosePage(nint page, nint handle);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_GetFormFieldType(nint handle, nint annot);
+    [LibraryImport(Lib)] public static partial CULong FPDFAnnot_GetFormFieldName(nint handle, nint annot, ushort* buffer, CULong buflen);
+    [LibraryImport(Lib)] public static partial CULong FPDFAnnot_GetFormFieldValue(nint handle, nint annot, ushort* buffer, CULong buflen);
+    [LibraryImport(Lib)] public static partial CULong FPDFAnnot_GetFormFieldExportValue(nint handle, nint annot, ushort* buffer, CULong buflen);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_GetFormFieldFlags(nint handle, nint annot);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_IsChecked(nint handle, nint annot);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_GetOptionCount(nint handle, nint annot);
+    [LibraryImport(Lib)] public static partial CULong FPDFAnnot_GetOptionLabel(nint handle, nint annot, int index, ushort* buffer, CULong buflen);
+    [LibraryImport(Lib)] public static partial int FPDFAnnot_IsOptionSelected(nint handle, nint annot, int index);
+    [LibraryImport(Lib)] public static partial int FORM_SetFocusedAnnot(nint handle, nint annot);
+    [LibraryImport(Lib)] public static partial int FORM_ForceToKillFocus(nint handle);
+    [LibraryImport(Lib)] public static partial int FORM_SelectAllText(nint handle, nint page);
+    [LibraryImport(Lib)] public static partial void FORM_ReplaceSelection(nint handle, nint page, ushort* text);
+    [LibraryImport(Lib)] public static partial int FORM_SetIndexSelected(nint handle, nint page, int index, int selected);
+    [LibraryImport(Lib)] public static partial int FORM_OnLButtonDown(nint handle, nint page, int modifier, double x, double y);
+    [LibraryImport(Lib)] public static partial int FORM_OnLButtonUp(nint handle, nint page, int modifier, double x, double y);
+    [LibraryImport(Lib)] public static partial void FPDF_FFLDraw(nint handle, nint bitmap, nint page, int startX, int startY, int sizeX, int sizeY, int rotate, int flags);
+    [LibraryImport(Lib)] public static partial int FPDF_GetFormType(nint doc);
+    [LibraryImport(Lib)] public static partial int FORM_OnMouseMove(nint handle, nint page, int modifier, double x, double y);
 
     // ── Aşama 4: OCR metin katmanı ve görüntü düzeltme ──
     public const int FPDF_TEXTRENDERMODE_FILL = 0, FPDF_TEXTRENDERMODE_INVISIBLE = 3;

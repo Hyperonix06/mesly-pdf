@@ -864,6 +864,14 @@ public sealed unsafe partial class PdfDocument
                     if (Native.FPDFImageObj_LoadJpegFileInline(pages, 1, obj, src.Access) == 0) throw new PdfException(PdfErrorKind.Format, "JPEG görüntüsü okunamadı.");
                 Native.FPDFImageObj_GetImagePixelSize(obj, out var w, out var h);
                 return ((int)w, (int)h);
+            case BitmapImageSource { Transparent: true } t:
+                fixed (byte* p = t.Image.Pixels)
+                {
+                    var bmp = Native.FPDFBitmap_CreateEx(t.Image.Width, t.Image.Height, Native.FPDFBitmap_BGRA, p, t.Image.Stride);
+                    try { if (Native.FPDFImageObj_SetBitmap(pages, 1, obj, bmp) == 0) throw new PdfException(PdfErrorKind.Unknown, "Görüntü eklenemedi."); }
+                    finally { Native.FPDFBitmap_Destroy(bmp); }
+                }
+                return (t.Image.Width, t.Image.Height);
             case BitmapImageSource b:
                 var bgr = ToBgrOnWhite(b.Image, out int stride);
                 fixed (byte* p = bgr)

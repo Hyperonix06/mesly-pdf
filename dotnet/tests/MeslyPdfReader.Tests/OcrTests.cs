@@ -105,6 +105,44 @@ public class OcrTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task DenoiseRemovesIsolatedSpecksButKeepsPunctuation()
+    {
+        var clean = await ScanLikeAsync();
+        var noisy = new BgraImage { Width = clean.Width, Height = clean.Height, Stride = clean.Stride, Pixels = (byte[])clean.Pixels.Clone() };
+        var rnd = new Random(7);
+        int added = 0;
+        var gray = ImageOps.ToGray(clean);
+        for (int k = 0; k < 400 && added < 150; k++)
+        {
+            int x = rnd.Next(20, clean.Width - 20), y = rnd.Next(20, clean.Height - 20);
+            // Yalnız boş alana benek koy (çevresi 15 px beyaz)
+            bool empty = true;
+            for (int yy = y - 15; yy <= y + 15 && empty; yy++) for (int xx = x - 15; xx <= x + 15; xx++) if (gray.Data[yy * gray.Width + xx] < 200) { empty = false; break; }
+            if (!empty) continue;
+            ImageOps.FillRect(noisy, x, y, x + 1 + rnd.Next(3), y + 1 + rnd.Next(3), 20, 20, 20);
+            added++;
+        }
+        int inkBefore = Dark(clean);
+        int removed = ImageOps.Denoise(noisy, 300);
+        // Rastgele benekler arada birbirine yakın düşebilir (o zaman yalıtılmış sayılmazlar): en az %95 silinmeli.
+        Assert.InRange(removed, (int)(added * 0.95), added);
+        // Metin pikselleri (noktalama dahil) korunmuş olmalı: temiz görüntüyle neredeyse aynı mürekkep miktarı.
+        Assert.InRange(Dark(noisy), inkBefore * 0.995, inkBefore * 1.005 + 20);
+        if (Ocr.OcrEngine.Unavailable() is null)
+        {
+            var text = (await OcrService.RecognizeAsync(noisy, 300, Langs)).Text;
+            Assert.Contains("şoföre", text);
+        }
+
+        static int Dark(BgraImage img)
+        {
+            int n = 0;
+            for (int i = 0; i < img.Pixels.Length; i += 4) if (img.Pixels[i] < 128) n++;
+            return n;
+        }
+    }
+
+    [Fact]
     public void BlankPageHasNoSkew()
     {
         var g = new GrayImage(800, 1100);
@@ -224,5 +262,38 @@ public class OcrTests(ITestOutputHelper log)
         Assert.True(ImageOps.WhitenBackground(img));
         Assert.True(img.Pixels[(50 * 100 + 50) * 4 + 2] >= 250);
         Assert.True(img.Pixels[(20 * 100 + 20) * 4] < 40);
+    }
+}
+
+public class AutoCropTests
+{
+    private static BgraImage Bed(int w, int h, byte bed, int px0, int py0, int px1, int py1)
+    {
+        var img = new BgraImage { Width = w, Height = h, Stride = w * 4, Pixels = new byte[w * h * 4] };
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+        {
+            bool paper = x >= px0 && x < px1 && y >= py0 && y < py1;
+            byte v = paper ? (byte)245 : bed;
+            if (paper && y % 40 == 20 && x > px0 + 30 && x < px1 - 30) v = 30; // yazı satırı
+            int o = y * img.Stride + x * 4; img.Pixels[o] = img.Pixels[o + 1] = img.Pixels[o + 2] = v; img.Pixels[o + 3] = 255;
+        }
+        return img;
+    }
+
+    [Fact]
+    public void CropsDarkBedAroundPaper()
+    {
+        var img = Bed(800, 1000, 60, 100, 80, 700, 950);
+        var c = ImageOps.AutoCropToPaper(img);
+        Assert.NotNull(c);
+        Assert.InRange(c!.Width, 598, 602);
+        Assert.InRange(c.Height, 868, 872);
+    }
+
+    [Fact]
+    public void LeavesWhiteBedUntouched()
+    {
+        Assert.Null(ImageOps.AutoCropToPaper(Bed(800, 1000, 245, 100, 80, 700, 950)));
+        Assert.Null(ImageOps.AutoCropToPaper(Bed(800, 1000, 60, 0, 0, 800, 1000)));
     }
 }

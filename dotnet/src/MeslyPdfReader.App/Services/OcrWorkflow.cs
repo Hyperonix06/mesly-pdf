@@ -9,7 +9,7 @@ namespace MeslyPdfReader.App.Services;
 public sealed record OcrRunOptions(string Languages, ImageCorrection Correction, int Dpi = 300, bool SkipPagesWithText = true)
 {
     public static OcrRunOptions From(AppSettings s) =>
-        new(s.OcrLanguages, new ImageCorrection(s.OcrAutoRotate, s.OcrDeskew, s.OcrCleanBorders, s.OcrWhiten), s.OcrDpi);
+        new(s.OcrLanguages, new ImageCorrection(s.OcrAutoRotate, s.OcrDeskew, s.OcrCleanBorders, s.OcrWhiten, s.OcrDenoise), s.OcrDpi);
 }
 
 /// <summary>Bir sayfanın tanıma sonucu.</summary>
@@ -67,7 +67,7 @@ public static class OcrWorkflow
     {
         if (ocr && o.SkipPagesWithText && await doc.CountRealTextCharsAsync(page) > 40)
             return new OcrPageResult(page, null, null, "sayfada zaten seçilebilir metin var");
-        int turns = 0; double skew = 0; bool borders = false, whiten = false;
+        int turns = 0, specks = 0; double skew = 0; bool borders = false, whiten = false;
         var c = o.Correction;
         // 1) Yön: sayfa döndürmesi değiştirilir (kayıpsız).
         if (c.AutoRotate)
@@ -78,7 +78,7 @@ public static class OcrWorkflow
         }
         progress(0.15);
         // 2) Eğiklik / kenar / arka plan: yalnızca sayfanın tamamını kaplayan taranmış görüntü üzerinde.
-        if (c.Deskew || c.CleanBorders || c.WhitenBackground)
+        if (c.Deskew || c.CleanBorders || c.WhitenBackground || c.Denoise)
         {
             var main = await doc.GetMainImageAsync(page);
             if (main is { CoverRatio: >= 0.85 })
@@ -94,11 +94,11 @@ public static class OcrWorkflow
                 if (rep.Changed)
                 {
                     await doc.SetImagePixelsAsync(page, main.ObjectIndex, fixedImg);
-                    skew = rep.DeskewDegrees; borders = rep.BordersCleaned; whiten = rep.BackgroundWhitened;
+                    skew = rep.DeskewDegrees; borders = rep.BordersCleaned; whiten = rep.BackgroundWhitened; specks = rep.SpecksRemoved;
                 }
             }
         }
-        var report = new CorrectionReport(turns, skew, borders, whiten);
+        var report = new CorrectionReport(turns, skew, borders, whiten, null, specks);
         progress(0.25);
         if (!ocr) return new OcrPageResult(page, null, report, null);
         // 3) Tanıma ve görünmez metin katmanı.

@@ -13,7 +13,10 @@ namespace MeslyPdfReader.App.Controls;
 
 public enum ZoomMode { Custom, FitWidth, FitPage, ActualSize }
 public enum PageLayoutMode { Continuous, SinglePage, TwoPageContinuous, TwoPage }
-public enum ViewerTool { Select, Hand, Edit }
+public enum ViewerTool { Select, Hand, Edit, Highlight, Underline, StrikeOut, Note }
+
+/// <summary>Metin işaretleme açıklaması isteği: seçilen metnin satır dikdörtgenleri (PDF koordinatı).</summary>
+public sealed record MarkupRequest(ViewerTool Kind, int Page, IReadOnlyList<RectF> Rects, string Text);
 
 public readonly record struct TextPosition(int Page, int Char) : IComparable<TextPosition>
 {
@@ -78,6 +81,12 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
     public event EventHandler<LinkInfo>? LinkActivated;
     public event EventHandler? SelectionChanged;
     public event EventHandler<string>? StatusMessage;
+    /// <summary>Vurgula / altını çiz / üstünü çiz aracıyla metin seçildi (sayfa başına bir istek).</summary>
+    public event EventHandler<MarkupRequest>? MarkupRequested;
+    /// <summary>Not aracıyla sayfaya tıklandı: (sayfa, x, y) PDF koordinatı.</summary>
+    public event EventHandler<(int Page, double X, double Y)>? NoteRequested;
+
+    private bool MarkupTool => Tool is ViewerTool.Highlight or ViewerTool.Underline or ViewerTool.StrikeOut;
 
     // ─────────────── Durum ───────────────
 
@@ -103,6 +112,7 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
         public int Revision;
         public PageGeometry? Geometry;
         public IReadOnlyList<LinkInfo>? Links;
+        public IReadOnlyList<AnnotationInfo>? Notes;
         public PageText? Text;
         public List<EditItem>? EditItems;
         public bool LoadingBasic, LoadingText, LoadingEdit;
@@ -126,7 +136,6 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
     private static readonly Brush LinkHoverBrush = Freeze(new SolidColorBrush(Color.FromArgb(0x22, 0x3D, 0x7B, 0xFD)));
     private static readonly Typeface UiFace = new("Segoe UI");
 
-    private static T Freeze<T>(T f) where T : Freezable { f.Freeze(); return f; }
 
     public PdfViewer()
     {
@@ -587,8 +596,44 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
             var (x, y, w, hh) = g.ToDevice(link.Rect, r.X, r.Y, r.Width, r.Height, ViewRotation);
             dc.DrawRoundedRectangle(LinkHoverBrush, null, new Rect(x, y, w, hh), 2, 2);
         }
+        if (ShowNoteCallouts && aux.Notes is { Count: > 0 } notes)
+            foreach (var n in notes) DrawNoteCallout(dc, g, r, n);
         DrawEditOverlay(dc, page, r);
         dc.Pop();
+    }
+
+    /// <summary>Not açıklamalarının içeriğini simgenin yanında balonla gösterir (yalnız ekranda; belgeye yazılmaz).</summary>
+    public bool ShowNoteCallouts { get; set; } = true;
+
+    private static readonly Brush NoteBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFD, 0xE7, 0xE6)));
+    private static readonly Pen NotePen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0xD9, 0x13, 0x15)), 1));
+    private static readonly Typeface NoteFace = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+    private static readonly Typeface NoteBold = new(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+    private static T Freeze<T>(T f) where T : Freezable { f.Freeze(); return f; }
+
+    private void DrawNoteCallout(DrawingContext dc, PageGeometry g, Rect r, AnnotationInfo n)
+    {
+        var (x, y, w, h) = g.ToDevice(n.Rect, r.X, r.Y, r.Width, r.Height, ViewRotation);
+        double pxPerDip = _dpi.PixelsPerDip;
+        var text = n.Contents.Length > 160 ? n.Contents[..157] + "…" : n.Contents;
+        var head = new FormattedText("Açıklama:", System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, NoteBold, 11, Brushes.Black, pxPerDip);
+        var body = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, NoteFace, 11, Brushes.Black, pxPerDip) { MaxTextWidth = 180 };
+        double bw = Math.Max(head.Width, body.Width) + 14, bh = head.Height + body.Height + 10;
+        double bx = x + w + 6, by = y;
+        if (bx + bw > r.Right) bx = Math.Max(r.Left, x - bw - 6);
+        var box = new Rect(bx, by, bw, bh);
+        dc.DrawRoundedRectangle(NoteBrush, NotePen, box, 4, 4);
+        dc.DrawText(head, new Point(bx + 7, by + 4));
+        dc.DrawText(body, new Point(bx + 7, by + 4 + head.Height));
+    }
+
+    /// <summary>Fare altındaki notun metni (ipucu için).</summary>
+    private string? HitNote(Point p)
+    {
+        var u = ViewToPageUnit(p);
+        if (u is not { } hit || !_aux.TryGetValue(hit.Page, out var aux) || aux.Notes is not { Count: > 0 } notes || aux.Geometry is not { } g) return null;
+        var (x, y) = g.FromUnit(hit.U, hit.V, ViewRotation);
+        return notes.FirstOrDefault(n => n.Rect.Contains(x, y))?.Contents;
     }
 
     private Dictionary<int, List<SearchHit>>? _hitsByPage;
@@ -647,7 +692,7 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
             RequestPage(i, allowRegion: true, lowPriority: false);
         }
         foreach (var i in prefetch) RequestPage(i, allowRegion: false, lowPriority: true);
-        if (Tool == ViewerTool.Select) foreach (var i in visible) EnsureText(i);
+        if (Tool == ViewerTool.Select || MarkupTool) foreach (var i in visible) EnsureText(i);
         if (Tool == ViewerTool.Edit) foreach (var i in visible) EnsureEditItems(i);
         _cache.Trim(wanted);
     }
@@ -764,8 +809,11 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
             {
                 var g = await doc.GetGeometryAsync(page);
                 var links = await doc.GetLinksAsync(page);
+                IReadOnlyList<AnnotationInfo> notes;
+                try { notes = (await doc.GetAnnotationsAsync(page)).Where(a => a.Kind == AnnotKind.Note && a.Contents.Length > 0).ToList(); }
+                catch { notes = Array.Empty<AnnotationInfo>(); }
                 if (doc.Revision != rev || !ReferenceEquals(doc, Document)) return;
-                aux.Geometry = g; aux.Links = links;
+                aux.Geometry = g; aux.Links = links; aux.Notes = notes;
                 InvalidateVisual();
                 then?.Invoke();
             }
@@ -859,6 +907,30 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
         return false;
     }
 
+    /// <summary>Seçimi sayfa başına satır dikdörtgenlerine çevirip işaretleme isteği gönderir; seçim temizlenir.</summary>
+    private async Task EmitMarkupAsync()
+    {
+        var doc = Document;
+        if (doc is null || _selAnchor is not { } a || _selFocus is not { } f) return;
+        var kind = Tool;
+        var (s, e) = a.CompareTo(f) <= 0 ? (a, f) : (f, a);
+        var requests = new List<MarkupRequest>();
+        for (int p = s.Page; p <= e.Page; p++)
+        {
+            var t = await doc.GetPageTextAsync(p);
+            if (t.Length == 0) continue;
+            int start = p == s.Page ? Math.Clamp(s.Char, 0, t.Length - 1) : 0;
+            int end = p == e.Page ? Math.Clamp(e.Char, 0, t.Length - 1) : t.Length - 1;
+            if (end < start) continue;
+            var rects = t.GetLineRects(start, end).Where(r => !r.IsEmpty).ToList();
+            if (rects.Count > 0) requests.Add(new MarkupRequest(kind, p, rects, t.Text.Substring(start, end - start + 1)));
+        }
+        _selAnchor = _selFocus = null;
+        InvalidateVisual();
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        foreach (var r in requests) MarkupRequested?.Invoke(this, r);
+    }
+
     private TextPosition? HitText(Point p, bool exact)
     {
         var u = ViewToPageUnit(p);
@@ -894,7 +966,17 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
             return;
         }
         if (EditMouseDown(e, p)) { e.Handled = true; return; }
-        _linkCandidate = HitLink(p) is not null;
+        if (Tool == ViewerTool.Note)
+        {
+            if (ViewToPageUnit(p) is { } nh && _aux.TryGetValue(nh.Page, out var na) && na.Geometry is { } ng && ViewRect(nh.Page).Contains(p))
+            {
+                var (nx, ny) = ng.FromUnit(nh.U, nh.V, ViewRotation);
+                NoteRequested?.Invoke(this, (nh.Page, nx, ny));
+            }
+            e.Handled = true;
+            return;
+        }
+        _linkCandidate = !MarkupTool && HitLink(p) is not null;
         if (e.ClickCount == 2) { SelectWordAt(p); e.Handled = true; return; }
         var pos = HitText(p, exact: false);
         _selAnchor = _selFocus = pos;
@@ -944,7 +1026,8 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
         else
         {
             ToolTip = null;
-            Cursor = Tool == ViewerTool.Hand ? Cursors.Hand : HitText(p, exact: true) is not null ? Cursors.IBeam : Cursors.Arrow;
+            Cursor = Tool == ViewerTool.Hand ? Cursors.Hand : Tool == ViewerTool.Note ? Cursors.Cross : HitText(p, exact: true) is not null ? Cursors.IBeam : Cursors.Arrow;
+            if (Tool != ViewerTool.Edit && HitNote(p) is { } note) ToolTip = note;
         }
     }
 
@@ -978,6 +1061,7 @@ public sealed partial class PdfViewer : FrameworkElement, IScrollInfo
         if (wasSelecting)
         {
             if (_selAnchor == _selFocus) { _selAnchor = _selFocus = null; InvalidateVisual(); }
+            else if (MarkupTool) { _ = EmitMarkupAsync(); return; }
             SelectionChanged?.Invoke(this, EventArgs.Empty);
         }
     }

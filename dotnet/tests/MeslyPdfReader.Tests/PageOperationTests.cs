@@ -232,3 +232,19 @@ public class GeometryTests
         }
     }
 }
+
+public class ReorderTests
+{
+    [Fact]
+    public async Task ReordersAllPagesInOneStep()
+    {
+        using var doc = await Fx.CreateNumberedAsync(5);
+        await doc.ReorderPagesAsync(new[] { 3, 0, 4, 2, 1 });
+        var texts = new List<string>();
+        for (int i = 0; i < 5; i++) texts.Add((await doc.GetPageTextAsync(i)).Text);
+        Assert.Contains("Sayfa 4", texts[0]); Assert.Contains("Sayfa 1", texts[1]); Assert.Contains("Sayfa 5", texts[2]);
+        Assert.Contains("Sayfa 3", texts[3]); Assert.Contains("Sayfa 2", texts[4]);
+        Assert.True(doc.IsModified);
+        await Assert.ThrowsAsync<ArgumentException>(() => doc.ReorderPagesAsync(new[] { 0, 0, 1, 2, 3 }));
+    }
+}

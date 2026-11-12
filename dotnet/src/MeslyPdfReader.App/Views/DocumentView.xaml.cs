@@ -26,6 +26,8 @@ public partial class DocumentView : UserControl
         Viewer.LinkActivated += (_, link) => _vm?.OnLinkActivated(link);
         Viewer.SelectionChanged += (_, _) => { if (_vm is not null) _vm.HasSelection = Viewer.HasSelection; };
         Viewer.StatusMessage += (_, m) => { if (_vm is not null) _vm.StatusText = m; };
+        Viewer.MarkupRequested += (_, r) => { if (_vm is not null) _ = _vm.AddMarkupAsync(r); };
+        Viewer.NoteRequested += (_, n) => { if (_vm is not null) _ = _vm.AddNoteAtAsync(n.Page, n.X, n.Y); };
         IsVisibleChanged += (_, _) => { if (IsVisible) Viewer.Focus(); };
         Loaded += (_, _) => { ApplyPanels(); Viewer.Focus(); };
     }
@@ -122,14 +124,14 @@ public partial class DocumentView : UserControl
     {
         if (_vm is null || ItemAt(e.OriginalSource as DependencyObject)?.DataContext is not ThumbnailItem t) return;
         _vm.CurrentPage = t.Index;
-        _vm.Main.Ribbon = RibbonTab.Document;
+        _vm.IsOrganizeMode = false;
     }
 
     private void ThumbList_KeyDown(object sender, KeyEventArgs e)
     {
         if (_vm is null) return;
         if (e.Key == Key.Delete) { _vm.DeletePagesCommand.Execute(null); e.Handled = true; }
-        else if (e.Key == Key.Enter && (sender as ListBox)?.SelectedItem is ThumbnailItem t) { _vm.CurrentPage = t.Index; if (_vm.IsOrganizeMode) _vm.Main.Ribbon = RibbonTab.Document; Viewer.Focus(); e.Handled = true; }
+        else if (e.Key == Key.Enter && (sender as ListBox)?.SelectedItem is ThumbnailItem t) { _vm.CurrentPage = t.Index; if (_vm.IsOrganizeMode) _vm.IsOrganizeMode = false; Viewer.Focus(); e.Handled = true; }
     }
 
     private void Thumb_PreviewMouseDown(object sender, MouseButtonEventArgs e)

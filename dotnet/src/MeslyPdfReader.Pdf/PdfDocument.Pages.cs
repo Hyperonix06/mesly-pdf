@@ -84,6 +84,25 @@ public sealed unsafe partial class PdfDocument
         MarkChanged();
     });
 
+    /// <summary>Sayfaları yeni sıraya dizer: <paramref name="newOrder"/>[k] = k. konuma gelecek özgün sayfa. Yer imleri izlenir.</summary>
+    public Task ReorderPagesAsync(IReadOnlyList<int> newOrder) => _engine.RunAsync(() =>
+    {
+        ThrowIfDisposed();
+        int n = PageCount;
+        if (newOrder.Count != n || newOrder.Distinct().Count() != n || newOrder.Any(i => i < 0 || i >= n))
+            throw new ArgumentException("Sayfa sırası tüm sayfaları birer kez içermeli.");
+        if (newOrder.SequenceEqual(Enumerable.Range(0, n))) return;
+        var arr = newOrder.ToArray();
+        ClosePages();
+        fixed (int* p = arr)
+            if (Native.FPDF_MovePages(_doc, p, new CULong((uint)arr.Length), 0) == 0)
+                throw new PdfException(PdfErrorKind.Unsupported, "Sayfalar yeniden sıralanamadı.");
+        var pos = new int[n];
+        for (int k = 0; k < n; k++) pos[arr[k]] = k;
+        RemapBookmarks(old => pos[old]);
+        MarkChanged();
+    });
+
     /// <summary>Sayfaları kalıcı olarak döndürür (90° katları, saat yönünde pozitif).</summary>
     public Task RotatePagesAsync(IEnumerable<int> indices, int quarterTurns) => _engine.RunAsync(() =>
     {

@@ -64,4 +64,37 @@ public sealed class AppSettings
     public int CompressLevel { get => Math.Clamp(GetInt("compress.level", 1), 0, 2); set => Set("compress.level", value.ToString(CultureInfo.InvariantCulture)); }
     public bool CompressGray { get => GetBool("compress.gray", false); set => Set("compress.gray", value ? "1" : "0"); }
     public bool ConfirmExternalLinks { get => GetBool("security.confirmLinks", true); set => Set("security.confirmLinks", value ? "1" : "0"); }
+
+    // ── Afiş düzeni (0.7) ──
+    /// <summary>Açılışta Ana Sayfa gösterilsin; kapalıysa önceki oturumda açık olan belgeler yeniden açılır.</summary>
+    public bool StartupHome { get => GetBool("general.startupHome", true); set => Set("general.startupHome", value ? "1" : "0"); }
+    /// <summary>Son oturumda açık belgeler ('|' ile ayrılmış).</summary>
+    public string? LastSession { get => Get("general.lastSession"); set => Set("general.lastSession", value); }
+    /// <summary>Yeni sürüm denetimi (yalnız sürüm numarası sorulur).</summary>
+    public bool UpdateCheck { get => GetBool("update.check", true); set => Set("update.check", value ? "1" : "0"); }
+    public string? LastUpdateCheck { get => Get("update.last"); set => Set("update.last", value); }
+    public bool OcrDenoise { get => GetBool("ocr.denoise", true); set => Set("ocr.denoise", value ? "1" : "0"); }
+    public bool OcrKeepLayout { get => GetBool("ocr.keepLayout", true); set => Set("ocr.keepLayout", value ? "1" : "0"); }
+    /// <summary>OCR ekranı çıktı türü: 0 düzenlenebilir metin, 1 aranabilir PDF, 2 Word, 3 düz metin.</summary>
+    public int OcrOutput { get => Math.Clamp(GetInt("ocr.output", 0), 0, 3); set => Set("ocr.output", value.ToString(CultureInfo.InvariantCulture)); }
+    public bool ScanAutoCrop { get => GetBool("scan.autoCrop", true); set => Set("scan.autoCrop", value ? "1" : "0"); }
+    public bool ScanFeeder { get => GetBool("scan.feeder", false); set => Set("scan.feeder", value ? "1" : "0"); }
+    /// <summary>Tarama dosya türü: 0 PDF, 1 JPG, 2 PNG.</summary>
+    public int ScanFileType { get => Math.Clamp(GetInt("scan.fileType", 0), 0, 2); set => Set("scan.fileType", value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Tarama hedefi: 0 yeni PDF, 1 mevcut PDF'e ekle, 2 resim olarak kaydet.</summary>
+    public int ScanTarget { get => Math.Clamp(GetInt("scan.target", 0), 0, 2); set => Set("scan.target", value.ToString(CultureInfo.InvariantCulture)); }
+    /// <summary>Toplu dönüştürme çıktı klasörü; boşsa her dosyanın kendi klasörü.</summary>
+    /// <summary>PDF → Resim: 0 PNG, 1 JPG.</summary>
+    public int ExportImageFormat { get => Math.Clamp(GetInt("export.imageFormat", 0), 0, 1); set => Set("export.imageFormat", value.ToString(CultureInfo.InvariantCulture)); }
+    public string? BatchOutputFolder { get => Get("batch.output"); set => Set("batch.output", value); }
+    /// <summary>İmza sekmesindeki “Ad Soyad” için hatırlanan ad.</summary>
+    public string? SignName { get => Get("sign.name"); set => Set("sign.name", value); }
+    public string AnnotColor { get => Get("annot.color") is { Length: 7 } v ? v : "#FFE14D"; set => Set("annot.color", value); }
+
+    /// <summary>Tüm ayarları varsayılana döndürür (belgeler ve geçmiş etkilenmez).</summary>
+    public void ResetAll()
+    {
+        foreach (var k in _db.GetAllSettings().Keys.ToList()) _db.SetSetting(k, null);
+        Changed?.Invoke("*");
+    }
 }

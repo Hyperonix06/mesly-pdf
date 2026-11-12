@@ -173,6 +173,7 @@ public sealed unsafe partial class PdfDocument : IDisposable
         }
         var page = Native.FPDF_LoadPage(_doc, index);
         if (page == 0) throw new PdfException(PdfErrorKind.Page, $"Sayfa {index + 1} yüklenemedi.");
+        if (Form() is var fh && fh != 0) Native.FORM_OnAfterLoadPage(page, fh);
         var n = _pageLru.AddFirst((index, page, (nint)0));
         _pageMap[index] = n;
         while (_pageLru.Count > MaxCachedPages)
@@ -196,10 +197,41 @@ public sealed unsafe partial class PdfDocument : IDisposable
         return tp;
     }
 
-    private static void ClosePageEntry((int Index, nint Page, nint Text) e)
+    private void ClosePageEntry((int Index, nint Page, nint Text) e)
     {
         if (e.Text != 0) Native.FPDFText_ClosePage(e.Text);
-        if (e.Page != 0) Native.FPDF_ClosePage(e.Page);
+        if (e.Page != 0)
+        {
+            if (_form != 0) Native.FORM_OnBeforeClosePage(e.Page, _form);
+            Native.FPDF_ClosePage(e.Page);
+        }
+    }
+
+    // ───────────────────────────── Form ortamı ─────────────────────────────
+    // PDFium form alanlarını (widget) FPDF_RenderPageBitmap ile değil, form ortamı üzerinden FPDF_FFLDraw ile çizer;
+    // form içeren belgelerde ortam kalıcı tutulur, yüklenen her sayfa ortama bağlanır.
+
+    private nint _form;
+    private FPDF_FORMFILLINFO* _formInfo;
+
+    /// <summary>Belgenin form tutamacı; formu olmayan belgede 0.</summary>
+    private nint Form()
+    {
+        if (_form != 0 || _doc == 0) return _form;
+        if (Native.FPDF_GetFormType(_doc) == 0) return 0; // FORMTYPE_NONE
+        _formInfo = (FPDF_FORMFILLINFO*)NativeMemory.AllocZeroed((nuint)sizeof(FPDF_FORMFILLINFO));
+        _formInfo->version = 1;
+        _form = Native.FPDFDOC_InitFormFillEnvironment(_doc, _formInfo);
+        if (_form == 0) { NativeMemory.Free(_formInfo); _formInfo = null; }
+        return _form;
+    }
+
+    /// <summary>Form ortamını kapatır (sayfalar önce kapatılır). Sonraki erişimde yeniden kurulur.</summary>
+    private void ExitForm()
+    {
+        ClosePages();
+        if (_form != 0) { Native.FPDFDOC_ExitFormFillEnvironment(_form); _form = 0; }
+        if (_formInfo is not null) { NativeMemory.Free(_formInfo); _formInfo = null; }
     }
 
     private void ClosePages()
@@ -283,6 +315,8 @@ public sealed unsafe partial class PdfDocument : IDisposable
             {
                 Native.FPDFBitmap_FillRect(bmp, 0, 0, w, h, new CULong(0xFFFFFFFF));
                 Native.FPDF_RenderPageBitmap(bmp, page, -r.X, -r.Y, r.FullWidth, r.FullHeight, ((r.QuarterTurns % 4) + 4) % 4, flags);
+                if (r.Annotations && _form != 0)
+                    Native.FPDF_FFLDraw(_form, bmp, page, -r.X, -r.Y, r.FullWidth, r.FullHeight, ((r.QuarterTurns % 4) + 4) % 4, flags);
             }
             finally { Native.FPDFBitmap_Destroy(bmp); }
         }
@@ -460,7 +494,7 @@ public sealed unsafe partial class PdfDocument : IDisposable
 
     private void CloseNative()
     {
-        ClosePages();
+        ExitForm();
         foreach (var f in _fonts.Values) Native.FPDFFont_Close(f);
         _fonts.Clear();
         if (_doc != 0) { Native.FPDF_CloseDocument(_doc); _doc = 0; }

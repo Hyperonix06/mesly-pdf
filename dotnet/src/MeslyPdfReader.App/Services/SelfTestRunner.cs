@@ -20,7 +20,7 @@ namespace MeslyPdfReader.App.Services;
 /// Her adım için beklenen / gerçek sonuç kaydedilir; ekran görüntüleri klasöre yazılır.
 /// Çalıştırılmayan veya atlanan adımlar başarılı sayılmaz.
 /// </summary>
-public sealed class SelfTestRunner
+public sealed partial class SelfTestRunner
 {
     private readonly MainWindow _w;
     private readonly MainViewModel _vm;
@@ -408,18 +408,6 @@ public sealed class SelfTestRunner
             return (ok, info);
         });
 
-        await Step("Ayarlar", "Ayarlar penceresi", "Açılır, tüm bölümler oluşturulur", async () =>
-        {
-            var win = SettingsWindow.CreateForTest(_vm, _settings, _db);
-            win.Show();
-            await Task.Delay(500);
-            await Idle();
-            var path = Path.Combine(_dir, "11-ayarlar.png");
-            ImageCodec.CaptureVisual((FrameworkElement)win.Content, path);
-            win.Close();
-            return (File.Exists(path), "ekran görüntüsü alındı");
-        });
-
         await Step("Veri", "Son dosyalar ve son sayfa", "Örnek belge geçmişte; son sayfa hatırlanır", async () =>
         {
             tab.CurrentPage = 12;
@@ -609,7 +597,7 @@ public sealed class SelfTestRunner
 
         await Step("Tanıma", "Taranmış PDF: bilgi şeridi → metni tanı → aranabilir", "Şerit görünür; tanımadan sonra Türkçe metin aranır, görünüm değişmez", async () =>
         {
-            _vm.Ribbon = RibbonTab.Document; // düzenleme kipi açıkken sayfa kendiliğinden tanınırdı; burada elle tanıma sınanır
+            _vm.SetEditMode(false); // düzenleme kipi açıkken sayfa kendiliğinden tanınırdı; burada elle tanıma sınanır
             await Idle();
             await _vm.OpenFilesAsync(new[] { scanPdf });
             var st = _vm.ActiveTab!;
@@ -631,7 +619,7 @@ public sealed class SelfTestRunner
         await Step("Tanıma", "Taranmış sayfada metni düzenle", "Düzenle sekmesi aracı açar; OCR paragrafı değişir, görüntüdeki eski yazı silinir", async () =>
         {
             var st = _vm.ActiveTab!;
-            _vm.Ribbon = RibbonTab.EditContent;
+            _vm.SetEditMode(true);
             bool toolOn = st.Tool == ViewerTool.Edit;
             await WaitUntil(() => Viewer!.EditItemCount(0) > 0, 8000);
             var para = (await st.Document.GetParagraphsAsync(0)).FirstOrDefault(p => p.Text.Contains("otuz"));
@@ -645,7 +633,7 @@ public sealed class SelfTestRunner
             Shot("19-taranmis-sayfada-duzenleme");
             var text = Flat((await st.Document.GetPageTextAsync(0)).Text);
             var objs = await st.Document.GetPageObjectsAsync(0);
-            _vm.Ribbon = RibbonTab.Document;
+            _vm.SetEditMode(false);
             bool toolOff = st.Tool == ViewerTool.Select;
             bool ok = toolOn && toolOff && ok1 && text.Contains("kırk beş gün") && !text.Contains("otuz gün") && text.Contains("İstanbul") && !objs.Any(o => o.Kind == PageObjectKind.Path);
             return (ok, $"araç açıldı={toolOn}, kapandı={toolOff}, metin değişti={ok1}, yeni metin={text.Contains("kırk beş gün")}, eski metin yok={!text.Contains("otuz gün")}; {st.StatusText}");
@@ -667,7 +655,7 @@ public sealed class SelfTestRunner
                 await doc.SaveAsync(rawPdf);
             _settings.OcrAutoOnOpen = true;
             // Zor durum: İçeriği Düzenle kipindeyken açılır — düzenleme kipinin tanıması ile arka plan işi çakışmamalı.
-            _vm.Ribbon = RibbonTab.EditContent;
+            _vm.SetEditMode(true);
             await Idle();
             try
             {
@@ -688,7 +676,7 @@ public sealed class SelfTestRunner
                 int okLines = ocrLines.Count(l => text.Contains(l.TrimEnd('.')));
                 bool upright = size.Height > size.Width;
                 bool modified = st.Document.IsModified && st.CanUndo;
-                _vm.Ribbon = RibbonTab.Document;
+                _vm.SetEditMode(false);
                 await Idle();
                 st.UndoCommand.Execute(null);
                 await WaitUntil(() => !st.IsBusy, 10000);
@@ -700,24 +688,25 @@ public sealed class SelfTestRunner
             finally { _settings.OcrAutoOnOpen = false; }
         });
 
-        await Step("Arayüz", "FineReader düzeni: Belge / Sayfaları Düzenle / İçeriği Düzenle", "Sekmeler taşmaz; Sayfaları Düzenle ızgarayı, İçeriği Düzenle düzenleme kipini açar", async () =>
+        await Step("Arayüz", "Afiş düzeni: görüntüleyici ve PDF Düzenleme şerit sekmeleri", "8 sekmenin hiçbiri taşmaz; düzenleme kipine girince düzenleme aracı, çıkınca seçme aracı", async () =>
         {
             var st = _vm.ActiveTab!;
-            int overflow = 0;
-            bool organizeOk = false, editOk = false;
-            foreach (var (tabKey, name) in new[] { (RibbonTab.Document, "20-belge-sekmesi"), (RibbonTab.Organize, "21-sayfalari-duzenle"), (RibbonTab.EditContent, "22-icerigi-duzenle") })
+            _vm.ShowDocumentCommand.Execute(st);
+            int overflow = 0; var over = new List<string>();
+            bool editOk = true;
+            foreach (var (tabKey, name) in new[] { (RibbonTab.Home, "20-giris"), (RibbonTab.View, "21-gorunum"), (RibbonTab.Tools, "22-araclar"),
+                (RibbonTab.EditHome, "23-duzenle-giris"), (RibbonTab.Edit, "24-duzenle"), (RibbonTab.Annotate, "25-aciklama"), (RibbonTab.Sign, "26-imza"), (RibbonTab.Form, "27-form") })
             {
                 _vm.Ribbon = tabKey;
                 await Idle();
-                if (tabKey == RibbonTab.Organize) { await Task.Delay(400); await Idle(); organizeOk = st.IsOrganizeMode; }
-                if (tabKey == RibbonTab.EditContent) editOk = st.Tool == ViewerTool.Edit && !st.IsOrganizeMode;
-                if (_w.RibbonScroll.ScrollableWidth > 1) overflow++;
+                if (tabKey == RibbonTab.EditHome) editOk &= st.Tool == ViewerTool.Edit && _vm.IsEditMode;
+                if (_w.RibbonScroll.ScrollableWidth > 1) { overflow++; over.Add(name); }
                 Shot(name);
             }
-            _vm.Ribbon = RibbonTab.Document;
+            _vm.SetEditMode(false);
             await Idle();
-            bool back = st.Tool == ViewerTool.Select && !st.IsOrganizeMode;
-            return (overflow == 0 && organizeOk && editOk && back, $"taşan sekme: {overflow}, sayfa ızgarası={organizeOk}, düzenleme kipi={editOk}, Belge'ye dönüş={back}");
+            bool back = st.Tool == ViewerTool.Select && !_vm.IsEditMode;
+            return (overflow == 0 && editOk && back, $"taşan sekme: {overflow} {string.Join(",", over)}, düzenleme kipi={editOk}, görüntülemeye dönüş={back}");
         });
 
         // ── Aşama 5: Word / Excel dönüştürme, sıkıştırma, Office → PDF ──
@@ -897,6 +886,8 @@ public sealed class SelfTestRunner
             bool ok = r1 && r2 && bt.PageCount == 1000 && Viewer!.CurrentPage == 999 && growth < 600L * 1024 * 1024;
             return (ok, $"açılış+ilk çizim {openMs} ms, sayfa={bt.PageCount}, geçerli={Viewer!.CurrentPage + 1}, bellek artışı {growth / 1048576} MB, {Viewer.Diagnostics}");
         });
+
+        await RunPosterScreensAsync(work, font);
 
         await Step("Arayüz", "Sekmeleri kapatma", "Değişmemiş sekmeler soru sormadan kapanır", async () =>
         {
