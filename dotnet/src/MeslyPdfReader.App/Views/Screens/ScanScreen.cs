@@ -218,28 +218,61 @@ public sealed class ScanScreen : UserControl
         {
             var pages = await AcquireAsync(Settings(75) with { Source = ScanSource.Flatbed });
             if (pages.Count == 0) { _status.Text = "Önizleme alınamadı."; return; }
-            var img = ImageCodec.Decode(pages[0].Data);
-            if (_crop.IsChecked == true && ImageOps.AutoCropToPaper(img) is { } c) img = c;
-            _preview.Source = ImageCodec.ToBitmapSource(img);
-            _status.Text = "Önizleme hazır. Ayarları değiştirip yeniden önizleyebilir ya da taramaya geçebilirsiniz.";
+            // Önizleme taramayla aynı işlemden geçer: kırpma ve düzeltme sonucu burada görülür.
+            var s = _s!;
+            var (pp, rep, cropped) = await Task.Run(() => Process(pages[0], s.ScanAutoCrop, s.ScanAutoCorrect, (ScanColorMode)Math.Clamp(s.ScanColor, 0, 2), s.OcrLanguages));
+            _preview.Source = ImageCodec.ToBitmapSource(ImageCodec.Decode(pp.Data));
+            var what = new List<string>();
+            if (cropped) what.Add("kırpıldı");
+            if (rep is { } r && r.Changed) what.Add(r.Describe());
+            _status.Text = "Önizleme hazır" + (what.Count > 0 ? ": " + string.Join(", ", what) : s.ScanAutoCorrect ? ": sayfa zaten düz" : "") + ". Ayarları değiştirip yeniden önizleyebilir ya da taramaya geçebilirsiniz.";
         }
         catch (Exception ex) { _status.Text = ex is ScanException ? ex.Message : "Önizleme başarısız: " + ex.Message; }
         finally { SetBusy(false, null); }
     }
 
-    /// <summary>Kırpma ve hizalama (düzeltme) taranan sayfaya uygulanır.</summary>
-    private ScannedPage Process(ScannedPage p, AppSettings s)
+    /// <summary>
+    /// Taranan sayfayı bir kez çözer, kırpma ve düzeltmeyi (yön, eğiklik, kenar gölgesi) uygular ve bir kez, yüksek
+    /// kaliteyle sıkıştırır: renkli/gri JPEG %94, siyah-beyaz PNG (kayıpsız). Rapor: yapılan düzeltmeler.
+    /// </summary>
+    public static (ScannedPage Page, CorrectionReport? Report, bool Cropped) Process(ScannedPage p, bool crop, bool correct, ScanColorMode color, string languages)
     {
-        var page = p;
-        if (s.ScanAutoCrop)
+        var img = ImageCodec.Decode(p.Data);
+        bool cropped = false;
+        if (crop && ImageOps.AutoCropToPaper(img) is { } c) { img = c; cropped = true; }
+        CorrectionReport? rep = null;
+        if (correct)
         {
-            var img = ImageCodec.Decode(page.Data);
-            if (ImageOps.AutoCropToPaper(img) is { } c)
-                page = new ScannedPage { Data = page.Format == ScannedFormat.Jpeg ? ImageCodec.EncodeJpeg(c, 92, page.Dpi) : ImageCodec.EncodePng(c, page.Dpi), Format = page.Format == ScannedFormat.Jpeg ? ScannedFormat.Jpeg : ScannedFormat.Png, Dpi = page.Dpi };
+            var corr = new ImageCorrection(AutoRotate: OcrEngine.Unavailable() is null, Deskew: true, CleanBorders: true);
+            (img, rep) = OcrService.Correct(img, p.Dpi, corr, languages);
         }
-        if (s.ScanAutoCorrect)
-            page = OcrWorkflow.CorrectScan(page, new ImageCorrection(AutoRotate: OcrEngine.Unavailable() is null, Deskew: true, CleanBorders: true), s.OcrLanguages).Page;
-        return page;
+        bool bw = color == ScanColorMode.BlackWhite;
+        byte[] data = bw ? ImageCodec.EncodePng(img, p.Dpi) : ImageCodec.EncodeJpeg(img, 94, p.Dpi, gray: color == ScanColorMode.Gray);
+        return (new ScannedPage { Data = data, Format = bw ? ScannedFormat.Png : ScannedFormat.Jpeg, Dpi = p.Dpi, QuarterTurns = p.QuarterTurns }, rep, cropped);
+    }
+
+    /// <summary>Sayfaları paralel işler (çekirdek sayısının yarısı kadar); durum satırında ilerleme.</summary>
+    private async Task<(List<ScannedPage> Pages, string Summary)> ProcessAllAsync(IReadOnlyList<ScannedPage> pages, AppSettings s)
+    {
+        bool crop = s.ScanAutoCrop, correct = s.ScanAutoCorrect;
+        var color = (ScanColorMode)Math.Clamp(s.ScanColor, 0, 2);
+        var langs = s.OcrLanguages;
+        var result = new (ScannedPage, CorrectionReport?, bool)[pages.Count];
+        int done = 0;
+        await Task.Run(() => Parallel.For(0, pages.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4) }, i =>
+        {
+            result[i] = Process(pages[i], crop, correct, color, langs);
+            int n = Interlocked.Increment(ref done);
+            Dispatcher.BeginInvoke(() => _status.Text = $"Sayfalar hazırlanıyor: {n}/{pages.Count}" + (correct ? " (düzeltiliyor)" : ""));
+        }));
+        int rotated = result.Count(r => r.Item2?.QuarterTurnsApplied is > 0), deskewed = result.Count(r => Math.Abs(r.Item2?.DeskewDegrees ?? 0) > 0.01), cropped = result.Count(r => r.Item3);
+        var parts = new List<string>();
+        if (cropped > 0) parts.Add($"{cropped} sayfa kırpıldı");
+        if (rotated > 0) parts.Add($"{rotated} sayfanın yönü düzeltildi");
+        if (deskewed > 0) parts.Add($"{deskewed} sayfanın eğikliği düzeltildi ({string.Join(", ", result.Where(r => Math.Abs(r.Item2?.DeskewDegrees ?? 0) > 0.01).Select(r => $"{r.Item2!.DeskewDegrees:0.#}°"))})");
+        if (correct && rotated == 0 && deskewed == 0) parts.Add("sayfalar zaten düzdü");
+        if (result.FirstOrDefault().Item2?.Note is { } note) parts.Add("yön algılanamadı: " + note);
+        return (result.Select(r => r.Item1).ToList(), parts.Count == 0 ? "" : string.Join(", ", parts) + ".");
     }
 
     private async Task ScanAndFinish()
@@ -255,10 +288,10 @@ public sealed class ScanScreen : UserControl
         try
         {
             _status.Text = "Sayfalar hazırlanıyor…";
-            var processed = await Task.Run(() => pages.Select(p => Process(p, s)).ToList());
+            var (processed, summary) = await ProcessAllAsync(pages, s);
             try { _preview.Source = ImageCodec.ToBitmapSource(ImageCodec.Decode(processed[0].Data)); } catch { }
             if (_tImages.IsChecked == true) await SaveImagesAsync(processed, s);
-            else await ToPdfAsync(processed, append: _tAppend.IsChecked == true, s);
+            else await ToPdfAsync(processed, append: _tAppend.IsChecked == true, s, summary);
         }
         catch (Exception ex) { BusyViewModel.ShowError("Tarama", ex); }
         finally { SetBusy(false, null); }
@@ -286,7 +319,7 @@ public sealed class ScanScreen : UserControl
             try { System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{files[0]}\""); } catch { }
     }
 
-    private async Task ToPdfAsync(IReadOnlyList<ScannedPage> pages, bool append, AppSettings s)
+    private async Task ToPdfAsync(IReadOnlyList<ScannedPage> pages, bool append, AppSettings s, string summary)
     {
         var main = _main!;
         DocumentViewModel? target = null;
@@ -303,30 +336,28 @@ public sealed class ScanScreen : UserControl
             }
         }
         PdfDocument? doc = null;
-        string note = "";
-        var ok = await main.RunTaskAsync(append ? "Taranan sayfalar ekleniyor…" : "Taranan sayfalar PDF'e dönüştürülüyor…", async (p, ct) =>
-        {
-            doc = await ScanPdfBuilder.BuildAsync(pages, null, ct);
-            if (s.ScanOcr && OcrEngine.Unavailable() is null)
-            {
-                var opts = OcrRunOptions.From(s) with { Correction = ImageCorrection.None };
-                note = " " + OcrWorkflow.Summarize(await OcrWorkflow.RecognizeAsync(doc, Enumerable.Range(0, doc.PageCount).ToList(), opts, p, ct));
-            }
-            else if (s.ScanOcr) note = " Metin tanınamadı: " + OcrEngine.Unavailable();
-        }, "scan", $"{pages.Count} sayfa");
+        var ok = await main.RunTaskAsync(append ? "Taranan sayfalar ekleniyor…" : "Taranan sayfalar PDF'e dönüştürülüyor…",
+            async (p, ct) => doc = await ScanPdfBuilder.BuildAsync(pages, p, ct), "scan", $"{pages.Count} sayfa");
         if (!ok || doc is null) { doc?.Dispose(); return; }
+        // PDF hemen gösterilir; metin tanıma arka planda (ilerleme şeridi, Durdur, tek adımda geri alma) yapılır.
+        bool ocr = s.ScanOcr && OcrEngine.Unavailable() is null;
+        string ocrNote = s.ScanOcr && !ocr ? " Metin tanınamadı: " + OcrEngine.Unavailable() : ocr ? " Metin arka planda tanınıyor." : "";
+        DocumentViewModel shown;
         if (append && target is not null)
         {
-            using (doc) await target.AppendDocumentAsync(doc, $"{pages.Count} taranmış sayfa eklendi.{note}");
+            int first = target.PageCount;
+            using (doc) await target.AppendDocumentAsync(doc, $"{pages.Count} taranmış sayfa eklendi. {summary}{ocrNote}");
             main.ShowDocumentCommand.Execute(target);
-            target.CurrentPage = target.PageCount - pages.Count;
+            target.CurrentPage = first;
+            shown = target;
         }
         else
         {
-            var vm = main.AddTab(doc, record: false);
-            vm.StatusText = $"{pages.Count} taranmış sayfa.{note} Kaydetmek için Ctrl+S.";
+            shown = main.AddTab(doc, record: false);
+            shown.StatusText = $"{pages.Count} taranmış sayfa. {summary}{ocrNote} Kaydetmek için Ctrl+S.";
         }
-        _status.Text = $"{pages.Count} sayfa tarandı.{note}";
+        if (ocr) shown.StartAutoOcr(force: true, correction: ImageCorrection.None); // düzeltme zaten yapıldı
+        _status.Text = $"{pages.Count} sayfa tarandı. {summary}{ocrNote}";
         main.Library.RefreshStats();
     }
 }

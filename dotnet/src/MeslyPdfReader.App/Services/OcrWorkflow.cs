@@ -114,7 +114,7 @@ public static class OcrWorkflow
         var img = ImageCodec.Decode(p.Data);
         var (fixedImg, rep) = OcrService.Correct(img, p.Dpi, c, languages, ct);
         if (!rep.Changed) return (p, rep);
-        var data = p.Format == ScannedFormat.Jpeg ? ImageCodec.EncodeJpeg(fixedImg, 92, p.Dpi) : ImageCodec.EncodePng(fixedImg, p.Dpi);
+        var data = p.Format == ScannedFormat.Jpeg ? ImageCodec.EncodeJpeg(fixedImg, 94, p.Dpi) : ImageCodec.EncodePng(fixedImg, p.Dpi);
         return (new ScannedPage { Data = data, Format = p.Format == ScannedFormat.Jpeg ? ScannedFormat.Jpeg : ScannedFormat.Png, Dpi = p.Dpi, QuarterTurns = p.QuarterTurns }, rep);
     }
 

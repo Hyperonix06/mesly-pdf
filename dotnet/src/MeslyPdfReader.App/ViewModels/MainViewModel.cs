@@ -337,24 +337,14 @@ public sealed partial class MainViewModel : BusyViewModel
         var pages = ScanDialog.Ask(_settings, "PDF oluştur");
         if (pages is null) return;
         PdfDocument? doc = null;
-        string ocrNote = "";
-        var ok = await RunBusyAsync("Taranan sayfalar PDF'e dönüştürülüyor…", async (p, ct) =>
-        {
-            doc = await ScanPdfBuilder.BuildAsync(pages, null, ct);
-            if (_settings.ScanOcr && OcrEngine.Unavailable() is null)
-            {
-                BusyText = "Metin tanınıyor…";
-                // Görüntü düzeltmesi tarama penceresinde yapıldı; burada yalnız tanıma.
-                var opts = OcrRunOptions.From(_settings) with { Correction = ImageCorrection.None };
-                var r = await OcrWorkflow.RecognizeAsync(doc, Enumerable.Range(0, doc.PageCount).ToList(), opts, p, ct);
-                ocrNote = " " + OcrWorkflow.Summarize(r);
-            }
-            else if (_settings.ScanOcr) ocrNote = " Metin tanınamadı: " + OcrEngine.Unavailable();
-        }, "scan", $"{pages.Count} sayfa");
+        var ok = await RunBusyAsync("Taranan sayfalar PDF'e dönüştürülüyor…", async (p, ct) => doc = await ScanPdfBuilder.BuildAsync(pages, p, ct), "scan", $"{pages.Count} sayfa");
         if (ok && doc is not null)
         {
+            // PDF hemen gösterilir; metin tanıma arka planda (ilerleme şeridi ve Durdur ile).
+            bool ocr = _settings.ScanOcr && OcrEngine.Unavailable() is null;
             var vm = AddTab(doc, record: false);
-            vm.StatusText = $"{pages.Count} taranmış sayfa.{ocrNote} Kaydetmek için Ctrl+S.";
+            vm.StatusText = $"{pages.Count} taranmış sayfa.{(ocr ? " Metin arka planda tanınıyor." : _settings.ScanOcr ? " Metin tanınamadı: " + OcrEngine.Unavailable() : "")} Kaydetmek için Ctrl+S.";
+            if (ocr) vm.StartAutoOcr(force: true, correction: ImageCorrection.None); // düzeltme tarama penceresinde yapıldı
         }
         else doc?.Dispose();
     }

@@ -20,7 +20,7 @@ public sealed class WiaScanner : IScannerBackend
     private const int IpsBrightness = 6154, IpsContrast = 6155;
     // Bayraklar
     private const int Feeder = 1, Flatbed = 2, Duplex = 4;
-    private const int IntentColor = 1, IntentGray = 2, IntentText = 4;
+    private const int IntentColor = 1, IntentGray = 2, IntentText = 4, IntentMaximizeQuality = 0x20000;
 
     private const string FormatJpeg = "{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}";
     private const string FormatPng = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}";
@@ -122,16 +122,28 @@ public sealed class WiaScanner : IScannerBackend
             throw new ScanException(ScanErrorKind.Unsupported, "belge besleyici seçilemedi");
         if (s.Source != ScanSource.Flatbed) TrySet(_device.Properties, DpsPages, 1);
         ApplyItemProperties(s);
-        _format = s.Color == ScanColorMode.BlackWhite ? FormatPng : FormatJpeg;
+        // Kalite: sürücünün kendi JPEG sıkıştırması çoğu zaman düşük kalitelidir; kayıpsız görüntü istenir
+        // (BMP neredeyse her sürücüde vardır), sıkıştırma uygulamada bir kez, yüksek kaliteyle yapılır.
+        _formats = s.Color == ScanColorMode.BlackWhite ? new[] { FormatPng, FormatBmp, FormatTiff, FormatJpeg } : new[] { FormatBmp, FormatPng, FormatTiff, FormatJpeg };
+        _format = _formats[0];
+        _actualDpi = ToInt(Prop(_item!.Properties, IpsXRes), s.Dpi);
+        if (_actualDpi != s.Dpi) Log.Warn($"Tarayıcı {s.Dpi} dpi kabul etmedi; {_actualDpi} dpi ile taranıyor.");
     }
+
+    private string[] _formats = Array.Empty<string>();
+    private int _actualDpi;
+
+    /// <summary>Tarayıcının gerçekten kullandığı çözünürlük (istenen desteklenmiyorsa en yakını).</summary>
+    public int ActualDpi => _actualDpi;
 
     private void ApplyItemProperties(ScanSettings s)
     {
         dynamic props = _item!.Properties;
         int intent = s.Color switch { ScanColorMode.Gray => IntentGray, ScanColorMode.BlackWhite => IntentText, _ => IntentColor };
-        TrySet(props, IpsCurIntent, intent);
-        TrySet(props, IpsXRes, s.Dpi);
-        TrySet(props, IpsYRes, s.Dpi);
+        // Önce “en yüksek kalite” bayrağıyla; sürücü kabul etmezse yalnız amaç. (Amaç diğer özellikleri sıfırlar: önce ayarlanır.)
+        if (!TrySet(props, IpsCurIntent, intent | IntentMaximizeQuality, quiet: true)) TrySet(props, IpsCurIntent, intent);
+        SetNearest(props, IpsXRes, s.Dpi);
+        SetNearest(props, IpsYRes, s.Dpi);
         TrySet(props, IpsXPos, 0);
         TrySet(props, IpsYPos, 0);
         int maxW = ToInt(PropObject(props, IpsXExtent)?.SubTypeMax), maxH = ToInt(PropObject(props, IpsYExtent)?.SubTypeMax);
@@ -144,22 +156,26 @@ public sealed class WiaScanner : IScannerBackend
 
     public ScannedPage AcquireNext()
     {
-        dynamic image;
-        try { image = _item!.Transfer(_format); }
-        catch (COMException ex) when (IsFormatProblem(ex) && _format != FormatBmp)
+        dynamic? image = null;
+        while (true)
         {
-            // Sürücü istenen biçimi vermiyorsa BMP ile yeniden dene.
-            _format = FormatBmp;
-            try { image = _item!.Transfer(_format); }
-            catch (COMException ex2) { throw Translate(ex2); }
+            try { image = _item!.Transfer(_format); break; }
+            catch (COMException ex) when (IsFormatProblem(ex) && Array.IndexOf(_formats, _format) is var i && i >= 0 && i < _formats.Length - 1)
+            {
+                // Sürücü bu biçimi vermiyor: listedeki sonrakiyle yeniden dene.
+                Log.Warn($"Tarayıcı {_format} biçimini vermedi; {_formats[i + 1]} deneniyor.");
+                _format = _formats[i + 1];
+            }
+            catch (COMException ex) { throw Translate(ex); }
+            catch (Exception ex) when (ex is not ScanException) { throw Translate(ex); }
         }
-        catch (COMException ex) { throw Translate(ex); }
-        catch (Exception ex) when (ex is not ScanException) { throw Translate(ex); }
 
         byte[] data = ReadImage(image);
         string fid = ((string)image.FormatID).ToUpperInvariant();
         var fmt = fid == FormatJpeg ? ScannedFormat.Jpeg : fid == FormatPng ? ScannedFormat.Png : fid == FormatTiff ? ScannedFormat.Tiff : ScannedFormat.Bmp;
-        return new ScannedPage { Data = data, Format = fmt, Dpi = _settings!.Dpi };
+        int dpi = ToInt(TryGet(() => (object?)image.HorizontalResolution), 0);
+        if (dpi is < 50 or > 2400) dpi = _actualDpi > 0 ? _actualDpi : _settings!.Dpi;
+        return new ScannedPage { Data = data, Format = fmt, Dpi = dpi };
     }
 
     public void End()
@@ -212,12 +228,33 @@ public sealed class WiaScanner : IScannerBackend
         try { return p?.Value; } catch { return null; }
     }
 
-    private static bool TrySet(dynamic props, int id, int value)
+    private static bool TrySet(dynamic props, int id, int value, bool quiet = false)
     {
         var p = PropObject(props, id);
         if (p is null) return false;
         try { p.Value = value; return true; }
-        catch (Exception ex) { Log.Warn($"WIA özelliği {id}={value} ayarlanamadı: {ex.Message}"); return false; }
+        catch (Exception ex) { if (!quiet) Log.Warn($"WIA özelliği {id}={value} ayarlanamadı: {ex.Message}"); return false; }
+    }
+
+    private static object? TryGet(Func<object?> f) { try { return f(); } catch { return null; } }
+
+    /// <summary>Çözünürlüğü sürücünün desteklediği en yakın değere ayarlar (liste veya aralık).</summary>
+    private static void SetNearest(dynamic props, int id, int wanted)
+    {
+        if (TrySet(props, id, wanted, quiet: true)) return;
+        var p = PropObject(props, id);
+        if (p is null) return;
+        var candidates = new List<int>();
+        try { foreach (object v in p.SubTypeValues) candidates.Add(ToInt(v)); } catch { }
+        if (candidates.Count == 0)
+        {
+            int min = ToInt(TryGet(() => (object?)p.SubTypeMin), 0), max = ToInt(TryGet(() => (object?)p.SubTypeMax), 0), step = Math.Max(1, ToInt(TryGet(() => (object?)p.SubTypeStep), 1));
+            if (max > 0) candidates.Add(Math.Clamp(min + (wanted - min) / step * step, min, max));
+        }
+        // Önce istenene eşit ya da üstündeki en küçük değer (kaliteden ödün verilmesin), yoksa en büyüğü.
+        foreach (var c in candidates.Where(c => c > 0).OrderBy(c => c < wanted ? 1 : 0).ThenBy(c => Math.Abs(c - wanted)))
+            if (TrySet(props, id, c, quiet: true)) return;
+        Log.Warn($"WIA çözünürlüğü {wanted} ayarlanamadı; sürücünün varsayılanı kullanılacak.");
     }
 
     private static int ToInt(object? v, int def = 0)

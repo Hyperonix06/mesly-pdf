@@ -1,3 +1,4 @@
+using MeslyPdfReader.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MeslyPdfReader.App.Controls;
@@ -34,8 +35,12 @@ public sealed partial class DocumentViewModel
     partial void OnIsAutoOcrRunningChanged(bool value) => OnPropertyChanged(nameof(ShowScanBanner));
 
     /// <summary>Ayar açıksa ve belgede taranmış sayfa varsa otomatik tanımayı başlatır.</summary>
-    public void StartAutoOcr(bool force = false)
+    private ImageCorrection? _autoCorrection;
+
+    /// <param name="correction">Verilirse ayarlar yerine bu düzeltme uygulanır (ör. taramada düzeltme zaten yapıldıysa None).</param>
+    public void StartAutoOcr(bool force = false, ImageCorrection? correction = null)
     {
+        _autoCorrection = correction;
         if (_disposed || (!force && (!_settings.OcrAutoOnOpen || _autoStoppedByUser))) return;
         if (_autoTask is { IsCompleted: false }) return;
         if (OcrEngine.Unavailable() is not null) return; // tanıma bileşeni yoksa şerit “Metni tanı” ile açık hatayı gösterir
@@ -72,6 +77,7 @@ public sealed partial class DocumentViewModel
             checkpointed = true;
             CanUndo = true;
             var opts = OcrRunOptions.From(_settings);
+            if (_autoCorrection is { } ac) opts = opts with { Correction = ac };
             while (remaining.Count > 0)
             {
                 ct.ThrowIfCancellationRequested();
