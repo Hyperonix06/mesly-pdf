@@ -175,7 +175,26 @@ Açıklamalar (9), imza ve güvenlik (10), formlar (11), karşılaştırma (12),
 | TWAIN (yalnız TWAIN sürücüsü olan tarayıcılar) | ⏳ | WIA sürücüsü olmayan cihazlar için |
 
 ## 17. Ayarlar
-Tema ✅, arayüz dili (yalnız Türkçe) 🟡, görüntüleme varsayılanları ✅, otomatik kayıt/kurtarma ✅, dosya geçmişi ✅, PDF çıktı kalitesi (DPI, JPG kalitesi) ✅, geçici dosyalar ✅, donanım hızlandırma ✅, kısayollar ✅, varsayılan klasörler ✅, hakkında / sürüm / lisanslar ✅, OCR ayarları ⏳ 4, güncelleme denetimi ⛔ (çevrimiçi servis gerektirir; açık izinle Aşama 9).
+Tema ✅, arayüz dili (yalnız Türkçe) 🟡, görüntüleme varsayılanları ✅, otomatik kayıt/kurtarma ✅, dosya geçmişi ✅, PDF çıktı kalitesi (DPI, JPG kalitesi) ✅, geçici dosyalar ✅, donanım hızlandırma ✅, kısayollar ✅, varsayılan klasörler ✅, hakkında / sürüm / lisanslar ✅, OCR ayarları ✅, güncelleme denetimi ✅ Ö (GitHub Releases; yalnız sürüm numarası sorulur, kapatılabilir), başlangıçta Ana Sayfa / son oturum ✅, varsayılan görüntüleyici durumu 🟡 (Windows kendi ayar sayfasından seçtirir), tümünü sıfırla ✅.
+
+## 18. 0.7.0 — Afiş ekranları
+Durum sütunundaki Ö: arayüz öz testinde (gerçek pencere, Windows) tek tek çalıştırıldı; B: birim testi.
+
+| Madde | Durum | Test |
+|---|---|---|
+| Sol menü ve 10 ekran (Ana Sayfa … Hakkında), başlık çubuğu | ✅ Ö | Her ekran açılır, ekran görüntüsü alınır |
+| Ana Sayfa gösterge paneli, hızlı erişim | ✅ Ö | Bu ayın gerçek sayıları |
+| Belgelerim: 3 sekme, arama, yıldız, kart görünümü, satır menüsü | ✅ Ö | |
+| Dönüştür: Word, Excel, PPT, Resim, TXT | ✅ Ö B | Üretilen dosyalar açılıp içerik denetlenir; PPTX OpenXML doğrulayıcısından hatasız geçer |
+| Toplu Dönüştürme: kuyruk, satır başına biçim, durum, Durdur | ✅ Ö | |
+| OCR ekranı: kaynak, dil, çıktı türü, eğiklik, gürültü azaltma, önizleme | ✅ Ö B | |
+| OCR Sonucu düzenleyicisi: biçim, liste, bağlantı; Word/TXT kaydet | ✅ Ö | PDF olarak kaydet Windows'un PDF yazıcısıyla (dosya adını Windows sorar) 🟡 |
+| PDF Düzenleme: vurgula, altını/üstünü çiz, not, açıklama listesi | ✅ Ö B | Standart PDF açıklamaları |
+| İmza (çiz/yaz/resim, saydam), kayıtlı imzalar, tarih, ad | ✅ Ö B | El yazısı imza görüntüsü; e-imza değildir |
+| Form doldur / sıfırla / düzleştir, form alanlarının çizimi | ✅ Ö B | |
+| Sayfa Yönetimi: Birleştir, Böl, Sırala (sürükle-bırak, Sıfırla/Uygula) | ✅ Ö B | |
+| Tarama ekranı: hedefler, otomatik kırpma, hizalama, besleyici, önizleme | 🟡 Ö B | Kırpma/hizalama testli; gerçek tarayıcıyla CI'da test edilemez |
+| Ayarlar (7 kategori), Hakkında / Yardım / Lisans | ✅ Ö | |
 
 ## Bilinen sınırlamalar
 * Düzenleme: metin değiştirildiğinde paragraf kurulu bir yazı tipiyle yeniden yazılır; satır içinde karışık biçim (tek sözcük kalın vb.) paragrafın baskın biçimine indirgenir. Her düzenleme geri alma için belgenin anlık görüntüsünü alır; çok büyük belgelerde (yüzlerce MB) düzenleme adımları birkaç saniye sürebilir.
