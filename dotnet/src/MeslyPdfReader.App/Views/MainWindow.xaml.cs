@@ -44,6 +44,10 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
 
     public double UiScale { get; private set; } = 1;
 
+    /// <summary>Görüntüleyici çerçevesinin (şerit, kenar panelleri) ölçeği.</summary>
+    public static double ChromeScale { get; private set; } = 1;
+    public static event Action? ChromeScaleChanged;
+
     private void ApplyUiScale()
     {
         double s = ComputeUiScale(_vm.Settings.UiScale, ActualWidth, ActualHeight);
@@ -52,6 +56,7 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         Shell.LayoutTransform = new ScaleTransform(s, s);
         // Görüntüleyicide şerit ve sekmeler de büyür; şerit dar pencerede taşmasın diye en çok 1,3.
         double r = Math.Min(s, 1.3);
+        if (Math.Abs(r - ChromeScale) > 0.005) { ChromeScale = r; ChromeScaleChanged?.Invoke(); }
         var rt = new ScaleTransform(r, r);
         RibbonTabs.LayoutTransform = rt; RibbonBody.LayoutTransform = rt; DocTabs.LayoutTransform = rt; StatusBar.LayoutTransform = rt;
     }

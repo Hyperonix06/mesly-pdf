@@ -31,7 +31,7 @@
 
     <Grid x:Name="Root">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="46" />
+            <ColumnDefinition x:Name="RailCol" Width="46" />
             <ColumnDefinition x:Name="LeftCol" Width="250" MinWidth="0" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />

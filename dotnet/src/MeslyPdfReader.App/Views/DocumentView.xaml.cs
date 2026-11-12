@@ -29,7 +29,25 @@ public partial class DocumentView : UserControl
         Viewer.MarkupRequested += (_, r) => { if (_vm is not null) _ = _vm.AddMarkupAsync(r); };
         Viewer.NoteRequested += (_, n) => { if (_vm is not null) _ = _vm.AddNoteAtAsync(n.Page, n.X, n.Y); };
         IsVisibleChanged += (_, _) => { if (IsVisible) Viewer.Focus(); };
-        Loaded += (_, _) => { ApplyPanels(); Viewer.Focus(); };
+        Action onScale = () => Dispatcher.BeginInvoke(() => { ApplyChromeScale(); ApplyPanels(); });
+        Loaded += (_, _) => { MainWindow.ChromeScaleChanged -= onScale; MainWindow.ChromeScaleChanged += onScale; ApplyChromeScale(); ApplyPanels(); Viewer.Focus(); };
+        Unloaded += (_, _) => MainWindow.ChromeScaleChanged -= onScale;
+    }
+
+    private double _scale = 1;
+
+    /// <summary>Görüntüleyicinin kenar panelleri arayüz ölçeğine uyar; PDF sayfası (Viewer) ölçeklenmez, keskin kalır.</summary>
+    private void ApplyChromeScale()
+    {
+        double r = MainWindow.ChromeScale;
+        if (Math.Abs(r - _scale) < 0.005 && Rail.LayoutTransform is System.Windows.Media.ScaleTransform) return;
+        _savedLeftWidth = _savedLeftWidth / _scale * r;
+        if (LeftCol.Width.Value > 0) LeftCol.Width = new GridLength(LeftCol.Width.Value / _scale * r);
+        _scale = r;
+        var t = new System.Windows.Media.ScaleTransform(r, r);
+        t.Freeze();
+        Rail.LayoutTransform = t; LeftPanelHost.LayoutTransform = t; NavBar.LayoutTransform = t; RightPanel.LayoutTransform = t;
+        RailCol.Width = new GridLength(46 * r);
     }
 
     private void Attach(DocumentViewModel? vm)
@@ -71,11 +89,11 @@ public partial class DocumentView : UserControl
         bool organize = _vm.IsOrganizeMode;
         bool left = _vm.LeftPanel != LeftPanelKind.None && !organize;
         if (!left && LeftCol.Width.Value > 0) _savedLeftWidth = LeftCol.Width.Value;
-        LeftCol.Width = new GridLength(left ? Math.Max(180, _savedLeftWidth) : 0);
+        LeftCol.Width = new GridLength(left ? Math.Max(180 * _scale, _savedLeftWidth) : 0);
         LeftPanelHost.Visibility = left ? Visibility.Visible : Visibility.Collapsed;
         LeftSplitter.Visibility = left ? Visibility.Visible : Visibility.Collapsed;
         bool right = _vm.ShowProperties && !organize;
-        RightCol.Width = new GridLength(right ? 280 : 0);
+        RightCol.Width = new GridLength(right ? 280 * _scale : 0);
         RightPanel.Visibility = right ? Visibility.Visible : Visibility.Collapsed;
         Rail.Visibility = organize ? Visibility.Collapsed : Visibility.Visible;
         // Izgara sanallaştırılmaz: yalnız “Sayfaları Düzenle” açıkken sayfalara bağlanır (gizliyken bellek/işlemci harcamasın).
