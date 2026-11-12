@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using MeslyPdfReader.App.Controls;
 using MeslyPdfReader.App.Views;
 using MeslyPdfReader.App.Services;
@@ -25,6 +26,34 @@ public partial class MainWindow : Wpf.Ui.Controls.FluentWindow
         DragOver += (_, e) => { e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; };
         PreviewKeyDown += OnPreviewKeyDown;
         Closing += OnClosing;
+        SizeChanged += (_, _) => ApplyUiScale();
+        vm.UiScaleChanged += ApplyUiScale;
+        RenderOptions.SetBitmapScalingMode(Shell, BitmapScalingMode.HighQuality);
+    }
+
+    /// <summary>
+    /// Arayüz ölçeği. Afişteki ekranlar standart Windows boyutundan iri ve pencereyi dolduran bir düzen gösterir; otomatik
+    /// kipte ekranlar pencere boyutuna göre orantılı büyütülür (tasarım tabanı 830×640). PDF sayfası ölçeklenmez.
+    /// </summary>
+    public static double ComputeUiScale(int setting, double width, double height)
+    {
+        if (setting >= 80) return setting / 100.0;
+        if (width <= 0 || height <= 0) return 1.3;
+        return Math.Clamp(Math.Min(width / 830.0, (height - 64) / 640.0), 1.0, 1.75);
+    }
+
+    public double UiScale { get; private set; } = 1;
+
+    private void ApplyUiScale()
+    {
+        double s = ComputeUiScale(_vm.Settings.UiScale, ActualWidth, ActualHeight);
+        if (Math.Abs(s - UiScale) < 0.005 && Shell.LayoutTransform is ScaleTransform) return;
+        UiScale = s;
+        Shell.LayoutTransform = new ScaleTransform(s, s);
+        // Görüntüleyicide şerit ve sekmeler de büyür; şerit dar pencerede taşmasın diye en çok 1,3.
+        double r = Math.Min(s, 1.3);
+        var rt = new ScaleTransform(r, r);
+        RibbonTabs.LayoutTransform = rt; RibbonBody.LayoutTransform = rt; DocTabs.LayoutTransform = rt; StatusBar.LayoutTransform = rt;
     }
 
     public MainViewModel ViewModel => _vm;

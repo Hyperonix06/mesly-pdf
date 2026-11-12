@@ -25,6 +25,8 @@ public sealed class AppSettings
     public ZoomModeChoice DefaultZoomMode { get => GetEnum("view.zoomMode", ZoomModeChoice.FitWidth); set => Set("view.zoomMode", value.ToString()); }
     public double DefaultZoom { get => GetDouble("view.zoom", 1.0); set => Set("view.zoom", value.ToString(CultureInfo.InvariantCulture)); }
     public LayoutChoice DefaultLayout { get => GetEnum("view.layout", LayoutChoice.Continuous); set => Set("view.layout", value.ToString()); }
+    /// <summary>Arayüz boyutu: 0 = otomatik (pencereye göre, afişteki oranlar), yoksa yüzde (100, 115, 130, 150).</summary>
+    public int UiScale { get => GetInt("ui.scale", 0); set => Set("ui.scale", value.ToString(CultureInfo.InvariantCulture)); }
     public bool DarkReading { get => GetBool("view.darkReading", false); set => Set("view.darkReading", value ? "1" : "0"); }
     public bool RememberLastPage { get => GetBool("view.rememberPage", true); set => Set("view.rememberPage", value ? "1" : "0"); }
     public bool ShowThumbnails { get => GetBool("view.thumbnails", true); set => Set("view.thumbnails", value ? "1" : "0"); }

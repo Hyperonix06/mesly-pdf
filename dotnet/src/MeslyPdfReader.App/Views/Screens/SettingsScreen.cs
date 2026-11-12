@@ -158,8 +158,12 @@ public sealed class SettingsScreen : UserControl
         Add(Setting("Kurtarma kopyası aralığı (dakika)", null, Num(s.AutoRecoveryMinutes, 1, 60, v => s.AutoRecoveryMinutes = v)));
     }
 
+    private static readonly int[] ScaleValues = { 0, 100, 115, 130, 150 };
+
     private void View(AppSettings s)
     {
+        Add(Setting("Arayüz boyutu", "Otomatik: ekranlar pencere boyutuna göre orantılı büyür (pencereyi büyüttükçe yazılar ve düğmeler de büyür). PDF sayfasının boyutu yakınlaştırmayla ayarlanır.",
+            Choice(new[] { "Otomatik (önerilen)", "%100", "%115", "%130", "%150" }, Math.Max(0, Array.IndexOf(ScaleValues, s.UiScale)), i => { s.UiScale = ScaleValues[i]; _main!.NotifyUiScaleChanged(); })));
         Add(Setting("Varsayılan yakınlaştırma", "Yeni açılan belgelere uygulanır.", Choice(new[] { "Genişliğe sığdır", "Sayfaya sığdır", "Gerçek boyut", "Son kullanılan" }, (int)s.DefaultZoomMode, i => s.DefaultZoomMode = (ZoomModeChoice)i)));
         Add(Setting("Varsayılan sayfa düzeni", null, Choice(new[] { "Sürekli kaydırma", "Tek sayfa", "Çift sayfa (sürekli)", "Çift sayfa" }, (int)s.DefaultLayout, i => s.DefaultLayout = (LayoutChoice)i)));
         Add(Setting("Karanlık okuma modu", "Sayfaları koyu zeminde açık metinle gösterir (belgeyi değiştirmez).", Toggle(s.DarkReading, v => s.DarkReading = v)));

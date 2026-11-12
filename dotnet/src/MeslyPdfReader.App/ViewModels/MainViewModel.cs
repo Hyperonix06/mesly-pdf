@@ -43,6 +43,10 @@ public sealed partial class MainViewModel : BusyViewModel
     }
 
     public AppSettings Settings => _settings;
+
+    /// <summary>Ayarlar'da arayüz boyutu değişti.</summary>
+    public event Action? UiScaleChanged;
+    public void NotifyUiScaleChanged() => UiScaleChanged?.Invoke();
     public AppDatabase Database => _db;
     public LibraryViewModel Library { get; }
     public ConvertScreenViewModel Converter { get; }
