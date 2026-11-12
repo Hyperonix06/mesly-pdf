@@ -129,6 +129,7 @@ public sealed class SelfTestRunner
 
         // ── Başlangıç ──
         _settings.Theme = ThemeChoice.Light;
+        _settings.OcrAutoOnOpen = false; // otomatik tanıma kendi adımında açılıp sınanır
         _vm.Theme.Apply(ThemeChoice.Light);
         await Step("Arayüz", "Ana ekran açılır", "Başlangıç sekmesi görünür, belge yok", async () =>
         {
@@ -646,6 +647,50 @@ public sealed class SelfTestRunner
             bool toolOff = st.Tool == ViewerTool.Select;
             bool ok = toolOn && toolOff && ok1 && text.Contains("kırk beş gün") && !text.Contains("otuz gün") && text.Contains("İstanbul") && !objs.Any(o => o.Kind == PageObjectKind.Path);
             return (ok, $"araç açıldı={toolOn}, kapandı={toolOff}, metin değişti={ok1}, yeni metin={text.Contains("kırk beş gün")}, eski metin yok={!text.Contains("otuz gün")}; {st.StatusText}");
+        });
+
+        await Step("Tanıma", "Taranmış PDF açılınca otomatik düzeltme ve tanıma", "Yan ve eğik sayfa kendiliğinden dik/düz olur ve aranabilir; belge kullanılabilir kalır; Ctrl+Z tek adımda geri alır", async () =>
+        {
+            BgraImage page;
+            using (var d = await PdfDocument.CreateAsync(PaperSize.A4.ToPoints(), 1))
+            {
+                await d.AddTextAsync(0, "Teslim Tutanağı", 72, 760, 24, font);
+                for (int i = 0; i < ocrLines.Length; i++) await d.AddTextAsync(0, ocrLines[i], 72, 700 - i * 22, 14, font);
+                page = await PdfTools.RenderAtDpiAsync(d, 0, 300);
+            }
+            // Düzeltilmemiş ham tarama: sayfa yana dönmüş ve 2° eğik, metin katmanı yok.
+            var raw = ImageOps.Rotate(ImageOps.RotateQuarter(page, 1), 2.0);
+            var rawPdf = Path.Combine(work, "Ham Tarama.pdf");
+            using (var doc = await ScanPdfBuilder.BuildAsync(new[] { new ScannedPage { Data = ImageCodec.EncodeJpeg(raw, 90), Format = ScannedFormat.Jpeg, Dpi = 300 } }))
+                await doc.SaveAsync(rawPdf);
+            _settings.OcrAutoOnOpen = true;
+            try
+            {
+                var sw = Stopwatch.StartNew();
+                await _vm.OpenFilesAsync(new[] { rawPdf });
+                var st = _vm.ActiveTab!;
+                bool started = await WaitUntil(() => st.IsAutoOcrRunning, 10000);
+                await Idle();
+                Shot("19b-otomatik-tanima-suruyor");
+                bool usable = st.Document is not null && !st.IsBusy; // arka planda: belge kilitlenmez
+                bool finished = await WaitUntil(() => !st.IsAutoOcrRunning, 90000);
+                await st.AutoOcrTask;
+                long ms = sw.ElapsedMilliseconds;
+                await WaitRendered();
+                Shot("19c-otomatik-tanima-sonrasi");
+                var size = st.Document.GetPageSize(0);
+                var text = Flat((await st.Document.GetPageTextAsync(0)).Text);
+                int okLines = ocrLines.Count(l => text.Contains(l.TrimEnd('.')));
+                bool upright = size.Height > size.Width;
+                bool modified = st.Document.IsModified && st.CanUndo;
+                st.UndoCommand.Execute(null);
+                await WaitUntil(() => !st.IsBusy, 10000);
+                await Idle();
+                bool undone = await st.Document.CountRealTextCharsAsync(0) < 10;
+                bool ok = started && usable && finished && upright && okLines >= 3 && text.Contains("İstanbul") && modified && undone && st.AutoOcrPagesDone == 1;
+                return (ok, $"başladı={started}, belge açık kaldı={usable}, {ms} ms; dik={upright} ({size.Width:0}×{size.Height:0}), birebir satır {okLines}/4, geri alındı={undone}; {st.StatusText}");
+            }
+            finally { _settings.OcrAutoOnOpen = false; }
         });
 
         await Step("Arayüz", "FineReader düzeni: Belge / Sayfaları Düzenle / İçeriği Düzenle", "Sekmeler taşmaz; Sayfaları Düzenle ızgarayı, İçeriği Düzenle düzenleme kipini açar", async () =>

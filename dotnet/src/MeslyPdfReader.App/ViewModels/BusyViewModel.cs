@@ -35,6 +35,10 @@ public abstract partial class BusyViewModel : ObservableObject
         if (IsBusy) return false;
         _busyCts = new CancellationTokenSource();
         BusyText = text; BusyProgress = 0; BusyIndeterminate = true; IsBusy = true;
+        // Arka plan işi (ör. otomatik metin tanıma) varsa, kullanıcının işleminden önce güvenli noktada duraklatılır.
+        try { await BeforeBusyAsync(); }
+        catch { }
+        BusyText = text;
         int seq = ++_busySeq;
         _ = Task.Delay(300).ContinueWith(_ => { if (IsBusy && seq == _busySeq) ShowBusy = true; }, SynchronizationContext.Current is null ? TaskScheduler.Default : TaskScheduler.FromCurrentSynchronizationContext());
         long? taskId = null;
@@ -64,8 +68,15 @@ public abstract partial class BusyViewModel : ObservableObject
             IsBusy = false;
             ShowBusy = false;
             _busyCts.Dispose(); _busyCts = null;
+            AfterBusy();
         }
     }
+
+    /// <summary>Kullanıcı işlemi başlamadan önce (arka plan işini duraklatmak için).</summary>
+    protected virtual Task BeforeBusyAsync() => Task.CompletedTask;
+
+    /// <summary>Kullanıcı işlemi bittikten sonra (duraklatılan arka plan işini sürdürmek için).</summary>
+    protected virtual void AfterBusy() { }
 
     public static void ShowError(string operation, Exception ex)
     {

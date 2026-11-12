@@ -132,6 +132,12 @@ public sealed class SettingsWindow : FluentWindow
         var cleanBtn = new Button { Content = "Şimdi temizle" };
         cleanBtn.Click += (_, _) => { int n = AppPaths.CleanTemp(0, all: true); RefreshTemp(); MessageDialog.Show("Geçici dosyalar", $"{n} geçici dosya silindi. Kullanımdaki dosyalar korunur.", MessageKind.Success); };
         var tempRow = Form.Row(tempInfo, cleanBtn);
+        Section("Metin tanıma (OCR)", SymbolRegular.ScanText24,
+            Setting("Taranmış belgeleri otomatik tanı ve düzelt", "Metni olmayan taranmış sayfalar belge açılınca arka planda düzeltilir (yön, eğiklik, kenarlar) ve tanınır; önce ekrandaki sayfa. Ctrl+Z ile tek adımda geri alınır.", Toggle(_s.OcrAutoOnOpen, v => _s.OcrAutoOnOpen = v)),
+            Setting("Sayfa yönünü düzelt", "Yan veya ters taranmış sayfalar dik çevrilir.", Toggle(_s.OcrAutoRotate, v => _s.OcrAutoRotate = v)),
+            Setting("Eğikliği düzelt", "Eğri taranmış satırlar yataya getirilir.", Toggle(_s.OcrDeskew, v => _s.OcrDeskew = v)),
+            Setting("Kenar gölgelerini temizle", "Tarayıcı kapağından kalan koyu kenar şeritleri beyazlatılır.", Toggle(_s.OcrCleanBorders, v => _s.OcrCleanBorders = v)),
+            Setting("Arka planı beyazlat", "Sararmış veya gri kâğıt beyaza çekilir.", Toggle(_s.OcrWhiten, v => _s.OcrWhiten = v)));
         Section("Performans ve geçici dosyalar", SymbolRegular.TopSpeed24,
             Setting("Sayfa görüntü önbelleği (MB)", "Yüksek değer kaydırmayı hızlandırır, daha çok bellek kullanır.", Num(_s.RenderCacheMb, 64, 4096, v => _s.RenderCacheMb = v)),
             Setting("Donanım hızlandırma", "Kapatmak bazı ekran kartı sorunlarını çözer. Yeniden başlatınca uygulanır.", Toggle(_s.HardwareAcceleration, v => _s.HardwareAcceleration = v)),

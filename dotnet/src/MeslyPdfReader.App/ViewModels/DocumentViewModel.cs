@@ -56,6 +56,8 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         _ = LoadBookmarksAsync();
         _ = LoadInfoAsync();
         _ = UpdateScanBannerAsync();
+        // Taranmış sayfalar: ilk görüntü çizildikten sonra arka planda otomatik düzelt ve tanı.
+        _ = Task.Delay(1200).ContinueWith(_ => StartAutoOcr(), TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     // ─────────────── Görünüm durumu ───────────────
@@ -767,6 +769,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         if (_disposed) return;
         _disposed = true;
         _searchCts?.Cancel();
+        StopAutoOcrForDispose();
         SaveState();
         Document.Changed -= OnDocumentChanged;
         Document.Dispose();

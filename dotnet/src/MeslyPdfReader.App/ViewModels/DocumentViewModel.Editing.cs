@@ -7,6 +7,7 @@ using MeslyPdfReader.App.Controls;
 using MeslyPdfReader.App.Dialogs;
 using MeslyPdfReader.App.Services;
 using MeslyPdfReader.Core;
+using MeslyPdfReader.Ocr;
 using MeslyPdfReader.Pdf;
 
 namespace MeslyPdfReader.App.ViewModels;
@@ -76,8 +77,27 @@ public sealed partial class DocumentViewModel : IPdfEditHost
             if (ReferenceEquals(Main.ActiveTab, this) && Main.Ribbon != RibbonTab.EditContent) Main.Ribbon = RibbonTab.EditContent;
             ShowProperties = true;
             _ = LoadFontsAsync();
+            _ = RecognizeForEditAsync();
         }
         else ShowProperties = false; // sağ panel yalnız düzenleme ayarlarını gösterir
+    }
+
+    /// <summary>
+    /// Düzenleme kipine geçilen sayfa taranmış (metinsiz) bir görüntüyse, FineReader'daki gibi önce kendiliğinden tanınır;
+    /// otomatik tanıma zaten çalışıyorsa o sayfa öne alınır.
+    /// </summary>
+    private async Task RecognizeForEditAsync()
+    {
+        if (IsAutoOcrRunning) return; // arka plan işi geçerli sayfayı öncelikle işler
+        try
+        {
+            int page = CurrentPage;
+            if (await Document.CountRealTextCharsAsync(page) >= 10 || await Document.HasOcrLayerAsync(page) || await Document.GetMainImageAsync(page) is null) return;
+            if (Tool != ViewerTool.Edit || page != CurrentPage) return;
+            if (OcrEngine.Unavailable() is not null) return;
+            await RunOcrAsync(ocr: true, pages: new[] { page }, ask: false);
+        }
+        catch (Exception ex) { Log.Warn($"Düzenleme için tanıma: {ex.Message}"); }
     }
 
     private async Task LoadFontsAsync()

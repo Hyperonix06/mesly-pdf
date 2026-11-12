@@ -248,8 +248,19 @@
         <Grid Grid.Column="3" Background="{DynamicResource MeslyCanvasBrush}">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
             <!-- Taranmış sayfa bilgi şeridi (sayfanın üstünü örtmez) -->
+            <!-- Otomatik (arka plan) tanıma ilerlemesi -->
             <Border Grid.Row="0" Padding="14,7,8,7" Background="{DynamicResource MeslyAccentSoftBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="0,0,0,1"
-                    Visibility="{Binding CurrentPageIsScanned, Converter={StaticResource BoolToVis}}">
+                    Visibility="{Binding IsAutoOcrRunning, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="ScanText24" FontSize="18" Foreground="{DynamicResource MeslyAccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding AutoOcrText}" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12.5" />
+                    <ProgressBar Grid.Column="2" Height="6" Margin="12,0" VerticalAlignment="Center" Minimum="0" Maximum="100" Value="{Binding AutoOcrProgress}" />
+                    <ui:Button Grid.Column="3" Content="Durdur" Padding="12,3" Command="{Binding StopAutoOcrCommand}" ToolTip="Otomatik tanımayı durdur; tamamlanan sayfalar korunur" />
+                </Grid>
+            </Border>
+            <Border Grid.Row="0" Padding="14,7,8,7" Background="{DynamicResource MeslyAccentSoftBrush}" BorderBrush="{DynamicResource MeslyBorderBrush}" BorderThickness="0,0,0,1"
+                    Visibility="{Binding ShowScanBanner, Converter={StaticResource BoolToVis}}">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <ui:SymbolIcon Symbol="DocumentSearch24" FontSize="18" Foreground="{DynamicResource MeslyAccentBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />

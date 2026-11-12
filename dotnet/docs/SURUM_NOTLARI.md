@@ -1,5 +1,13 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.6.2 (12 Kasım 2026) — Otomatik tanıma ve düzeltme
+
+* **Taranmış PDF açılınca her şey kendiliğinden:** Metni olmayan taranmış sayfalar arka planda düzeltilir (yan/ters sayfa dik çevrilir, eğiklik giderilir, kenar gölgeleri temizlenir) ve metni tanınır — önce ekrandaki sayfa. Belge bu sırada okunabilir; üstteki şeritte ilerleme ve **Durdur** düğmesi görünür.
+* Kaydetme, düzenleme gibi bir işlem başlatırsanız tanıma o sayfayı bitirip bekler, işlem bitince kalan sayfalarla sürer. Tamamı **Ctrl+Z** ile tek adımda geri alınır; kaydetmeden kapatırsanız özgün dosya değişmez.
+* **Görüntülerden PDF** (telefonla çekilmiş veya tarayıcıdan JPG/PNG olarak gelen sayfalar) de artık otomatik düzeltilip tanınır.
+* **İçeriği Düzenle**'ye geçtiğiniz sayfa taranmışsa önce kendiliğinden tanınır; hemen düzenleyebilirsiniz.
+* Ayarlar → **Metin tanıma (OCR)**: otomatik tanımayı ve düzeltme seçeneklerini açıp kapatabilirsiniz (varsayılan: açık). Tanıma tamamen bu bilgisayarda yapılır.
+
 ## 0.6.1 (12 Kasım 2026) — Metin düzenleme: metin artık yerinden kaymıyor
 
 Kullanıcı bildirimi: “Düzenledikten sonra metin aynı yerinde durmuyor, kayıyor.” Ayrıntılı inceleme beş ayrı neden buldu; hepsi düzeltildi ve 14 yeni testle kalıcı olarak denetleniyor.

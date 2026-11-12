@@ -47,6 +47,8 @@ public sealed class AppSettings
     public bool ScanAutoCorrect { get => GetBool("scan.autoCorrect", true); set => Set("scan.autoCorrect", value ? "1" : "0"); }
     public bool ScanOcr { get => GetBool("scan.ocr", true); set => Set("scan.ocr", value ? "1" : "0"); }
     public string OcrLanguages { get => Get("ocr.languages") is { Length: > 0 } v ? v : "tur+eng"; set => Set("ocr.languages", value); }
+    /// <summary>Taranmış (metinsiz) sayfaları belge açılınca arka planda otomatik tanı ve düzelt.</summary>
+    public bool OcrAutoOnOpen { get => GetBool("ocr.autoOnOpen", true); set => Set("ocr.autoOnOpen", value ? "1" : "0"); }
     public bool OcrAutoRotate { get => GetBool("ocr.autoRotate", true); set => Set("ocr.autoRotate", value ? "1" : "0"); }
     public bool OcrDeskew { get => GetBool("ocr.deskew", true); set => Set("ocr.deskew", value ? "1" : "0"); }
     public bool OcrCleanBorders { get => GetBool("ocr.cleanBorders", true); set => Set("ocr.cleanBorders", value ? "1" : "0"); }
