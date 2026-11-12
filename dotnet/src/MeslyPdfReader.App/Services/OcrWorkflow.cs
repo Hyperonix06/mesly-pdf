@@ -85,7 +85,12 @@ public static class OcrWorkflow
             {
                 var px = await doc.GetImagePixelsAsync(page, main.ObjectIndex);
                 int imgDpi = (int)Math.Round(main.PixelWidth / Math.Max(1, main.Bounds.Width) * 72);
-                var (fixedImg, rep) = await Task.Run(() => OcrService.Correct(px, imgDpi, c with { AutoRotate = false }, o.Languages, ct), ct);
+                // Sayfa döndürülmüşse (ör. yan taranmış sayfa kayıpsız çevrildiyse) görüntü hâlâ yan durur: eğiklik,
+                // satırların yatay olduğu görünen yönde ölçülmeli ve düzeltilmeli; sonra görüntü kendi yönüne geri çevrilir.
+                int rot = ((await doc.GetGeometryAsync(page, ct)).Rotation % 4 + 4) % 4;
+                var upright = ImageOps.RotateQuarter(px, rot);
+                var (fixedUp, rep) = await Task.Run(() => OcrService.Correct(upright, imgDpi, c with { AutoRotate = false }, o.Languages, ct), ct);
+                var fixedImg = ImageOps.RotateQuarter(fixedUp, 4 - rot);
                 if (rep.Changed)
                 {
                     await doc.SetImagePixelsAsync(page, main.ObjectIndex, fixedImg);
