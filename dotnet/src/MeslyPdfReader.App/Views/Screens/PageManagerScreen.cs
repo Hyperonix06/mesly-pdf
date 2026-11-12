@@ -99,9 +99,9 @@ public sealed class PageManagerScreen : UserControl
         var next = Kit.IconButton(SymbolRegular.ChevronRight24, "Sağa kaydır", () => _stripScroll.ScrollToHorizontalOffset(_stripScroll.HorizontalOffset + 400), 18);
         prev.VerticalAlignment = next.VerticalAlignment = VerticalAlignment.Center;
         strip.Children.Add(prev);
+        if (_stripScroll.Parent is Grid old) old.Children.Remove(_stripScroll); // önceki görünümden ayır
         Grid.SetColumn(_stripScroll, 1); strip.Children.Add(_stripScroll);
         Grid.SetColumn(next, 2); strip.Children.Add(next);
-        if (_stripScroll.Parent is Grid old && old != strip) old.Children.Remove(_stripScroll);
         var card = Kit.Card(strip);
         card.SetResourceReference(Border.BackgroundProperty, "MeslySubtleBrush");
         Grid.SetRow(card, 1);

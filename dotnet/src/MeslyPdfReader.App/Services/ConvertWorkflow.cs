@@ -74,7 +74,7 @@ public static class ConvertWorkflow
     public static async Task<ConvertResult> ConvertAsync(PdfDocument doc, string target, ConvertRequest r, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         if (r.Pages.Count == 0) throw new ArgumentException("Dönüştürülecek sayfa seçilmedi.");
-        if (r.Format == ConvertFormat.Image && !r.RecognizeScanned) return await ImagesAsync(doc, target, r, progress, ct);
+        if (r.Format == ConvertFormat.Image) return await ImagesAsync(doc, target, r, progress, ct);
         var scanned = r.Format == ConvertFormat.Image ? new List<int>() : await ScannedPagesAsync(doc, r.Pages, ct);
         bool ocr = r.RecognizeScanned && scanned.Count > 0;
         if (ocr && OcrEngine.Unavailable() is { } why) throw new OcrException(why);

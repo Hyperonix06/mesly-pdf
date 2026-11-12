@@ -176,7 +176,9 @@ namespace MeslyPdfReader.App.Views.Screens
             _loadedRevision = _vm.Revision;
             _updatingUi = true;
             _rtb.Document = _vm.Document!;
+            _rtb.CaretPosition = _rtb.Document.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
             _updatingUi = false;
+            SyncUi();
             _vm.IsDirty = false;
             _status.Text = _vm.Summary;
             _ = LoadThumbs();

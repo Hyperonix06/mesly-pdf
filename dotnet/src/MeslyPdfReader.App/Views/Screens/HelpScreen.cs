@@ -18,11 +18,8 @@ namespace MeslyPdfReader.App.Views.Screens;
 /// <summary>Afiş 12 — Hakkında / Yardım / Lisans.</summary>
 public sealed class HelpScreen : UserControl
 {
-    /// <summary>
-    /// Destek e-posta adresi. Boşsa “Destek ile İletişim” GitHub'daki sorun bildirme sayfasını açar
-    /// (adres belirlenene kadar uydurma bir adres kullanılmaz).
-    /// </summary>
-    public const string? SupportEmail = null;
+    /// <summary>Destek e-posta adresi (kullanıcının belirlediği). “Destek ile İletişim” varsayılan e-posta programını açar.</summary>
+    public const string? SupportEmail = "son.hayal06@gmail.com";
     public const string ProjectUrl = "https://github.com/Hyperonix06/mesly-pdf";
     public const string IssuesUrl = ProjectUrl + "/issues";
 

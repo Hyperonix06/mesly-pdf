@@ -338,9 +338,11 @@ public sealed partial class SelfTestRunner
             var all = await tab.Document.GetAllAnnotationsAsync();
             var img = await PdfTools.RenderAtDpiAsync(tab.Document, 0, 72);
             var r = rects[0];
-            int px = (int)((r.Left + r.Right) / 2), py = (int)(tab.Document.GetPageSize(0).Height - (r.Top + r.Bottom) / 2);
-            int o = py * img.Stride + px * 4;
-            bool yellow = img.Pixels[o] < 180 && img.Pixels[o + 2] > 200;
+            // Vurgu alanında ortalama renk: kırmızı yüksek, mavi belirgin düşük (sarı); yazı pikselleri ortalamayı bozmaz.
+            double sr = 0, sb = 0; int cnt = 0; double ph = tab.Document.GetPageSize(0).Height;
+            for (int y = (int)(ph - r.Top); y < (int)(ph - r.Bottom); y++)
+                for (int x = (int)r.Left; x < (int)r.Right; x++) { int o = y * img.Stride + x * 4; sb += img.Pixels[o]; sr += img.Pixels[o + 2]; cnt++; }
+            bool yellow = cnt > 0 && sr / cnt > 150 && sr / cnt - sb / cnt > 60;
             var path = Path.Combine(work, "Açıklamalı.pdf");
             await tab.Document.SaveAsync(path);
             using var re = await PdfDocument.OpenAsync(path);

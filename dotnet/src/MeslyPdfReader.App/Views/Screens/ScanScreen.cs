@@ -46,11 +46,11 @@ public sealed class ScanScreen : UserControl
     public ScanScreen()
     {
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.35, GridUnitType.Star), MinWidth = 300 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.9, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
 
         var left = new StackPanel();
         left.Children.Add(new TextBlock { Text = "Kaynak", FontWeight = FontWeights.SemiBold, FontSize = 14, Margin = new Thickness(0, 0, 0, 6) });

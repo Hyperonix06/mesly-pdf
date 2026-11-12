@@ -20,7 +20,7 @@ Arayüz, paylaşılan afiş tasarımına göre baştan kuruldu: kırmızı Mesly
 * **Sayfa Yönetimi:** Birleştir (sıra, dosya başına sayfa aralığı), Böl (her N sayfa, aralıklar, her sayfa, tek/çift), **Sırala** (küçük resimleri sürükleyip bırakın; Sıfırla / Uygula, Geri Al ile geri dönülür).
 * **Tarama:** Tarayıcı, renk, çözünürlük, dosya türü (PDF / JPG / PNG); hedef: yeni PDF, açık PDF'e ekle, resim olarak kaydet; **otomatik kırpma** (yeni), otomatik hizalama, besleyiciden çok sayfa, önizleme.
 * **Ayarlar:** Genel, Görüntüleme, Dönüştürme, OCR, Tarama, Güvenlik, Gelişmiş. Yeni: başlangıçta Ana Sayfa ya da son açık belgeler, otomatik güncelleme denetimi, varsayılan PDF görüntüleyici, tüm ayarları sıfırla, klavye kısayolları listesi.
-* **Hakkında / Yardım / Lisans:** sürüm, Windows 10/11 uyumluluğu, Lisans Sözleşmesi, Gizlilik Politikası, yardım konuları, üçüncü taraf lisansları.
+* **Hakkında / Yardım / Lisans:** sürüm, Windows 10/11 uyumluluğu, Lisans Sözleşmesi, Gizlilik Politikası, Destek ile İletişim (son.hayal06@gmail.com), yardım konuları, üçüncü taraf lisansları.
 
 ### Düzeltmeler
 * **Form alanları artık görüntüleniyor:** Önceki sürümlerde formlu PDF'lerde alanların çerçeveleri ve değerleri görüntüleyicide çizilmiyordu (PDF motoru form alanlarını ayrı bir adımda çizer). Düzeltildi.
@@ -34,7 +34,6 @@ Arayüz, paylaşılan afiş tasarımına göre baştan kuruldu: kırmızı Mesly
 * **Arayüz dili** yalnızca Türkçedir.
 * **OCR sonucunu PDF olarak kaydet**, Windows'un yerleşik “Microsoft Print to PDF” yazıcısını kullanır; dosya adı Windows'un penceresinde sorulur. Bu yazıcı kapalıysa nasıl açılacağı söylenir.
 * **Otomatik kırpma**, kâğıttan farklı renkteki tarayıcı zeminini kırpar; zemin kâğıtla aynı renkteyse (beyaz kapak) kırpılacak bir şey ayırt edilemez ve görüntü değiştirilmez.
-* **Destek e-postası** henüz belirlenmedi; “Destek ile İletişim” şimdilik GitHub'daki sorun bildirme sayfasını açar.
 
 ## 0.6.2 (12 Kasım 2026) — Otomatik tanıma ve düzeltme
 

@@ -12,8 +12,30 @@
         WindowCornerPreference="Round" AllowDrop="True" FontFamily="{StaticResource MeslyFont}"
         Background="{DynamicResource MeslyPanelBrush}" Icon="pack://application:,,,/Assets/icon.ico">
     <ui:FluentWindow.Resources>
+        <!-- Sol menüdeki açık belge satırı -->
+        <Style x:Key="OpenDocItem" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" CornerRadius="6" Background="Transparent" Padding="12,0">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bg" Property="Background" Value="{DynamicResource MeslyHoverBrush}" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="RibbonLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="MaxWidth" Value="68" />
+            <Setter Property="LineHeight" Value="13" />
             <Setter Property="TextAlignment" Value="Center" />
             <Setter Property="Margin" Value="0,3,0,0" />
         </Style>
@@ -65,11 +87,11 @@
                             <ItemsControl ItemsSource="{Binding Tabs}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:DocumentViewModel}">
-                                        <Button Style="{StaticResource ToolButtonStyle}" HorizontalContentAlignment="Left" HorizontalAlignment="Stretch" Height="30" Padding="10,0" ToolTip="{Binding FilePath}"
+                                        <Button Style="{StaticResource OpenDocItem}" ToolTip="{Binding FilePath}"
                                                 Command="{Binding DataContext.ShowDocumentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
                                             <StackPanel Orientation="Horizontal">
                                                 <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="15" Foreground="{DynamicResource MeslyAccentBrush}" Margin="0,0,8,0" />
-                                                <TextBlock Text="{Binding Title}" MaxWidth="130" TextTrimming="CharacterEllipsis" FontSize="12.5" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding Title}" MaxWidth="140" TextTrimming="CharacterEllipsis" FontSize="12.5" VerticalAlignment="Center" />
                                                 <TextBlock Text=" •" FontWeight="Bold" Foreground="{DynamicResource MeslyAccentBrush}" Visibility="{Binding IsModified, Converter={StaticResource BoolToVis}}" />
                                             </StackPanel>
                                         </Button>
@@ -151,9 +173,6 @@
 <StackPanel VerticalAlignment="Center" Margin="6,0"><StackPanel Orientation="Horizontal"><TextBlock Text="Sayfa:" VerticalAlignment="Center" Margin="0,0,6,0" /><ui:TextBox Width="52" Height="30" Padding="6,4" Text="{Binding ActiveTab.PageNumber, UpdateSourceTrigger=LostFocus}" x:Name="PageBox" KeyDown="PageBox_KeyDown" ClearButtonEnabled="False" /><TextBlock VerticalAlignment="Center" Margin="6,0,0,0"><Run Text="/ " /><Run Text="{Binding ActiveTab.PageCount, Mode=OneWay}" /></TextBlock></StackPanel><TextBlock Text="Sayfaya git" Style="{StaticResource RibbonLabel}" /></StackPanel>
 <Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.NextPageCommand}" ToolTip="Sonraki sayfa (PageDown)"><StackPanel><ui:SymbolIcon Symbol="ChevronRight24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Sonraki" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
 <Border Style="{StaticResource RibbonSeparator}" />
-<Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.RotateViewLeftCommand}" ToolTip="Görünümü sola döndür"><StackPanel><ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Sola döndür" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
-<Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.RotateViewRightCommand}" ToolTip="Görünümü sağa döndür"><StackPanel><ui:SymbolIcon Symbol="ArrowRotateClockwise24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Sağa döndür" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
-<Border Style="{StaticResource RibbonSeparator}" />
 <Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.CopySelectionCommand}" ToolTip="Seçili metni kopyala (Ctrl+C)"><StackPanel><ui:SymbolIcon Symbol="Copy24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Kopyala" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
 <Button Style="{StaticResource RibbonLarge}" Click="FocusSearch_Click" ToolTip="Belgede ara (Ctrl+F)"><StackPanel><ui:SymbolIcon Symbol="Search24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Ara" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
 </StackPanel>
@@ -161,6 +180,9 @@
 <Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.SetLayoutCommand}" CommandParameter="{x:Static c:PageLayoutMode.SinglePage}" ToolTip="Tek sayfa görünümü"><StackPanel><ui:SymbolIcon Symbol="DocumentOnePage24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Tek sayfa" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
 <Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.SetLayoutCommand}" CommandParameter="{x:Static c:PageLayoutMode.Continuous}" ToolTip="Sürekli kaydırma"><StackPanel><ui:SymbolIcon Symbol="DocumentOnePageMultiple24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Sürekli" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
 <Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.SetLayoutCommand}" CommandParameter="{x:Static c:PageLayoutMode.TwoPageContinuous}" ToolTip="Kitap gibi iki sayfa yan yana (sürekli)"><StackPanel><ui:SymbolIcon Symbol="Book24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="İki sayfa" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
+<Border Style="{StaticResource RibbonSeparator}" />
+<Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.RotateViewLeftCommand}" ToolTip="Görünümü sola döndür"><StackPanel><ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Sola döndür" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
+<Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.RotateViewRightCommand}" ToolTip="Görünümü sağa döndür"><StackPanel><ui:SymbolIcon Symbol="ArrowRotateClockwise24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Sağa döndür" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
 <Border Style="{StaticResource RibbonSeparator}" />
 <Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.ToggleLeftPanelCommand}" ToolTip="Sayfa küçük resimleri panelini göster/gizle"><StackPanel><ui:SymbolIcon Symbol="PanelLeft24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Sayfa paneli" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
 <Button Style="{StaticResource RibbonLarge}" Command="{Binding ActiveTab.ShowPanelCommand}" CommandParameter="{x:Static vm:LeftPanelKind.Bookmarks}" ToolTip="Yer imleri paneli"><StackPanel><ui:SymbolIcon Symbol="Bookmark24" Style="{StaticResource RibbonIcon}" Foreground="{DynamicResource MeslyAccentBrush}" /><TextBlock Text="Yer imleri" Style="{StaticResource RibbonLabel}" /></StackPanel></Button>
