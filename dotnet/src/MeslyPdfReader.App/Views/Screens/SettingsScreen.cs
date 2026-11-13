@@ -201,7 +201,7 @@ public sealed class SettingsScreen : UserControl
         Add(Setting("Otomatik eğiklik düzelt", "Eğri taranmış satırlar yataya getirilir.", Toggle(s.OcrDeskew, v => s.OcrDeskew = v)));
         Add(Setting("Gürültü azaltma (daha temiz metin)", "Taramadaki tek tük benekler temizlenir.", Toggle(s.OcrDenoise, v => s.OcrDenoise = v)));
         Add(Setting("Kenar gölgelerini temizle", "Tarayıcı kapağından kalan koyu kenar şeritleri beyazlatılır.", Toggle(s.OcrCleanBorders, v => s.OcrCleanBorders = v)));
-        Add(Setting("Arka planı beyazlat", "Sararmış veya gri kâğıt beyaza çekilir.", Toggle(s.OcrWhiten, v => s.OcrWhiten = v)));
+        Add(Setting("Arka planı beyazlat", "Sararmış, gri veya gölgeli/eşit aydınlatılmamış kâğıt beyaza çekilir.", Toggle(s.OcrWhiten, v => s.OcrWhiten = v)));
     }
 
     private void Scan(AppSettings s)

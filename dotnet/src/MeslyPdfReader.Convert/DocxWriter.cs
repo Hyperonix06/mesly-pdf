@@ -140,11 +140,17 @@ public static class DocxWriter
     {
         double scale = Math.Min(1, contentWidth / Math.Max(1, tb.Box.Width));
         var widths = Enumerable.Range(0, tb.Cols).Select(c => (int)Math.Round((tb.ColEdges[c + 1] - tb.ColEdges[c]) * scale * Twip)).ToArray();
-        var table = new Table(new TableProperties(new TableStyle { Val = "TableGrid" },
-            new TableWidth { Type = TableWidthUnitValues.Dxa, Width = widths.Sum().ToString() },
-            new TableLayout { Type = TableLayoutValues.Fixed },
+        // Şema sırası: tblStyle, tblW, tblBorders, tblLayout, tblCellMar.
+        var props = new TableProperties();
+        if (!tb.Borderless) props.Append(new TableStyle { Val = "TableGrid" });
+        props.Append(new TableWidth { Type = TableWidthUnitValues.Dxa, Width = widths.Sum().ToString() });
+        if (tb.Borderless)
+            props.Append(new TableBorders(new TopBorder { Val = BorderValues.None }, new LeftBorder { Val = BorderValues.None }, new BottomBorder { Val = BorderValues.None },
+                new RightBorder { Val = BorderValues.None }, new InsideHorizontalBorder { Val = BorderValues.None }, new InsideVerticalBorder { Val = BorderValues.None }));
+        props.Append(new TableLayout { Type = TableLayoutValues.Fixed },
             new TableCellMarginDefault(new TopMargin { Width = "30", Type = TableWidthUnitValues.Dxa }, new BottomMargin { Width = "30", Type = TableWidthUnitValues.Dxa },
-                new TableCellLeftMargin { Width = 80, Type = TableWidthValues.Dxa }, new TableCellRightMargin { Width = 80, Type = TableWidthValues.Dxa })));
+                new TableCellLeftMargin { Width = 80, Type = TableWidthValues.Dxa }, new TableCellRightMargin { Width = 80, Type = TableWidthValues.Dxa }));
+        var table = new Table(props);
         var grid = new TableGrid();
         foreach (var w in widths) grid.Append(new GridColumn { Width = w.ToString() });
         table.Append(grid);

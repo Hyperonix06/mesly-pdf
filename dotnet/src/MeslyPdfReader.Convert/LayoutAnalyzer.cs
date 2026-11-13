@@ -38,6 +38,14 @@ public static class LayoutAnalyzer
                 tables.Add(FillTable(g, inside));
                 words.RemoveAll(w => g.Box.Contains(w.Box.CenterX, w.Box.CenterY));
             }
+            // Çizgisiz tablolar: kalan sözcüklerin hizalamasından.
+            foreach (var g in BorderlessTables.Detect(words))
+            {
+                var inside = words.Where(w => g.Box.Contains(w.Box.CenterX, w.Box.CenterY)).ToList();
+                if (inside.Count == 0) continue;
+                tables.Add(FillTable(g, inside));
+                words.RemoveAll(w => g.Box.Contains(w.Box.CenterX, w.Box.CenterY));
+            }
         }
 
         var images = new List<ImageBlock>();
@@ -433,6 +441,6 @@ public static class LayoutAnalyzer
                 c += span;
             }
         }
-        return new TableBlock(g.Box, g.ColEdges, g.RowEdges, cells);
+        return new TableBlock(g.Box, g.ColEdges, g.RowEdges, cells, g.Borderless);
     }
 }

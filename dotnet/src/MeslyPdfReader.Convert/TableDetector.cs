@@ -18,6 +18,8 @@ public static class TableDetector
         public required List<double> RowEdges { get; init; }
         /// <summary>[satır, sütun sınırı] → o satırda sınırda dikey çizgi var mı.</summary>
         public required bool[,] HasVertical { get; init; }
+        /// <summary>Çizgisiz (hizalamayla oluşan) tablo: Word'e kenarlıksız aktarılır.</summary>
+        public bool Borderless { get; init; }
 
         /// <summary>Hücrenin sağa doğru kaç sütunu kapladığı.</summary>
         public int Span(int row, int col)

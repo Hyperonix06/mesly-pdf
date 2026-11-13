@@ -1,5 +1,23 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.8.0 (14 Kasım 2026) — Daha doğru OCR, çizgisiz tablolar, gölge giderme
+
+### Gelişmiş metin tanıma
+* **PP-OCRv6 motoru (yeni):** PaddleOCR'ın PP-OCRv6 modelleri (Apache-2.0) ONNX Runtime ile **bilgisayarınızda** çalışır; belgeleriniz hiçbir dış servise gönderilmez. Gürültülü, soluk, gölgeli ve düşük çözünürlüklü taramalarda Tesseract'tan belirgin biçimde daha doğru okur.
+* **Otomatik (karma) kip:** İki motor birlikte çalışır. Türkçe harflerde (İ, ı, Ğ, Ş…) Tesseract'ın emin olduğu yerlerde onun, gerçek farklarda yalnızca çok yüksek güvenle onun sonucu alınır; PP-OCR'ın kaçırdığı sözcükler eklenir. Ayarlar → OCR → "Metin tanıma motoru" ile "Yalnız gelişmiş" veya "Yalnız Tesseract" seçilebilir.
+* Sayfa başına süre Tesseract'a göre daha uzundur (yaklaşık 3–8 sn).
+
+### Tablo ve yerleşim
+* **Çizgisiz tablolar:** Hizalamayla oluşmuş (kenarlıksız) tablolar sözcük konumlarından bulunur; Word'e kenarlıksız tablo, Excel'e hücre/sayı olarak aktarılır. Düz yazı, iki sütunlu metin ve iki satırlık hizalamalar tablo sayılmaz. Taranmış sayfalarda OCR sonrası da çalışır.
+
+### Tarama düzeltme
+* **Aydınlık düzleştirme:** Gölge, kenar kararması ve ışık degradesi yerel olarak giderilir (mürekkep korunur; zaten düzgün sayfalara dokunulmaz). "Arka planı beyazlat" artık varsayılan olarak açık.
+
+### Bilinen sınırlar
+* Kıvrık (kitap sırtı / buruşuk) sayfaların düzeltilmesi (dewarp) henüz yok; yalnız yön ve eğiklik düzeltilir.
+* Çizgili tablo algılama düz çizgilere dayanır; belirgin eğri taramalarda önce eğiklik düzeltilmelidir.
+* El yazısı tanıma yok.
+
 ## 0.7.0 (12 Kasım 2026) — Yeni tasarım: afişteki 12 ekran
 
 Arayüz, paylaşılan afiş tasarımına göre baştan kuruldu: kırmızı Mesly renkleri, solda menü (Ana Sayfa, PDF Aç, Dönüştür, OCR, Araçlar, Tarama, Ayarlar, Yardım) ve her işlem için ayrı ekran. Önceki sürümlerin tüm işlevleri korunuyor.

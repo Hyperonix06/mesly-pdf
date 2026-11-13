@@ -201,3 +201,11 @@ Durum sütunundaki Ö: arayüz öz testinde (gerçek pencere, Windows) tek tek �
 * Yer imi yazımı PDFsharp ile yapılır; çok bozuk yapılı bazı PDF'lerde yer imi kaydı başarısız olursa kullanıcıya hata gösterilir, belge kaybolmaz.
 * Sayfa boyutu değiştirmede açıklama (annotation) konumları ölçeklenmez.
 * Arayüzde ekran okuyucu (UI Automation) etiketleri henüz eksiksiz değil.
+
+## 19. 0.8.0 — Gelişmiş OCR, çizgisiz tablo, gölge giderme
+* [ ] Ayarlar → OCR → "Metin tanıma motoru": Otomatik / Yalnız gelişmiş / Yalnız Tesseract seçilebilir; seçim yeniden açılışta korunur.
+* [ ] Öz test "OCR motoru ve dil verileri" adımı gelişmiş motorun sürümünü gösterir ve geçer.
+* [ ] Gölgeli/soluk bir taramada "Otomatik" kip Tesseract'tan daha az hata yapar (gerçek tarayıcıyla elle denenecek).
+* [ ] Çizgisiz bir tablo içeren PDF → Word: tablo kenarlıksız gerçek Word tablosu olur; Excel'de sayılar sayı hücresidir.
+* [ ] Gölgeli taramada "Arka planı beyazlat" açıkken kâğıt her yerde eşit beyazdır; düz sayfa değişmez.
+

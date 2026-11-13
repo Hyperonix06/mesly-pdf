@@ -40,7 +40,7 @@ public sealed record TableCell(int Row, int Col, int ColSpan, IReadOnlyList<Para
 }
 
 /// <summary>Çizgili tablo. Sütun/satır sınırları pt cinsinden.</summary>
-public sealed record TableBlock(Box Box, IReadOnlyList<double> ColEdges, IReadOnlyList<double> RowEdges, IReadOnlyList<TableCell> Cells) : LayoutBlock(Box)
+public sealed record TableBlock(Box Box, IReadOnlyList<double> ColEdges, IReadOnlyList<double> RowEdges, IReadOnlyList<TableCell> Cells, bool Borderless = false) : LayoutBlock(Box)
 {
     public int Rows => RowEdges.Count - 1;
     public int Cols => ColEdges.Count - 1;

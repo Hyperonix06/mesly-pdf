@@ -237,6 +237,82 @@ public static class ImageOps
         return true;
     }
 
+    /// <summary>
+    /// Aydınlık düzleştirme (gölge, kenar kararması, ışık degradesi): her bölgenin kâğıt parlaklığı yerel olarak tahmin edilir
+    /// (hücre başına yüksek yüzdelik → genişletme → yumuşatma) ve piksel o değere bölünerek kâğıt her yerde aynı beyaza çekilir.
+    /// Mürekkep orantılı olarak korunur. Aydınlık zaten düzgünse (kâğıt parlaklığı sapması küçük) hiçbir şey yapmaz; yaptıysa true.
+    /// </summary>
+    public static bool FlattenIllumination(BgraImage img)
+    {
+        int w = img.Width, h = img.Height;
+        if (w < 64 || h < 64) return false;
+        // Hücre ≈ sayfa genişliğinin %4'ü (en az 24 px): harf kalınlığından çok büyük, gölge değişiminden çok küçük.
+        int cell = Math.Max(24, w / 25);
+        int gx = (w + cell - 1) / cell, gy = (h + cell - 1) / cell;
+        var g = ToGray(img);
+        var bg = new double[gx * gy];
+        var hist = new int[256];
+        for (int cy = 0; cy < gy; cy++)
+            for (int cx = 0; cx < gx; cx++)
+            {
+                Array.Clear(hist);
+                int x0 = cx * cell, y0 = cy * cell, x1 = Math.Min(w, x0 + cell), y1 = Math.Min(h, y0 + cell), n = 0;
+                for (int y = y0; y < y1; y += 2) for (int x = x0; x < x1; x += 2) { hist[g.Data[y * w + x]]++; n++; }
+                int target = (int)(n * 0.85), acc = 0, v = 255;
+                for (int i = 0; i < 256; i++) { acc += hist[i]; if (acc >= target) { v = i; break; } }
+                bg[cy * gx + cx] = v;
+            }
+        // Tamamen mürekkeple dolu hücreler (kalın başlık, resim) komşu kâğıttan değer alsın: 3×3 genişletme, sonra yumuşatma.
+        double[] Filter(double[] src, bool max)
+        {
+            var o = new double[src.Length];
+            for (int y = 0; y < gy; y++)
+                for (int x = 0; x < gx; x++)
+                {
+                    double acc = max ? 0 : 0; int n = 0;
+                    for (int dy = -1; dy <= 1; dy++)
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            int yy = y + dy, xx = x + dx;
+                            if (yy < 0 || yy >= gy || xx < 0 || xx >= gx) continue;
+                            double v = src[yy * gx + xx];
+                            if (max) acc = Math.Max(acc, v); else { acc += v; n++; }
+                        }
+                    o[y * gx + x] = max ? acc : acc / n;
+                }
+            return o;
+        }
+        // Yalnızca komşusundan çok koyu hücreler (kalın başlık, resim) komşu kâğıt değerini alır; gerçek gölgeler (yavaş değişir) korunur.
+        var near = Filter(bg, true);
+        for (int i = 0; i < bg.Length; i++) if (bg[i] < near[i] * 0.75) bg[i] = near[i];
+        bg = Filter(bg, false);
+        double lo = bg.Min(), hi = bg.Max();
+        // Sapma küçükse (≤ %8) dokunma; kâğıt çok koyuysa (fotoğraf, koyu zemin) da dokunma.
+        if (hi < 120 || lo >= hi * 0.92) return false;
+        double Gain(double fx, double fy)
+        {
+            // Hücre merkezleri arasında çift doğrusal ara değer.
+            double u = Math.Clamp(fx / cell - 0.5, 0, gx - 1), v = Math.Clamp(fy / cell - 0.5, 0, gy - 1);
+            int x0 = (int)u, y0 = (int)v, x1 = Math.Min(gx - 1, x0 + 1), y1 = Math.Min(gy - 1, y0 + 1);
+            double tx = u - x0, ty = v - y0;
+            double b = bg[y0 * gx + x0] * (1 - tx) * (1 - ty) + bg[y0 * gx + x1] * tx * (1 - ty) + bg[y1 * gx + x0] * (1 - tx) * ty + bg[y1 * gx + x1] * tx * ty;
+            return 255.0 / Math.Max(b, 1);
+        }
+        var px = img.Pixels;
+        var gains = new double[w];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++) gains[x] = Math.Min(Gain(x + 0.5, y + 0.5), 4.0);
+            int row = y * img.Stride;
+            for (int x = 0; x < w; x++)
+            {
+                int o = row + x * 4; double k = gains[x];
+                px[o] = (byte)Math.Min(255, px[o] * k + 0.5); px[o + 1] = (byte)Math.Min(255, px[o + 1] * k + 0.5); px[o + 2] = (byte)Math.Min(255, px[o + 2] * k + 0.5);
+            }
+        }
+        return true;
+    }
+
     /// <summary>Kâğıt rengini (açık tonların %90 yüzdeliği) beyaza çeker; mürekkep korunur. Uygulandıysa true.</summary>
     public static bool WhitenBackground(BgraImage img)
     {

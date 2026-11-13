@@ -31,7 +31,7 @@ public sealed class OcrDialog : DialogBase
         var rot = Cb("Sayfa yönünü otomatik düzelt", s.OcrAutoRotate, "Yan veya ters sayfaları metne bakarak dik çevirir (kayıpsız sayfa döndürme).");
         var skew = Cb("Eğikliği düzelt", s.OcrDeskew, "Eğri taranmış satırları yataya getirir (taranmış görüntü yeniden yazılır).");
         var borders = Cb("Kenar gölgelerini temizle", s.OcrCleanBorders, "Tarayıcı kapağından kalan koyu kenar şeritlerini beyazlatır.");
-        var whiten = Cb("Arka planı beyazlat", s.OcrWhiten, "Sararmış veya gri kâğıdı beyaza çeker.");
+        var whiten = Cb("Arka planı beyazlat", s.OcrWhiten, "Sararmış, gri veya gölgeli kâğıdı beyaza çeker; ışık farkını giderir.");
         var skip = Cb("Zaten metin içeren sayfaları atla", true, "Seçilebilir metni olan sayfalar yeniden tanınmaz.");
         var err = Error();
         var st = new StackPanel();
