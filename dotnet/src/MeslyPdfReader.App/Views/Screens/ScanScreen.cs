@@ -340,8 +340,8 @@ public sealed class ScanScreen : UserControl
             async (p, ct) => doc = await ScanPdfBuilder.BuildAsync(pages, p, ct), "scan", $"{pages.Count} sayfa");
         if (!ok || doc is null) { doc?.Dispose(); return; }
         // PDF hemen gösterilir; metin tanıma arka planda (ilerleme şeridi, Durdur, tek adımda geri alma) yapılır.
-        bool ocr = s.ScanOcr && OcrEngine.Unavailable() is null;
-        string ocrNote = s.ScanOcr && !ocr ? " Metin tanınamadı: " + OcrEngine.Unavailable() : ocr ? " Metin arka planda tanınıyor." : "";
+        bool ocr = s.ScanOcr && OcrService.Unavailable() is null;
+        string ocrNote = s.ScanOcr && !ocr ? " Metin tanınamadı: " + OcrService.Unavailable() : ocr ? " Metin arka planda tanınıyor." : "";
         DocumentViewModel shown;
         if (append && target is not null)
         {

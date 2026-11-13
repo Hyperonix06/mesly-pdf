@@ -40,7 +40,7 @@ public static class OcrWorkflow
     public static async Task<IReadOnlyList<OcrPageResult>> RecognizeAsync(PdfDocument doc, IReadOnlyList<int> pages, OcrRunOptions o,
         IProgress<double>? progress = null, CancellationToken ct = default, bool ocr = true)
     {
-        if (ocr && OcrEngine.Unavailable() is { } why) throw new OcrException(why);
+        if (ocr && OcrService.Unavailable() is { } why) throw new OcrException(why);
         var results = new OcrPageResult[pages.Count];
         int done = 0;
         double[] partial = new double[pages.Count];

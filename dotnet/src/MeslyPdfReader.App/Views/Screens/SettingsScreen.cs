@@ -1,3 +1,4 @@
+using MeslyPdfReader.Ocr;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -190,6 +191,8 @@ public sealed class SettingsScreen : UserControl
 
     private void Ocr(AppSettings s)
     {
+        Add(Setting("Metin tanıma motoru", PaddleOcr.Unavailable() is { } why ? "Gelişmiş motor kullanılamıyor (" + why + "); Tesseract kullanılır." : "Otomatik: gelişmiş motor (PP-OCRv6) ve Tesseract birlikte çalışır; bozuk taramada ve Türkçe harflerde en doğru sonuç. Hepsi bu bilgisayarda çalışır.",
+            Choice(new[] { "Otomatik (önerilen)", "Yalnız gelişmiş (PP-OCRv6)", "Yalnız Tesseract" }, s.OcrEngineMode, i => { s.OcrEngineMode = i; OcrService.Preferred = (OcrBackend)new[] { 0, 2, 3 }[i]; })));
         Add(Setting("Belge dili", null, Choice(new[] { "Türkçe + İngilizce", "Türkçe", "İngilizce" }, Math.Max(0, Array.IndexOf(LangCodes, s.OcrLanguages)), i => s.OcrLanguages = LangCodes[i])));
         Add(Setting("Tanıma çözünürlüğü", null, Choice(new[] { "200 DPI (hızlı)", "300 DPI (önerilen)", "400 DPI (küçük yazılar)" }, s.OcrDpi switch { <= 200 => 0, >= 400 => 2, _ => 1 }, i => s.OcrDpi = i switch { 0 => 200, 2 => 400, _ => 300 })));
         Add(Setting("Taranmış belgeleri otomatik tanı ve düzelt", "Metni olmayan taranmış sayfalar belge açılınca arka planda düzeltilir ve tanınır. Ctrl+Z ile tek adımda geri alınır.", Toggle(s.OcrAutoOnOpen, v => s.OcrAutoOnOpen = v)));

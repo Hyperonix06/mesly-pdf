@@ -72,7 +72,7 @@ public sealed partial class DocumentViewModel
 
     public async Task<IReadOnlyList<OcrPageResult>?> RunOcrAsync(bool ocr, IReadOnlyList<int>? pages, bool ask = true)
     {
-        if (ocr && OcrEngine.Unavailable() is { } why) { MessageDialog.Show("Metin tanıma kullanılamıyor", why, MessageKind.Error); return null; }
+        if (ocr && OcrService.Unavailable() is { } why) { MessageDialog.Show("Metin tanıma kullanılamıyor", why, MessageKind.Error); return null; }
         var opts = OcrRunOptions.From(_settings);
         IReadOnlyList<int> target = pages ?? TargetPages();
         if (ask)

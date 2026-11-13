@@ -112,7 +112,7 @@ namespace MeslyPdfReader.App.ViewModels
             Validate();
             LastSummary = null; LastOutput = null;
             if (Source is not { } src) { MessageDialog.Show("Kaynak seçilmedi", "Önce bir PDF, görüntü seçin ya da tarayıcıdan tarayın.", MessageKind.Warning); return false; }
-            if (OcrEngine.Unavailable() is { } why) { MessageDialog.Show("Metin tanıma kullanılamıyor", why, MessageKind.Error); return false; }
+            if (OcrService.Unavailable() is { } why) { MessageDialog.Show("Metin tanıma kullanılamıyor", why, MessageKind.Error); return false; }
             var output = Output;
             if (output != OcrOutput.EditableText && target is null)
             {

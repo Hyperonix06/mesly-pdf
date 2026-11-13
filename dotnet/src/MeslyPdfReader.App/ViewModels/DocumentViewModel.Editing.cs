@@ -104,7 +104,7 @@ public sealed partial class DocumentViewModel : IPdfEditHost
             int page = CurrentPage;
             if (await Document.CountRealTextCharsAsync(page) >= 10 || await Document.HasOcrLayerAsync(page) || await Document.GetMainImageAsync(page) is null) return;
             if (Tool != ViewerTool.Edit || page != CurrentPage) return;
-            if (OcrEngine.Unavailable() is not null) return;
+            if (OcrService.Unavailable() is not null) return;
             await RunOcrAsync(ocr: true, pages: new[] { page }, ask: false);
         }
         catch (Exception ex) { Log.Warn($"Düzenleme için tanıma: {ex.Message}"); }

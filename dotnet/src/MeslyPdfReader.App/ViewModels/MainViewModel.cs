@@ -32,6 +32,7 @@ public sealed partial class MainViewModel : BusyViewModel
 
     public MainViewModel(AppSettings settings, AppDatabase db, ThemeService theme, RecoveryService recovery)
     {
+        OcrService.Preferred = (OcrBackend)new[] { 0, 2, 3 }[settings.OcrEngineMode];
         _settings = settings; _db = db; Db = db; Theme = theme; Recovery = recovery;
         Library = new LibraryViewModel(this, settings, db);
         Converter = new ConvertScreenViewModel(this, settings);
@@ -341,9 +342,9 @@ public sealed partial class MainViewModel : BusyViewModel
         if (ok && doc is not null)
         {
             // PDF hemen gösterilir; metin tanıma arka planda (ilerleme şeridi ve Durdur ile).
-            bool ocr = _settings.ScanOcr && OcrEngine.Unavailable() is null;
+            bool ocr = _settings.ScanOcr && OcrService.Unavailable() is null;
             var vm = AddTab(doc, record: false);
-            vm.StatusText = $"{pages.Count} taranmış sayfa.{(ocr ? " Metin arka planda tanınıyor." : _settings.ScanOcr ? " Metin tanınamadı: " + OcrEngine.Unavailable() : "")} Kaydetmek için Ctrl+S.";
+            vm.StatusText = $"{pages.Count} taranmış sayfa.{(ocr ? " Metin arka planda tanınıyor." : _settings.ScanOcr ? " Metin tanınamadı: " + OcrService.Unavailable() : "")} Kaydetmek için Ctrl+S.";
             if (ocr) vm.StartAutoOcr(force: true, correction: ImageCorrection.None); // düzeltme tarama penceresinde yapıldı
         }
         else doc?.Dispose();

@@ -22,4 +22,9 @@
   <ItemGroup Condition="'$(MeslyVcRuntimeDir)' != '' And Exists('$(MeslyVcRuntimeDir)')">
     <None Include="$(MeslyVcRuntimeDir)\*.dll" Link="ocr\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
   </ItemGroup>
+  <!-- CI: gelişmiş OCR (PP-OCRv6 ONNX modelleri + ONNX Runtime DLL'leri) dışarıdan verilir: <dir>\det.onnx, rec.onnx, lisanslar, bin\*.dll -->
+  <ItemGroup Condition="'$(MeslyPaddleDir)' != '' And Exists('$(MeslyPaddleDir)')">
+    <None Include="$(MeslyPaddleDir)\*.onnx;$(MeslyPaddleDir)\*.md;$(MeslyPaddleDir)\LICENSE*" Link="ocr\paddle\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
+    <None Include="$(MeslyPaddleDir)\bin\*.dll" Link="ocr\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" Visible="false" />
+  </ItemGroup>
 </Project>

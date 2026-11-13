@@ -490,7 +490,7 @@ public sealed partial class DocumentViewModel : BusyViewModel, IDisposable
         if (pages is null) return;
         var at = InsertPositionDialog.Ask(PageCount, CurrentPage, $"{pages.Count} taranmış sayfa");
         if (at is null) return;
-        bool ocr = _settings.ScanOcr && MeslyPdfReader.Ocr.OcrEngine.Unavailable() is null;
+        bool ocr = _settings.ScanOcr && MeslyPdfReader.Ocr.OcrService.Unavailable() is null;
         await EditAsync("Taranan sayfalar ekleniyor…", async () =>
         {
             using var tmp = await ScanPdfBuilder.BuildAsync(pages);

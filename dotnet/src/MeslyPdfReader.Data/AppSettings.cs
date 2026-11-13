@@ -26,6 +26,8 @@ public sealed class AppSettings
     public double DefaultZoom { get => GetDouble("view.zoom", 1.0); set => Set("view.zoom", value.ToString(CultureInfo.InvariantCulture)); }
     public LayoutChoice DefaultLayout { get => GetEnum("view.layout", LayoutChoice.Continuous); set => Set("view.layout", value.ToString()); }
     /// <summary>Arayüz boyutu: 0 = otomatik (pencereye göre, afişteki oranlar), yoksa yüzde (100, 115, 130, 150).</summary>
+    /// <summary>Metin tanıma motoru: 0 otomatik (hibrit), 1 yalnız gelişmiş, 2 yalnız Tesseract.</summary>
+    public int OcrEngineMode { get => Math.Clamp(GetInt("ocr.engine", 0), 0, 2); set => Set("ocr.engine", value.ToString(CultureInfo.InvariantCulture)); }
     public int UiScale { get => GetInt("ui.scale", 0); set => Set("ui.scale", value.ToString(CultureInfo.InvariantCulture)); }
     public bool DarkReading { get => GetBool("view.darkReading", false); set => Set("view.darkReading", value ? "1" : "0"); }
     public bool RememberLastPage { get => GetBool("view.rememberPage", true); set => Set("view.rememberPage", value ? "1" : "0"); }

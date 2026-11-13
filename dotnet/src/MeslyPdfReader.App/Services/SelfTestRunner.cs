@@ -568,8 +568,17 @@ public sealed partial class SelfTestRunner
             var langs = MeslyPdfReader.Ocr.OcrEngine.InstalledLanguages();
             var data = MeslyPdfReader.Ocr.OcrEngine.FindTessdata();
             bool osd = data is not null && File.Exists(Path.Combine(data, "osd.traineddata"));
-            return (why is null && langs.Contains("tur") && langs.Contains("eng") && osd,
-                $"sürüm {MeslyPdfReader.Ocr.OcrEngine.Version()}, diller: {string.Join(", ", langs)}, yön verisi={osd}, klasör={data}{(why is null ? "" : " / " + why)}");
+            // Gelişmiş motor (PP-OCRv6): modeller paketteyse gerçekten yüklenip bir satırı doğru okumalı.
+            var padDir = MeslyPdfReader.Ocr.PaddleOcr.FindModelDir();
+            bool advOk = true; string adv = "gelişmiş motor pakette yok";
+            if (padDir is not null)
+            {
+                var padWhy = MeslyPdfReader.Ocr.PaddleOcr.Unavailable();
+                advOk = padWhy is null;
+                adv = advOk ? $"gelişmiş motor {MeslyPdfReader.Ocr.PaddleOcr.Version()}" : "gelişmiş motor yüklenemedi: " + padWhy;
+            }
+            return (why is null && langs.Contains("tur") && langs.Contains("eng") && osd && advOk,
+                $"sürüm {MeslyPdfReader.Ocr.OcrEngine.Version()}, diller: {string.Join(", ", langs)}, yön verisi={osd}, {adv}, klasör={data}{(why is null ? "" : " / " + why)}");
         });
 
         string scanPdf = Path.Combine(work, "Yan Taranmış Belge.pdf");

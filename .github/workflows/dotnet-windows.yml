@@ -56,11 +56,45 @@ jobs:
           "TESSDIR=$td" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "VCDIR=$vc" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Gelişmiş OCR bileşenleri (PP-OCRv6 modelleri + ONNX Runtime; SHA-256 doğrulamalı)
+        run: |
+          # Modeller RapidOCR 3.10.0 tekerleğinde (Apache-2.0), ONNX Runtime Microsoft'un resmi 1.22.1 Windows tekerleğinde gelir.
+          # Hiçbiri sürüm ve özet doğrulaması olmadan kullanılmaz.
+          $wh = Join-Path $env:RUNNER_TEMP "wheels"; New-Item -ItemType Directory -Force $wh | Out-Null
+          python -m pip download --no-deps --only-binary=:all: --platform win_amd64 --python-version 3.12 onnxruntime==1.22.1 -d $wh
+          python -m pip download --no-deps --only-binary=:all: rapidocr==3.10.0 -d $wh
+          $expected = @{
+            "onnxruntime-1.22.1-cp312-cp312-win_amd64.whl" = "6a64291d57ea966a245f749eb970f4fa05a64d26672e05a83fdb5db6b7d62f87"
+            "rapidocr-3.10.0-py3-none-any.whl"             = "2fc34e26cd0f48514804a94f8832283039c7334076bff60768b1fed9ad068050"
+          }
+          foreach ($k in $expected.Keys) {
+            $f = Join-Path $wh $k
+            $h = (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()
+            if ($h -ne $expected[$k]) { throw "SHA-256 uyuşmuyor: $k ($h)" }
+            Write-Host "Doğrulandı: $k"
+          }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $x = Join-Path $env:RUNNER_TEMP "wheelx"; New-Item -ItemType Directory -Force $x | Out-Null
+          foreach ($k in $expected.Keys) { [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $wh $k), (Join-Path $x ($k -replace '\.whl$',''))) }
+          $pd = Join-Path $env:RUNNER_TEMP "paddle"; New-Item -ItemType Directory -Force (Join-Path $pd "bin") | Out-Null
+          $rx = Join-Path $x "rapidocr-3.10.0-py3-none-any"
+          Copy-Item (Join-Path $rx "rapidocr\models\PP-OCRv6_det_small.onnx") (Join-Path $pd "det.onnx")
+          Copy-Item (Join-Path $rx "rapidocr\models\PP-OCRv6_rec_small.onnx") (Join-Path $pd "rec.onnx")
+          Copy-Item (Join-Path $rx "rapidocr-3.10.0.dist-info\licenses\LICENSE") (Join-Path $pd "LICENSE-RapidOCR.txt")
+          Copy-Item (Join-Path $rx "rapidocr-3.10.0.dist-info\licenses\MODEL_LICENSES.md") (Join-Path $pd "MODEL_LICENSES.md")
+          $ox = Join-Path $x "onnxruntime-1.22.1-cp312-cp312-win_amd64"
+          Copy-Item (Join-Path $ox "onnxruntime\capi\onnxruntime.dll") (Join-Path $pd "bin")
+          Copy-Item (Join-Path $ox "onnxruntime\capi\onnxruntime_providers_shared.dll") (Join-Path $pd "bin")
+          Get-ChildItem $pd -Recurse -File | ForEach-Object { Write-Host "$($_.FullName.Substring($pd.Length)) $([math]::Round($_.Length/1MB,1)) MB" }
+          "PADDLEDIR=$pd" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "MESLY_PADDLE_MODELS=$pd" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "MESLY_ORT=$(Join-Path $pd 'bin\onnxruntime.dll')" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Birim testleri (Windows)
         run: dotnet test tests/MeslyPdfReader.Tests -c Release --logger "trx;LogFileName=unit-tests.trx" --logger "console;verbosity=normal" --results-directory ../test-results
 
       - name: Self-contained yayın (win-x64)
-        run: dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -o ../publish "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR"
+        run: dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -o ../publish "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR" "-p:MeslyPaddleDir=$env:PADDLEDIR"
 
       - name: LibreOffice (Office → PDF yolunu sınamak için)
         timeout-minutes: 8
@@ -118,7 +152,7 @@ jobs:
 
       - name: Karşılaştırma için eski tür (çok dosyalı) kurulum
         run: |
-          dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ..\publish-multi "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR"
+          dotnet publish src/MeslyPdfReader.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ..\publish-multi "-p:MeslyTessdataDir=$env:TESSDIR" "-p:MeslyVcRuntimeDir=$env:VCDIR" "-p:MeslyPaddleDir=$env:PADDLEDIR"
           $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
           & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DPublishDir=..\..\publish-multi" "/Ocompare" "/FMeslyPdfReader-Setup-cokdosya" installer\MeslyPdfReader.iss

@@ -14,6 +14,8 @@ Mesly PDF Reader yalnızca ticari dağıtıma izin veren, kaynak kodu açma zoru
 | System.Security.Cryptography.Pkcs | 10.0.15 | (PDFsharp bağımlılığı) | MIT | https://github.com/dotnet/runtime |
 | .NET 10 çalışma zamanı ve WPF | 10.0 | Uygulama çalışma zamanı (self-contained) | MIT | https://github.com/dotnet |
 | Tesseract OCR (yerel DLL: charlesw/tesseract NuGet paketinden) | 5.0 (Windows) | Metin tanıma, sayfa yönü algılama | Apache-2.0 | https://github.com/tesseract-ocr/tesseract · https://github.com/charlesw/tesseract |
+| PaddleOCR PP-OCRv6 modelleri (RapidOCR 3.10.0 paketinden, ONNX) | PP-OCRv6 | Gelişmiş metin tanıma (algılama + tanıma; Tesseract ile birleştirilir) | Apache-2.0 | https://github.com/PaddlePaddle/PaddleOCR · https://github.com/RapidAI/RapidOCR |
+| ONNX Runtime (yerel DLL) | 1.22.1 | OCR modellerini çalıştırma | MIT | https://github.com/microsoft/onnxruntime |
 | Leptonica | 1.82.0 | Tesseract'ın görüntü kitaplığı | BSD-2-Clause benzeri Leptonica lisansı | http://www.leptonica.org |
 | tessdata_best (tur, eng) ve tessdata (osd) | — | OCR dil modelleri ve yön algılama verisi | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_best · https://github.com/tesseract-ocr/tessdata |
 | Microsoft Visual C++ 2015–2022 çalışma zamanı (vcruntime140, vcruntime140_1, msvcp140) | 14.x | Tesseract DLL'lerinin bağımlılığı; yalnızca sistemde yoksa yüklenir | Microsoft Visual Studio yeniden dağıtılabilir dosya lisansı (uygulama yanında dağıtıma izin verilir) | https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files |

@@ -43,7 +43,7 @@ public sealed partial class DocumentViewModel
         _autoCorrection = correction;
         if (_disposed || (!force && (!_settings.OcrAutoOnOpen || _autoStoppedByUser))) return;
         if (_autoTask is { IsCompleted: false }) return;
-        if (OcrEngine.Unavailable() is not null) return; // tanıma bileşeni yoksa şerit “Metni tanı” ile açık hatayı gösterir
+        if (OcrService.Unavailable() is not null) return; // tanıma bileşeni yoksa şerit “Metni tanı” ile açık hatayı gösterir
         _autoPauseRequested = false;
         _autoCts = new CancellationTokenSource();
         _autoTask = RunAutoOcrAsync(_autoCts.Token);

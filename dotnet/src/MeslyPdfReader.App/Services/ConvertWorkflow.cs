@@ -77,7 +77,7 @@ public static class ConvertWorkflow
         if (r.Format == ConvertFormat.Image) return await ImagesAsync(doc, target, r, progress, ct);
         var scanned = r.Format == ConvertFormat.Image ? new List<int>() : await ScannedPagesAsync(doc, r.Pages, ct);
         bool ocr = r.RecognizeScanned && scanned.Count > 0;
-        if (ocr && OcrEngine.Unavailable() is { } why) throw new OcrException(why);
+        if (ocr && OcrService.Unavailable() is { } why) throw new OcrException(why);
         string? tmp = null;
         PdfDocument? work = null;
         try

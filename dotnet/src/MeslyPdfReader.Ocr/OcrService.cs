@@ -16,7 +16,30 @@ public static class OcrService
 
     private static void Return(OcrEngine e) => Pool.GetOrAdd(e.Languages, _ => new ConcurrentBag<OcrEngine>()).Add(e);
 
-    public static async Task<OcrPage> RecognizeAsync(BgraImage img, int dpi, string languages, CancellationToken ct = default, Action<double>? progress = null)
+    /// <summary>Varsayılan motor seçimi (Ayarlar › Metin tanıma). Otomatik: gelişmiş motor kullanılabilirse o, değilse Tesseract.</summary>
+    public static OcrBackend Preferred { get; set; } = OcrBackend.Auto;
+
+    /// <summary>
+    /// İstenen motorun gerçekte hangisi olacağını belirler. Otomatik: ikisi de çalışıyorsa Hibrit; yalnız biri çalışıyorsa o.
+    /// Gelişmiş motor Arapça (sağdan sola) için kullanılmaz.
+    /// </summary>
+    public static OcrBackend Resolve(string languages, OcrBackend? requested = null)
+    {
+        var want = requested ?? Preferred;
+        if (want is OcrBackend.Standard or OcrBackend.Advanced) return want;
+        bool arabic = languages.Split('+').Contains("ara");
+        if (arabic || PaddleOcr.Unavailable() is not null) return OcrBackend.Standard;
+        return OcrEngine.Unavailable() is null ? OcrBackend.Hybrid : OcrBackend.Advanced;
+    }
+
+    /// <summary>Seçilen motor çalışabilir mi? Çalışamıyorsa kullanıcıya gösterilecek neden.</summary>
+    public static string? Unavailable(string languages = "tur+eng", OcrBackend? requested = null) => Resolve(languages, requested) switch
+    {
+        OcrBackend.Standard => OcrEngine.Unavailable(),
+        _ => PaddleOcr.Unavailable(),
+    };
+
+    public static async Task<OcrPage> RecognizeAsync(BgraImage img, int dpi, string languages, CancellationToken ct = default, Action<double>? progress = null, OcrBackend? engine = null)
     {
         await Slots.WaitAsync(ct);
         try
@@ -24,9 +47,30 @@ public static class OcrService
             return await Task.Run(() =>
             {
                 var gray = ImageOps.ToGray(img);
-                var e = Rent(languages);
-                try { return e.Recognize(gray, dpi, ct, progress); }
-                finally { Return(e); }
+                switch (Resolve(languages, engine))
+                {
+                    case OcrBackend.Advanced:
+                        return PaddleOcr.Recognize(gray, dpi, languages, ct, progress);
+                    case OcrBackend.Hybrid:
+                    {
+                        // İki motor aynı anda çalışır; süre yaklaşık yavaş olanın süresi kadardır.
+                        var tess = Task.Run(() =>
+                        {
+                            var e = Rent(languages);
+                            try { return e.Recognize(gray, dpi, ct, null); } finally { Return(e); }
+                        }, ct);
+                        var adv = PaddleOcr.Recognize(gray, dpi, languages, ct, progress);
+                        OcrPage? t = null;
+                        try { t = tess.GetAwaiter().GetResult(); } catch (OperationCanceledException) { throw; } catch { /* Tesseract hatası gelişmiş sonucu engellemez */ }
+                        return t is null ? adv : HybridOcr.Merge(adv, t).Page;
+                    }
+                    default:
+                    {
+                        var e = Rent(languages);
+                        try { return e.Recognize(gray, dpi, ct, progress); }
+                        finally { Return(e); }
+                    }
+                }
             }, ct);
         }
         finally { Slots.Release(); }
@@ -92,4 +136,17 @@ public static class OcrService
         double second = scores.Where((_, i) => i != best).DefaultIfEmpty(0).Max();
         return scores[best] > 8 && scores[best] > second * 1.5 ? best : 0;
     }
+}
+
+/// <summary>Metin tanıma motoru.</summary>
+public enum OcrBackend
+{
+    /// <summary>Otomatik (önerilen): kullanılabilir en iyi birleşim.</summary>
+    Auto,
+    /// <summary>Gelişmiş motor + Tesseract sözcük düzeyinde birleşik.</summary>
+    Hybrid,
+    /// <summary>Yalnız gelişmiş motor (PP-OCRv6).</summary>
+    Advanced,
+    /// <summary>Yalnız Tesseract.</summary>
+    Standard,
 }
