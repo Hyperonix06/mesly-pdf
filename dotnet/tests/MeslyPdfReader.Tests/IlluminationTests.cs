@@ -88,6 +88,17 @@ public class IlluminationTests
     }
 
     [Fact]
+    public async Task ShadowDoesNotCauseFalseDeskewAndCornersStayWhite()
+    {
+        var img = await PageAsync();
+        Shade(img);
+        var (fixedImg, rep) = OcrService.Correct(img, 200, new ImageCorrection(AutoRotate: false, Deskew: true, CleanBorders: true, WhitenBackground: true));
+        Assert.True(Math.Abs(rep.DeskewDegrees) < 0.3, $"gölge yüzünden yanlış eğiklik düzeltmesi: {rep.DeskewDegrees:0.0}°");
+        foreach (var (fx, fy) in new[] { (0.1, 0.1), (0.9, 0.1), (0.5, 0.5), (0.15, 0.85), (0.9, 0.9) })
+            Assert.True(PaperLevel(fixedImg, fx, fy) > 235, $"({fx},{fy}) kâğıt yeterince beyaz değil: {PaperLevel(fixedImg, fx, fy):0}");
+    }
+
+    [Fact]
     public async Task ImprovesOcrOnShadedPage()
     {
         if (OcrService.Unavailable("tur+eng", OcrBackend.Auto) is { } why) Assert.Fail(why);

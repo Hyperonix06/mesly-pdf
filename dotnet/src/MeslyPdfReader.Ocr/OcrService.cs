@@ -84,6 +84,8 @@ public static class OcrService
     {
         int turns = 0; double skew = 0; bool borders = false, whiten = false; string? note = null;
         if (c.CleanBorders) borders = ImageOps.CleanBorders(img);
+        // Gölge/degrade önce giderilir: eğiklik ve yön ölçümü gölgeden etkilenmesin, döndürmeyle oluşan köşeler beyaz kalsın.
+        bool flat = c.WhitenBackground && ImageOps.FlattenIllumination(img);
         if (c.AutoRotate)
         {
             if (OcrEngine.Unavailable() is { } why) note = why;
@@ -102,8 +104,7 @@ public static class OcrService
         }
         if (c.WhitenBackground)
         {
-            // Önce yerel aydınlık (gölge/degrade), sonra genel kâğıt beyazlatma.
-            bool flat = ImageOps.FlattenIllumination(img);
+            // Yerel aydınlık yukarıda yapıldı; burada genel kâğıt beyazlatma.
             whiten = ImageOps.WhitenBackground(img) || flat;
         }
         int specks = c.Denoise ? ImageOps.Denoise(img, dpi) : 0;
