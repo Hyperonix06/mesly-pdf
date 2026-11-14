@@ -120,6 +120,7 @@ jobs:
           Write-Host "Çıkış kodu: $($p.ExitCode)"
           if (Test-Path "$out\selftest.md") { Get-Content "$out\selftest.md" -Encoding utf8 | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8; Get-Content "$out\selftest.md" -Encoding utf8 }
           Get-ChildItem "$out\appdata\logs" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName -Tail 80 }
+          if (Test-Path "$out\selftest.md") { Get-Content "$out\selftest.md" -Encoding utf8 | Where-Object { $_ -match "BAŞARISIZ" } | ForEach-Object { Write-Host "::error title=Öz test adımı başarısız::$($_ -replace '[\r\n]+',' ')" } }
           if ($p.ExitCode -ne 0) { throw "Öz test başarısız (çıkış kodu $($p.ExitCode))" }
 
       - name: Öz test çıktıları
