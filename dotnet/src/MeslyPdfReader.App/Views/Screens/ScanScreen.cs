@@ -243,7 +243,7 @@ public sealed class ScanScreen : UserControl
         CorrectionReport? rep = null;
         if (correct)
         {
-            var corr = new ImageCorrection(AutoRotate: OcrEngine.Unavailable() is null, Deskew: true, CleanBorders: true);
+            var corr = new ImageCorrection(AutoRotate: OcrEngine.Unavailable() is null, Deskew: true, CleanBorders: true, WhitenBackground: true);
             (img, rep) = OcrService.Correct(img, p.Dpi, corr, languages);
         }
         bool bw = color == ScanColorMode.BlackWhite;

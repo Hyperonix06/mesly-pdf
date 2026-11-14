@@ -604,6 +604,78 @@ public sealed partial class SelfTestRunner
             return (ok, $"{rep.Describe()} ({ms} ms); sonuç {img.Width}×{img.Height} px");
         });
 
+        await Step("Tarama", "Gölgeli taramanın düzeltilmesi (tarama penceresi) ve gelişmiş motorla okunması", "Soldan sağa kararan + köşe gölgeli sayfa: kâğıt her yerde beyaz olur, metin ≥3/4 satır birebir okunur", async () =>
+        {
+            BgraImage page;
+            using (var d = await PdfDocument.CreateAsync(PaperSize.A4.ToPoints(), 1))
+            {
+                await d.AddTextAsync(0, "Hizmet Sözleşmesi", 72, 760, 24, font);
+                for (int i = 0; i < ocrLines.Length; i++) await d.AddTextAsync(0, ocrLines[i], 72, 700 - i * 22, 14, font);
+                page = await PdfTools.RenderAtDpiAsync(d, 0, 300);
+            }
+            for (int y = 0; y < page.Height; y++)
+                for (int x = 0; x < page.Width; x++)
+                {
+                    double k = 1.0 - 0.55 * x / page.Width;
+                    double dx = (x - page.Width * 0.15) / (page.Width * 0.3), dy = (y - page.Height * 0.85) / (page.Height * 0.2);
+                    k *= 1.0 - 0.3 * Math.Max(0, 1 - Math.Sqrt(dx * dx + dy * dy));
+                    int o = y * page.Stride + x * 4;
+                    for (int c = 0; c < 3; c++) page.Pixels[o + c] = (byte)(page.Pixels[o + c] * k);
+                }
+            var scanned = new ScannedPage { Data = ImageCodec.EncodeJpeg(page, 94, 300), Format = ScannedFormat.Jpeg, Dpi = 300 };
+            var sw = Stopwatch.StartNew();
+            var (done, rep, _) = await Task.Run(() => MeslyPdfReader.App.Views.Screens.ScanScreen.Process(scanned, crop: false, correct: true, ScanColorMode.Color, "tur+eng"));
+            var img = ImageCodec.Decode(done.Data);
+            double Level(double fx, double fy)
+            {
+                int cx = (int)(img.Width * fx), cy = (int)(img.Height * fy), r = img.Width / 40;
+                var v = new List<int>();
+                for (int y = Math.Max(0, cy - r); y < Math.Min(img.Height, cy + r); y++)
+                    for (int x = Math.Max(0, cx - r); x < Math.Min(img.Width, cx + r); x++) v.Add(img.Pixels[y * img.Stride + x * 4 + 1]);
+                v.Sort(); return v.Skip(v.Count * 8 / 10).Average();
+            }
+            var lv = new[] { Level(0.1, 0.1), Level(0.5, 0.5), Level(0.9, 0.1), Level(0.15, 0.85) };
+            bool flat = lv.Min() > 225 && lv.Max() - lv.Min() < 25;
+            var backend = MeslyPdfReader.Ocr.PaddleOcr.FindModelDir() is not null ? MeslyPdfReader.Ocr.OcrBackend.Advanced : MeslyPdfReader.Ocr.OcrBackend.Standard;
+            var ocr = await MeslyPdfReader.Ocr.OcrService.RecognizeAsync(img, 300, "tur+eng", default, null, backend);
+            long ms = sw.ElapsedMilliseconds;
+            var got = string.Join("\n", ocr.Words.GroupBy(w => w.Line).Select(g => string.Join(" ", g.Select(w => w.Text))));
+            int okLines = ocrLines.Count(l => Flat(got).Contains(l.TrimEnd('.')));
+            return (flat && okLines >= 3, $"kâğıt seviyeleri {string.Join("/", lv.Select(v => v.ToString("0")))}, motor={backend}, birebir satır {okLines}/4, {rep?.Describe()} ({ms} ms)");
+        });
+
+        await Step("Dönüştür", "Çizgisiz tablo → Word (kenarlıksız) ve Excel", "Hizalamayla oluşan 4×5 tablo bulunur; Word tablosunda ızgara stili yok; Excel'de sayı hücresi var", async () =>
+        {
+            string tp = Path.Combine(work, "Cizgisiz Tablo.pdf");
+            string[][] data = { new[] { "Ürün", "Adet", "Birim Fiyat", "Tutar" }, new[] { "Çay bardağı", "12", "35,50", "426,00" }, new[] { "Şeker kabı", "3", "120,00", "360,00" }, new[] { "Ağaç kaşık", "40", "8,25", "330,00" }, new[] { "Toplam", "55", "", "1.116,00" } };
+            double[] xs = { 72, 230, 320, 430 };
+            using (var d = await PdfDocument.CreateAsync(PaperSize.A4.ToPoints(), 1))
+            {
+                await d.AddTextAsync(0, "Aşağıdaki tablo satış özetini gösterir ve ay sonunda güncellenir.", 72, 760, 12, font);
+                for (int r = 0; r < data.Length; r++) for (int c = 0; c < 4; c++) if (data[r][c].Length > 0) await d.AddTextAsync(0, data[r][c], xs[c], 700 - r * 20, 12, font);
+                await d.SaveAsync(tp);
+            }
+            using var doc = await PdfDocument.OpenAsync(tp);
+            var layout = await MeslyPdfReader.Convert.LayoutAnalyzer.AnalyzeAsync(doc, 0);
+            var tb = layout.Blocks.OfType<TableBlock>().SingleOrDefault();
+            if (tb is null) return (false, "çizgisiz tablo bulunamadı");
+            string dx = Path.Combine(work, "Cizgisiz Tablo.docx"), xx = Path.Combine(work, "Cizgisiz Tablo.xlsx");
+            await MeslyPdfReader.Convert.PdfConverter.ToDocxAsync(doc, dx, new[] { 0 });
+            await MeslyPdfReader.Convert.PdfConverter.ToXlsxAsync(doc, xx, new[] { 0 });
+            bool wordOk, xlsxOk;
+            using (var w = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(dx, false))
+            {
+                var t = w.MainDocumentPart!.Document.Body!.Descendants<DocumentFormat.OpenXml.Wordprocessing.Table>().Single();
+                var props = t.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.TableProperties>()!;
+                wordOk = props.TableStyle is null && props.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.TableBorders>() is not null
+                    && t.Elements<DocumentFormat.OpenXml.Wordprocessing.TableRow>().Count() == 5;
+            }
+            using (var x = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(xx, false))
+                xlsxOk = x.WorkbookPart!.WorksheetParts.First().Worksheet.Descendants<DocumentFormat.OpenXml.Spreadsheet.Cell>().Any(c => c.CellValue?.Text == "426");
+            bool ok = tb.Borderless && tb.Rows == 5 && tb.Cols == 4 && tb.Cells.Single(c => c.Row == 4 && c.Col == 3).Text == "1.116,00" && wordOk && xlsxOk;
+            return (ok, $"{tb.Rows}×{tb.Cols} tablo, kenarlıksız={tb.Borderless}, Word={wordOk}, Excel={xlsxOk}");
+        });
+
         await Step("Tanıma", "Taranmış PDF: bilgi şeridi → metni tanı → aranabilir", "Şerit görünür; tanımadan sonra Türkçe metin aranır, görünüm değişmez", async () =>
         {
             _vm.SetEditMode(false); // düzenleme kipi açıkken sayfa kendiliğinden tanınırdı; burada elle tanıma sınanır

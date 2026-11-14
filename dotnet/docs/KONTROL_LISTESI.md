@@ -208,4 +208,4 @@ Durum sütunundaki Ö: arayüz öz testinde (gerçek pencere, Windows) tek tek �
 * [ ] Gölgeli/soluk bir taramada "Otomatik" kip Tesseract'tan daha az hata yapar (gerçek tarayıcıyla elle denenecek).
 * [ ] Çizgisiz bir tablo içeren PDF → Word: tablo kenarlıksız gerçek Word tablosu olur; Excel'de sayılar sayı hücresidir.
 * [ ] Gölgeli taramada "Arka planı beyazlat" açıkken kâğıt her yerde eşit beyazdır; düz sayfa değişmez.
-
+* [ ] PowerPoint'e dönüştürülen çizgisiz tabloda hücre kenarlığı görünmez.

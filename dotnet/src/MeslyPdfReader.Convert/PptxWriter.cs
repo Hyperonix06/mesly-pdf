@@ -134,12 +134,12 @@ public static class PptxWriter
             foreach (var cell in tb.Cells.Where(c => c.Row == r).OrderBy(c => c.Col))
             {
                 // Eksik hücreleri boş hücreyle doldur (tablo ızgarası tam olmalı).
-                while (col < cell.Col) { row.Append(Cell(null, 1, scale)); col++; }
-                row.Append(Cell(cell, cell.ColSpan, scale));
+                while (col < cell.Col) { row.Append(Cell(null, 1, scale, tb.Borderless)); col++; }
+                row.Append(Cell(cell, cell.ColSpan, scale, tb.Borderless));
                 for (int k = 1; k < cell.ColSpan; k++) row.Append(new A.TableCell(EmptyBody(), new A.TableCellProperties()) { HorizontalMerge = true });
                 col += Math.Max(1, cell.ColSpan);
             }
-            while (col < tb.Cols) { row.Append(Cell(null, 1, scale)); col++; }
+            while (col < tb.Cols) { row.Append(Cell(null, 1, scale, tb.Borderless)); col++; }
             table.Append(row);
         }
         return new P.GraphicFrame(
@@ -151,7 +151,7 @@ public static class PptxWriter
 
     private static A.TextBody EmptyBody() => new(new A.BodyProperties(), new A.ListStyle(), new A.Paragraph(new A.EndParagraphRunProperties { Language = "tr-TR" }));
 
-    private static A.TableCell Cell(TableCell? cell, int span, double scale)
+    private static A.TableCell Cell(TableCell? cell, int span, double scale, bool borderless = false)
     {
         A.TextBody body;
         if (cell is null || cell.Content.Count == 0) body = EmptyBody();
@@ -160,12 +160,25 @@ public static class PptxWriter
             body = new A.TextBody(new A.BodyProperties(), new A.ListStyle());
             foreach (var p in cell.Content) body.Append(Paragraph(p, scale));
         }
-        var line = () => new A.SolidFill(new A.RgbColorModelHex { Val = "000000" });
-        var tcpr = new A.TableCellProperties(
-            new A.LeftBorderLineProperties(line()) { Width = 6350 }, new A.RightBorderLineProperties(line()) { Width = 6350 },
-            new A.TopBorderLineProperties(line()) { Width = 6350 }, new A.BottomBorderLineProperties(line()) { Width = 6350 },
-            new A.NoFill())
-        { LeftMargin = 45720, RightMargin = 45720, TopMargin = 22860, BottomMargin = 22860 };
+        A.TableCellProperties tcpr;
+        if (borderless)
+        {
+            // Kenarlıksız (hizalamayla oluşan) tablo: dört kenar da çizgisiz.
+            tcpr = new A.TableCellProperties(
+                new A.LeftBorderLineProperties(new A.NoFill()) { Width = 0 }, new A.RightBorderLineProperties(new A.NoFill()) { Width = 0 },
+                new A.TopBorderLineProperties(new A.NoFill()) { Width = 0 }, new A.BottomBorderLineProperties(new A.NoFill()) { Width = 0 },
+                new A.NoFill())
+            { LeftMargin = 45720, RightMargin = 45720, TopMargin = 22860, BottomMargin = 22860 };
+        }
+        else
+        {
+            var line = () => new A.SolidFill(new A.RgbColorModelHex { Val = "000000" });
+            tcpr = new A.TableCellProperties(
+                new A.LeftBorderLineProperties(line()) { Width = 6350 }, new A.RightBorderLineProperties(line()) { Width = 6350 },
+                new A.TopBorderLineProperties(line()) { Width = 6350 }, new A.BottomBorderLineProperties(line()) { Width = 6350 },
+                new A.NoFill())
+            { LeftMargin = 45720, RightMargin = 45720, TopMargin = 22860, BottomMargin = 22860 };
+        }
         var tc = new A.TableCell(body, tcpr);
         if (span > 1) tc.GridSpan = span;
         return tc;

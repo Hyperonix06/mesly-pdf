@@ -121,4 +121,22 @@ public class BorderlessTableTests
         Assert.Equal("1.116,00", t.Cells.Single(c => c.Row == 4 && c.Col == 3).Text);
         Assert.Equal("Çay bardağı", t.Cells.Single(c => c.Row == 1 && c.Col == 0).Text);
     }
+
+    [Fact]
+    public async Task PowerPointTableHasNoBorderLines()
+    {
+        using var doc = await TableDocAsync();
+        var path = Path.Combine(Fx.TempDir(), "cizgisiz.pptx");
+        PptxWriter.Write(path, await PdfConverter.AnalyzeAsync(doc, new List<int> { 0 }), "Tablo");
+        using var p = DocumentFormat.OpenXml.Packaging.PresentationDocument.Open(path, false);
+        var cells = p.PresentationPart!.SlideParts.SelectMany(sp => sp.Slide.Descendants<DocumentFormat.OpenXml.Drawing.TableCell>()).ToList();
+        Assert.True(cells.Count >= 20);
+        Assert.All(cells, c =>
+        {
+            var pr = c.TableCellProperties!;
+            Assert.NotNull(pr.LeftBorderLineProperties!.GetFirstChild<DocumentFormat.OpenXml.Drawing.NoFill>());
+            Assert.NotNull(pr.BottomBorderLineProperties!.GetFirstChild<DocumentFormat.OpenXml.Drawing.NoFill>());
+        });
+    }
 }
+
