@@ -26,13 +26,24 @@ internal static class BorderlessTables
         }
         foreach (var r in rows)
         {
-            bool candidate = r.Segs.Count >= 2;
+            bool candidate = r.Segs.Count >= 2 || IsShortNumericRow(r);
             if (!candidate) { Flush(); continue; }
-            if (run.Count > 0 && r.Baseline - run[^1].Baseline > 2.6 * Math.Max(r.Size, run[^1].Size)) Flush();
+            if (run.Count > 0 && r.Baseline - run[^1].Baseline > 3.4 * Math.Max(r.Size, run[^1].Size)) Flush();
             run.Add(r);
         }
         Flush();
         return result;
+    }
+
+    /// <summary>Tek parça görünen ama kısa, sayı içeren ve belirgin sözcük aralığı olan satır (dar sütunlu sayısal tablo satırı).</summary>
+    private static bool IsShortNumericRow(Row r)
+    {
+        var ws = r.Segs.SelectMany(x => x.Words).OrderBy(w => w.Box.X0).ToList();
+        if (ws.Count < 3 || ws.Count > 8) return false;
+        if (!ws.Skip(1).Any(w => w.Text.Any(char.IsDigit))) return false;
+        for (int i = 1; i < ws.Count; i++)
+            if (ws[i].Box.X0 - ws[i - 1].Box.X1 >= 0.45 * r.Size) return true;
+        return false;
     }
 
     private static List<Row> BuildRows(List<LayoutAnalyzer.Word> words)
@@ -79,10 +90,10 @@ internal static class BorderlessTables
         // Her 1 pt'lik şeritte kaç satırın hücre parçası var.
         var cover = new int[nBins];
         foreach (var r in run)
-            foreach (var s in r.Segs)
-                for (int x = (int)Math.Floor(s.Box.X0 - left); x <= (int)Math.Ceiling(s.Box.X1 - left) && x < nBins; x++) cover[Math.Max(0, x)]++;
+            foreach (var w in r.Segs.SelectMany(s => s.Words))
+                for (int x = (int)Math.Ceiling(w.Box.X0 - left); x <= (int)Math.Floor(w.Box.X1 - left) && x < nBins; x++) cover[Math.Max(0, x)]++;
         int tolerance = (int)Math.Floor(run.Count * 0.15); // birkaç satır oluğu aşan geniş hücre (başlık/ara toplam) olabilir
-        double minGutter = Math.Max(5, 0.7 * size);
+        double minGutter = Math.Max(3.5, 0.3 * size);
 
         // Olukları bul: tolerans altında kalan şeritler (uçlar hariç).
         var gutters = new List<(double From, double To)>();
@@ -97,7 +108,7 @@ internal static class BorderlessTables
                 start = -1;
             }
         }
-        if (gutters.Count < 1) return null;
+        if (gutters.Count < 1 || !gutters.Any(g => g.To - g.From >= Math.Max(4, 0.4 * size))) return null; // en az bir belirgin oluk şart
 
         var colEdges = new List<double> { left - 2 };
         colEdges.AddRange(gutters.Select(g => (g.From + g.To) / 2));
@@ -108,7 +119,7 @@ internal static class BorderlessTables
         // Her sütun satırların çoğunda dolu olmalı (aksi hâlde rastlantısal hizalama).
         for (int c = 0; c < cols; c++)
         {
-            int filled = run.Count(r => r.Segs.Any(s => s.Box.CenterX >= colEdges[c] && s.Box.CenterX < colEdges[c + 1]));
+            int filled = run.Count(r => r.Segs.SelectMany(s => s.Words).Any(w => w.Box.CenterX >= colEdges[c] && w.Box.CenterX < colEdges[c + 1]));
             if (filled < run.Count * 0.5) return null;
         }
         // İki sütunlu yazıyı ele: en geniş hücre sütun genişliğine yakınsa ve hücreler çok sözcüklüyse zaten yukarıda elendi;
@@ -123,7 +134,7 @@ internal static class BorderlessTables
         for (int r = 0; r < run.Count; r++)
             for (int c = 0; c < colEdges.Count; c++)
             {
-                bool crossed = c > 0 && c < colEdges.Count - 1 && run[r].Segs.Any(s => s.Box.X0 < colEdges[c] - 1 && s.Box.X1 > colEdges[c] + 1);
+                bool crossed = c > 0 && c < colEdges.Count - 1 && run[r].Segs.SelectMany(s => s.Words).Any(w => w.Box.X0 < colEdges[c] - 1 && w.Box.X1 > colEdges[c] + 1);
                 hasV[r, c] = !crossed;
             }
         return new TableDetector.Grid

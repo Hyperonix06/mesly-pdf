@@ -69,7 +69,7 @@ public class ConvertTests(ITestOutputHelper log)
         var p1 = paras.First(p => p.InnerText.StartsWith("Bu rapor"));
         Assert.Equal(W.JustificationValues.Both, p1.ParagraphProperties?.Justification?.Val?.Value);
         Assert.Contains("ığüşöç İĞÜŞÖÇ", p1.InnerText);
-        Assert.Contains("DejaVu Sans", p1.Descendants<W.RunFonts>().First().Ascii?.Value);
+        Assert.Equal("Arial", p1.Descendants<W.RunFonts>().First().Ascii?.Value); // DejaVu Sans (sans) → Word'te bulunan Arial
 
         var table = Assert.Single(body.Elements<W.Table>());
         var rows = table.Elements<W.TableRow>().ToList();

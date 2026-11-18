@@ -1,5 +1,20 @@
 # Mesly PDF Reader — Sürüm Notları
 
+## 0.8.1 (18 Kasım 2026) — PDF → Word / Excel / PowerPoint dönüştürme kalitesi
+
+Gerçek belgelerle (LaTeX, Google Docs, LibreOffice, iki sütunlu makale, Türkçe rapor) PDF → Word çıktısı LibreOffice'te işlenip özgün sayfayla yan yana karşılaştırılarak bulunan hatalar giderildi.
+
+* **Kelime boşlukları:** LaTeX ve Google Docs PDF'lerinde kelimeler birbirine yapışıyordu; PDF'in kendi ürettiği boşluklar artık korunuyor.
+* **Yazı tipi ve boyut:** PDF'te çizim matrisiyle ölçeklenen yazı boyutları (Google Docs'ta %75) doğru okunuyor; yazı tipi ailesi (serif/sans/sabit genişlik, kalın/italik) Word'de bulunan karşılığına eşleniyor.
+* **Gerçek Word sütunları:** İki/üç sütunlu belgeler tek geniş sütun yerine gerçek Word sütun bölümü (sürekli bölüm + sütun sayısı/genişliği/boşluğu) olarak yazılıyor; okuma sırası sütun sırasıyla.
+* **Gerçek listeler:** Madde işareti (•, -, –…) ve numaralı (1. / 1) / a)) listeler Word'de gerçek numaralandırma, PowerPoint'te gerçek madde işareti/otomatik numara olarak aktarılıyor; Excel'de işaret metnin başında kalıyor. Numaralı başlıklar ("2. Finansal Özet") liste sayılmıyor.
+* **Tablolar:** Metin tabanlı PDF'lerde tablo çizgileri artık sayfa görüntüsünden değil PDF'in vektör nesnelerinden okunuyor (çözünürlük/eşik sorunu yok; taranmış sayfalarda görüntü tabanlı yöntem sürüyor). Sütunlar arası yalnız birkaç punto olan çizgisiz tablolar ve geniş satır aralıklı tablolar da bulunuyor; Word/PowerPoint'te sütun genişliği hücre iç boşluğunu hesaba katıyor (rakamlar alt satıra taşmıyor).
+* **Excel:** Sayılar binlik ayraçlı, ondalıklı ve yüzde biçimiyle yazılıyor.
+
+Bilinen sınırlar: hücre gölgelendirmesi/arka plan renkleri, altbilgi dipnotları ve 12 pt'den küçük görseller henüz aktarılmıyor; sütunlar içinde sütun (iç içe) düzenler sıralı metin olarak kalıyor. Gerçek tarayıcı çıktıları ve kullanıcı belgeleri bu ortamda denenmedi.
+
+Araştırma notu: pdf2docx (GPL-3.0), Docling, PdfPig ve rapid-table incelendi. GPL kodu ve ağır ML bağımlılıkları dahil edilmedi; yerleşim/tablo mantığı kendi kodumuzda, pdfplumber/Camelot'taki "kenar kesişimi ile tablo grubu" fikriyle (yalnız yöntem, kod değil) uygulandı.
+
 ## 0.8.0 (14 Kasım 2026) — Daha doğru OCR, çizgisiz tablolar, gölge giderme
 
 ### Gelişmiş metin tanıma

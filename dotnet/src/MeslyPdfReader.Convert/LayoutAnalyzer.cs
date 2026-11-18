@@ -11,7 +11,7 @@ namespace MeslyPdfReader.Convert;
 /// </summary>
 public static class LayoutAnalyzer
 {
-    internal sealed record Word(string Text, Box Box, double Baseline, double Size, string? Font, bool Bold, bool Italic, uint Rgb);
+    internal sealed record Word(string Text, Box Box, double Baseline, double Size, string? Font, bool Bold, bool Italic, uint Rgb, int Flags = 0);
     internal sealed record Line(List<Word> Words, Box Box, double Baseline, double Size);
     private sealed record Unit(Box Box, Line? Line = null, LayoutBlock? Block = null);
 
@@ -29,8 +29,23 @@ public static class LayoutAnalyzer
         var tables = new List<TableBlock>();
         if (o.DetectTables && words.Count > 0)
         {
-            var img = await PdfTools.RenderAtDpiAsync(doc, page, o.TableDpi, ct);
-            var grids = TableDetector.Detect(ImageOps.ToGray(img), 72.0 / o.TableDpi);
+            List<TableDetector.Grid> grids;
+            if (fromOcr)
+            {
+                // Taranmış sayfa: çizgiler yalnızca piksellerde.
+                var img = await PdfTools.RenderAtDpiAsync(doc, page, o.TableDpi, ct);
+                grids = TableDetector.Detect(ImageOps.ToGray(img), 72.0 / o.TableDpi);
+            }
+            else
+            {
+                // Metin PDF: çizgiler vektör nesneleri olarak doğrudan okunur (kesin konum, eşik/çözünürlük sorunu yok).
+                grids = TableDetector.DetectFromLines(await doc.GetVectorLinesAsync(page, ct));
+                if (grids.Count == 0)
+                {
+                    var img = await PdfTools.RenderAtDpiAsync(doc, page, o.TableDpi, ct);
+                    grids = TableDetector.Detect(ImageOps.ToGray(img), 72.0 / o.TableDpi);
+                }
+            }
             foreach (var g in grids)
             {
                 var inside = words.Where(w => g.Box.Contains(w.Box.CenterX, w.Box.CenterY)).ToList();
@@ -69,23 +84,60 @@ public static class LayoutAnalyzer
             words.RemoveAll(w => pics.Any(p => p.Box.Contains(w.Box.CenterX, w.Box.CenterY)));
         }
 
-        var lines = BuildLines(words);
+        // Sütun aralıkları bir satırı tek parça yapmasın diye önce dar eşikle parçala; XY-kesimden sonra aynı bölgedeki parçalar birleşir.
+        var lines = BuildLines(words, 0.8);
         var units = lines.Select(l => new Unit(l.Box, l))
             .Concat(tables.Select(t => new Unit(t.Box, Block: t)))
             .Concat(images.Select(i => new Unit(i.Box, Block: i))).ToList();
         double bodySize = BodySize(words);
         var ordered = new List<List<Unit>>();
-        XyCut(units, ordered, bodySize);
+        var colOf = new Dictionary<List<Unit>, (int Group, int Idx)>(ReferenceEqualityComparer.Instance);
+        var broken = new HashSet<int>();
+        int groupCounter = 0;
+        XyCut(units, ordered, bodySize, 0, null, colOf, broken, ref groupCounter);
 
         LayoutBlock? prev = null;
         var textArea = units.Count == 0 ? new Box(0, 0, size.Width, size.Height) : units.Select(u => u.Box).Aggregate((a, b) => a.Union(b));
+        // Gerçek sütun kümeleri: bozulmamış, en az 2 sütunlu ve her sütunda en az 3 satır metin olanlar.
+        var validGroups = new Dictionary<int, List<Box>>();
+        foreach (var gr in colOf.GroupBy(kv => kv.Value.Group).Where(gr => !broken.Contains(gr.Key)))
+        {
+            var cols = gr.GroupBy(kv => kv.Value.Idx).OrderBy(c => c.Key)
+                .Select(c => (Lines: c.Sum(kv => kv.Key.Count(u => u.Line is not null)), Box: c.SelectMany(kv => kv.Key).Select(u => u.Box).Aggregate((a, b) => a.Union(b)))).ToList();
+            if (cols.Count >= 2 && cols.All(c => c.Lines >= 3)) validGroups[gr.Key] = cols.Select(c => c.Box).ToList();
+        }
+        int activeGroup = -1, activeIdx = -1;
+        void CloseColumns()
+        {
+            if (activeGroup < 0) return;
+            blocks.Add(new ColumnsBlock(textArea, ColumnsKind.End, Array.Empty<double>(), Array.Empty<double>()));
+            activeGroup = -1; activeIdx = -1; prev = null;
+        }
         foreach (var region in ordered)
         {
             var regionBox = region.Select(u => u.Box).Aggregate((a, b) => a.Union(b));
+            if (colOf.TryGetValue(region, out var ci) && validGroups.TryGetValue(ci.Group, out var colBoxes))
+            {
+                if (activeGroup != ci.Group)
+                {
+                    CloseColumns();
+                    var widths = colBoxes.Select(b => b.Width).ToList();
+                    var gaps = Enumerable.Range(0, colBoxes.Count - 1).Select(i => Math.Max(6, colBoxes[i + 1].X0 - colBoxes[i].X1)).ToList();
+                    blocks.Add(new ColumnsBlock(colBoxes.Aggregate((a, b) => a.Union(b)), ColumnsKind.Start, widths, gaps));
+                    activeGroup = ci.Group; activeIdx = ci.Idx; prev = null;
+                }
+                else if (activeIdx != ci.Idx)
+                {
+                    blocks.Add(new ColumnsBlock(regionBox, ColumnsKind.Break, Array.Empty<double>(), Array.Empty<double>()));
+                    activeIdx = ci.Idx; prev = null;
+                }
+            }
+            else CloseColumns();
             var pending = new List<Line>();
             void Flush()
             {
                 if (pending.Count == 0) return;
+                pending = MergeFragments(pending);
                 // Tek satırlık dar bölgelerde (başlık) hizalama sayfa metin alanına göre belirlenir.
                 var alignArea = regionBox.Width < textArea.Width * 0.6 && pending.Count == 1 ? textArea : regionBox;
                 foreach (var p in BuildParagraphs(pending, regionBox, bodySize, size.Width, alignArea))
@@ -104,6 +156,7 @@ public static class LayoutAnalyzer
             }
             Flush();
         }
+        CloseColumns();
         return new PageLayout(page, size.Width, size.Height, blocks, fromOcr);
     }
 
@@ -190,7 +243,7 @@ public static class LayoutAnalyzer
         void Emit()
         {
             if (sb.Length > 0 && first is not null)
-                words.Add(new Word(sb.ToString(), box, first.Baseline, first.Size, first.FontName, first.Bold, first.Italic, first.Rgb));
+                words.Add(new Word(sb.ToString(), box, first.Baseline, first.Size, first.FontName, first.Bold, first.Italic, first.Rgb, first.FontFlags));
             sb.Clear(); first = null; last = null; box = default;
         }
         foreach (var c in chars)
@@ -201,7 +254,7 @@ public static class LayoutAnalyzer
                 double gap = c.Box.X0 - last.Box.X1;
                 bool newLine = Math.Abs(c.Baseline - last.Baseline) > 0.45 * Math.Max(c.Size, last.Size);
                 bool styleChange = c.Bold != last.Bold || c.Italic != last.Italic || Math.Abs(c.Size - last.Size) > 0.2 * last.Size;
-                if (newLine || gap > 0.28 * c.Size || gap < -c.Size * 2 || styleChange) Emit();
+                if (newLine || gap > 0.2 * c.Size || gap < -c.Size * 2 || styleChange) Emit();
             }
             if (first is null) { first = c; box = c.Box; } else box = box.Union(c.Box);
             sb.Append(c.Char);
@@ -211,7 +264,7 @@ public static class LayoutAnalyzer
         return words;
     }
 
-    internal static List<Line> BuildLines(List<Word> words)
+    internal static List<Line> BuildLines(List<Word> words, double maxGapEm = 2.2)
     {
         var lines = new List<List<Word>>();
         foreach (var w in words.OrderBy(w => Math.Round(w.Baseline)).ThenBy(w => w.Box.X0))
@@ -220,7 +273,7 @@ public static class LayoutAnalyzer
             {
                 var lw = L[^1];
                 return Math.Abs(lw.Baseline - w.Baseline) <= 0.4 * Math.Max(lw.Size, w.Size)
-                    && w.Box.X0 >= lw.Box.X0 && w.Box.X0 - lw.Box.X1 < 2.2 * Math.Max(w.Size, lw.Size);
+                    && w.Box.X0 >= lw.Box.X0 && w.Box.X0 - lw.Box.X1 < maxGapEm * Math.Max(w.Size, lw.Size);
             });
             if (line is null) lines.Add(new List<Word> { w }); else line.Add(w);
         }
@@ -230,6 +283,13 @@ public static class LayoutAnalyzer
             var box = L.Select(w => w.Box).Aggregate((a, b) => a.Union(b));
             return new Line(L, box, L.Average(w => w.Baseline), Median(L.Select(w => w.Size)));
         }).ToList();
+    }
+
+    /// <summary>XY-kesimden sonra aynı bölgede, aynı taban çizgisinde yan yana kalan parçaları (≤ 2,2 em boşluk) tek satırda birleştirir.</summary>
+    private static List<Line> MergeFragments(List<Line> lines)
+    {
+        var all = lines.SelectMany(l => l.Words).ToList();
+        return BuildLines(all, 2.2);
     }
 
     private static double BodySize(List<Word> words)
@@ -247,20 +307,40 @@ public static class LayoutAnalyzer
 
     // ─────────────── Okuma sırası (XY-kesme) ───────────────
 
-    private static void XyCut(List<Unit> units, List<List<Unit>> output, double bodySize, int depth = 0)
+    /// <summary>Bir sütun kümesi içindeki konum: grup numarası ve sütun sırası; <c>Continuation</c> = bu çağrı kümenin "geri kalan" sağ tarafı.</summary>
+    private readonly record struct ColCtx(int Group, int Idx, bool Continuation);
+
+    private static void XyCut(List<Unit> units, List<List<Unit>> output, double bodySize, int depth,
+        ColCtx? ctx, Dictionary<List<Unit>, (int Group, int Idx)> colOf, HashSet<int> broken, ref int groupCounter)
     {
         if (units.Count == 0) return;
-        if (units.Count == 1 || depth > 30) { output.Add(units); return; }
+        if (units.Count == 1 || depth > 30) { Emit(units); return; }
+        void Emit(List<Unit> u)
+        {
+            output.Add(u);
+            if (ctx is { } c) colOf[u] = (c.Group, c.Idx);
+        }
         // Önce sütun aralığı (dikey boşluk) ara: her iki yanda da yeterli içerik olmalı.
-        var vgap = BestGap(units, vertical: true, minGap: Math.Max(12, bodySize * 1.2));
+        var vgap = BestGap(units, vertical: true, minGap: Math.Max(8, bodySize * 0.75));
         if (vgap is { } vx)
         {
             var left = units.Where(u => u.Box.CenterX < vx).ToList();
             var right = units.Where(u => u.Box.CenterX >= vx).ToList();
-            if (left.Count >= 2 && right.Count >= 2 && Overlap(left, right) > 0.3)
+            if (left.Count >= 2 && right.Count >= 2 && Overlap(left, right) > 0.3 && !MarkersOnly(left) && !MarkersOnly(right))
             {
-                XyCut(left, output, bodySize, depth + 1);
-                XyCut(right, output, bodySize, depth + 1);
+                if (ctx is { Continuation: true } cc)
+                {
+                    // Aynı sütun kümesinin devamı: 3., 4. sütun…
+                    XyCut(left, output, bodySize, depth + 1, new ColCtx(cc.Group, cc.Idx, false), colOf, broken, ref groupCounter);
+                    XyCut(right, output, bodySize, depth + 1, new ColCtx(cc.Group, cc.Idx + 1, true), colOf, broken, ref groupCounter);
+                }
+                else
+                {
+                    if (ctx is { } outer) broken.Add(outer.Group); // sütunun içinde yeniden sütun: yapı karmaşık, sıralı bırak
+                    int g = groupCounter++;
+                    XyCut(left, output, bodySize, depth + 1, new ColCtx(g, 0, false), colOf, broken, ref groupCounter);
+                    XyCut(right, output, bodySize, depth + 1, new ColCtx(g, 1, true), colOf, broken, ref groupCounter);
+                }
                 return;
             }
         }
@@ -268,11 +348,15 @@ public static class LayoutAnalyzer
         var bands = Bands(units, Math.Max(4, bodySize * 0.9));
         if (bands.Count > 1)
         {
-            foreach (var b in bands) XyCut(b, output, bodySize, depth + 1);
+            foreach (var b in bands) XyCut(b, output, bodySize, depth + 1, ctx is { Continuation: true } k ? k with { Continuation = false } : ctx, colOf, broken, ref groupCounter);
             return;
         }
-        output.Add(units);
+        Emit(units);
     }
+
+    /// <summary>Yalnız madde işareti/numara satırlarından oluşan dar sütun (liste işaretleri metinden ayrılmasın).</summary>
+    private static bool MarkersOnly(List<Unit> g) =>
+        g.All(u => u.Line is { Words.Count: 1 } l && IsListMarker(l.Words[0].Text, true) && l.Words[0].Text.Length <= 4);
 
     /// <summary>İki grubun dikey kesişim oranı (sütunlar yan yana mı).</summary>
     private static double Overlap(List<Unit> a, List<Unit> b)
@@ -327,16 +411,28 @@ public static class LayoutAnalyzer
             bool bigGap = dy > Math.Max(step * 1.35, p.Size * 1.65);
             bool prevShortEnd = p.Box.X1 < region.X0 + (region.X1 - region.X0) * 0.72 && EndsSentence(p);
             bool indent = l.Box.X0 > g[0].Box.X0 + 1.2 * l.Size && g.Count >= 1 && l.Box.X0 > p.Box.X0 + 1.2 * l.Size;
-            if (sizeChange || boldChange || bigGap || prevShortEnd || indent) groups.Add(new List<Line> { l });
+            // Liste öğesi: yeni işaret yeni öğe başlatır; işaretin metin başlangıcına hizalı devam satırı aynı öğede kalır.
+            bool newItem = l.Size < bodySize * 1.22 && IsListMarker(l.Words[0].Text, l.Words.Count > 1) && l.Words.Count > 1;
+            if (!newItem && g[0].Size < bodySize * 1.22 && g[0].Words.Count > 1 && IsListMarker(g[0].Words[0].Text, true))
+            {
+                double textX = g[0].Words[1].Box.X0;
+                if (Math.Abs(l.Box.X0 - textX) < 0.8 * l.Size || Math.Abs(l.Box.X0 - g[0].Box.X0) < 0.4 * l.Size && g.Count > 1) { indent = false; prevShortEnd = false; }
+            }
+            if (sizeChange || boldChange || bigGap || prevShortEnd || indent || newItem) groups.Add(new List<Line> { l });
             else g.Add(l);
         }
         foreach (var g in groups)
         {
             var runs = new List<TextRun>();
+            string? marker = null; double markerOffset = 0;
+            if (g[0].Size < bodySize * 1.22 && g[0].Words.Count > 1 && IsListMarker(g[0].Words[0].Text, true))
+            {
+                marker = g[0].Words[0].Text; markerOffset = Math.Max(4, g[0].Words[1].Box.X0 - g[0].Words[0].Box.X0);
+            }
             for (int i = 0; i < g.Count; i++)
             {
                 var ws = g[i].Words;
-                for (int k = 0; k < ws.Count; k++)
+                for (int k = i == 0 && marker is not null ? 1 : 0; k < ws.Count; k++)
                 {
                     var w = ws[k];
                     string text = w.Text;
@@ -345,15 +441,32 @@ public static class LayoutAnalyzer
                         && g[i + 1].Words.Count > 0 && char.IsLower(g[i + 1].Words[0].Text[0]);
                     if (hyphenJoin) text = text[..^1];
                     else if (!(lastInLine && lastLine)) text += " ";
-                    AddRun(runs, new TextRun(text, FontFamily(w.Font), Math.Round(w.Size * 2) / 2, w.Bold, w.Italic, w.Rgb));
+                    AddRun(runs, new TextRun(text, FontFamily(w.Font, w.Flags), Math.Round(w.Size * 2) / 2, w.Bold, w.Italic, w.Rgb));
                 }
             }
             var box = g.Select(l => l.Box).Aggregate((a, b) => a.Union(b));
             double size = Median(g.Select(l => l.Size));
-            int heading = size >= bodySize * 1.6 && g.Count <= 3 ? 1 : size >= bodySize * 1.22 && g.Count <= 3 ? 2 : 0;
+            int heading = marker is null && size >= bodySize * 1.6 && g.Count <= 3 ? 1 : marker is null && size >= bodySize * 1.22 && g.Count <= 3 ? 2 : 0;
             double lineSpacing = g.Count >= 2 ? Math.Clamp(Median(g.Zip(g.Skip(1), (a, b) => b.Baseline - a.Baseline)) / size, 0.9, 3) : 1.15;
-            yield return new ParagraphBlock(box, runs, AlignOf(g, alignArea ?? region, pageWidth), heading, 0, Math.Round(lineSpacing, 2), Math.Max(0, box.X0 - region.X0));
+            yield return new ParagraphBlock(box, runs, AlignOf(g, alignArea ?? region, pageWidth), heading, 0, Math.Round(lineSpacing, 2), Math.Max(0, box.X0 - region.X0), marker, markerOffset);
         }
+    }
+
+    private static readonly HashSet<string> Bullets = new() { "•", "-", "–", "—", "▪", "■", "●", "◦", "○", "∙", "·", "*", "➢", "➤", "✓", "✔", "", "", "" };
+
+    /// <summary>İlk sözcük bir liste işareti mi: madde imi, "1." / "1)" / "(1)" / "a)" / "iv." gibi.</summary>
+    public static bool IsListMarker(string w, bool hasText)
+    {
+        if (!hasText || w.Length == 0) return false;
+        if (Bullets.Contains(w)) return true;
+        if (w.Length > 5) return false;
+        if (w.Length >= 2 && (w[^1] == '.' || w[^1] == ')'))
+        {
+            var core = w[..^1].TrimStart('(');
+            if (core.Length is >= 1 and <= 3 && core.All(char.IsDigit)) return true;
+            if (core.Length == 1 && char.IsLetter(core[0]) && w[^1] == ')') return true;
+        }
+        return false;
     }
 
     private static bool AllBold(Line l) => l.Words.All(w => w.Bold);
@@ -395,19 +508,37 @@ public static class LayoutAnalyzer
         return ParaAlign.Left;
     }
 
-    /// <summary>PDF yazı tipi adını Word'de kullanılacak aile adına çevirir.</summary>
-    public static string? FontFamily(string? pdfName)
+    /// <summary>
+    /// PDF yazı tipi adını Word'de kullanılacak aile adına çevirir. Bilinen aileler korunur; LibreOffice/LaTeX/Linux yazı tipleri
+    /// (Liberation, Nimbus, CM, Latin Modern…) ve bilinmeyenler serif/sans/eş aralıklı sınıfına göre Times New Roman / Arial / Courier New olur
+    /// (aksi hâlde Word eksik yazı tipini rastgele bir şeyle değiştirir).
+    /// </summary>
+    public static string? FontFamily(string? pdfName, int flags = 0)
     {
         if (pdfName is null) return null;
         var fam = TextLayout.ParseFontName(pdfName).Family;
         var key = FontMatching.Key(fam);
-        return key switch
+        if (key.Length == 0) return null;
+        string? known = key switch
         {
             "arial" => "Arial", "timesnewroman" => "Times New Roman", "couriernew" => "Courier New", "calibri" => "Calibri",
             "cambria" => "Cambria", "verdana" => "Verdana", "tahoma" => "Tahoma", "georgia" => "Georgia", "segoeui" => "Segoe UI",
-            "dejavusans" => "DejaVu Sans", "dejavuserif" => "DejaVu Serif", "" => null,
-            _ => SplitCamel(fam),
+            "consolas" => "Consolas", "trebuchetms" or "trebuchet" => "Trebuchet MS", "comicsansms" => "Comic Sans MS", "impact" => "Impact",
+            "palatinolinotype" => "Palatino Linotype", "bookantiqua" => "Book Antiqua", "garamond" => "Garamond", "candara" => "Candara",
+            "corbel" => "Corbel", "constantia" => "Constantia",
+            _ => null,
         };
+        if (known is not null) return known;
+        static bool Has(string n, params string[] parts) => parts.Any(n.Contains);
+        bool mono = Has(key, "mono", "courier", "typewriter", "consolas", "lucidaconsole") || key.StartsWith("cmtt") || (flags & 1) != 0;
+        if (mono) return "Courier New";
+        bool sans = Has(key, "sans", "arial", "helvet", "roboto", "segoe", "gothic", "frutiger", "myriad", "univers", "lato", "montserrat", "opensans", "calibri", "inter")
+            || key.StartsWith("cmss") || key.StartsWith("lmsans");
+        if (sans && !key.Contains("serif")) return "Arial";
+        bool serif = Has(key, "serif", "roman", "times", "minion", "garamond", "palatino", "bookman", "century", "charter", "georgia", "cambria", "stix", "utopia", "caslon", "baskerville", "nimbusrom")
+            || key.StartsWith("cmr") || key.StartsWith("cmbx") || key.StartsWith("cmti") || key.StartsWith("lmroman") || (flags & 2) != 0;
+        if (serif) return "Times New Roman";
+        return (flags & 32) != 0 && (flags & 2) == 0 ? "Arial" : SplitCamel(fam);
     }
 
     private static string SplitCamel(string s)

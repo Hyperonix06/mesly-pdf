@@ -38,13 +38,25 @@ public static class TableDetector
         int minLen = Math.Max(18, Math.Min(w, h) / 30);
         var hs = Segments(g, thr, minLen, horizontal: true);
         var vs = Segments(g, thr, minLen, horizontal: false);
+        return Group(hs, vs, scale, tol: 3, clusterTol: 4);
+    }
+
+    /// <summary>Vektör çizgilerden (PDF'ten doğrudan okunan, pt cinsinden) tabloları bulur: görüntü ve eşik gerektirmez.</summary>
+    public static List<Grid> DetectFromLines(IReadOnlyList<VectorLine> lines)
+    {
+        var hs = lines.Where(l => l.Horizontal && l.To - l.From >= 8).Select(l => new Seg(l.Pos, l.From, l.To, l.Thickness)).ToList();
+        var vs = lines.Where(l => !l.Horizontal && l.To - l.From >= 8).Select(l => new Seg(l.Pos, l.From, l.To, l.Thickness)).ToList();
+        return Group(hs, vs, 1.0, tol: 2.5, clusterTol: 2.5);
+    }
+
+    private static List<Grid> Group(List<Seg> hs, List<Seg> vs, double scale, double tol, double clusterTol)
+    {
         if (hs.Count < 2 || vs.Count < 2) return new List<Grid>();
 
         // Kesişen çizgileri birleşim-bul ile grupla.
         int n = hs.Count + vs.Count;
         var parent = Enumerable.Range(0, n).ToArray();
         int Find(int x) { while (parent[x] != x) x = parent[x] = parent[parent[x]]; return x; }
-        double tol = 3;
         for (int i = 0; i < hs.Count; i++)
             for (int j = 0; j < vs.Count; j++)
             {
@@ -58,8 +70,8 @@ public static class TableDetector
             var ch = comp.Where(i => i < hs.Count).Select(i => hs[i]).ToList();
             var cv = comp.Where(i => i >= hs.Count).Select(i => vs[i - hs.Count]).ToList();
             if (ch.Count < 2 || cv.Count < 2) continue;
-            var rows = Cluster(ch.Select(s => s.Pos));
-            var cols = Cluster(cv.Select(s => s.Pos));
+            var rows = Cluster(ch.Select(s => s.Pos), clusterTol);
+            var cols = Cluster(cv.Select(s => s.Pos), clusterTol);
             if (rows.Count < 2 || cols.Count < 2) continue;
             if ((rows.Count - 1) * (cols.Count - 1) < 2) continue; // tek kutu: çerçeve, tablo değil
             // Satır yüksekliği metin satırından küçükse (ör. çift çizgi) birleştir.

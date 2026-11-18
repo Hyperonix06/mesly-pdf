@@ -15,7 +15,10 @@ public readonly record struct Box(double X0, double Y0, double X1, double Y1)
 }
 
 /// <summary>Biçim bilgili karakter. <see cref="Baseline"/>: taban çizgisinin y değeri.</summary>
-public sealed record StyledChar(char Char, Box Box, double Baseline, double Size, string? FontName, bool Bold, bool Italic, uint Rgb, bool Invisible, float Angle);
+public sealed record StyledChar(char Char, Box Box, double Baseline, double Size, string? FontName, bool Bold, bool Italic, uint Rgb, bool Invisible, float Angle, int FontFlags = 0);
+
+/// <summary>Sayfadaki vektör çizgi (tablo kenarı, alt çizgi). Yatay ise Pos = y, From..To = x aralığı; dikey ise Pos = x, From..To = y aralığı (pt).</summary>
+public sealed record VectorLine(bool Horizontal, double Pos, double From, double To, double Thickness);
 
 /// <summary>Sayfadaki bir görsel (piksellerle).</summary>
 public sealed record PageImage(int ObjectIndex, Box Box, BgraImage Pixels, bool IsJpeg);
@@ -29,10 +32,22 @@ public enum ParaAlign { Left, Center, Right, Justify }
 public abstract record LayoutBlock(Box Box);
 
 /// <summary>Paragraf: satırlar birleştirilmiş, biçimli parçalar halinde.</summary>
-public sealed record ParagraphBlock(Box Box, IReadOnlyList<TextRun> Runs, ParaAlign Align, int HeadingLevel, double SpaceBefore, double LineSpacing, double Indent) : LayoutBlock(Box)
+public sealed record ParagraphBlock(Box Box, IReadOnlyList<TextRun> Runs, ParaAlign Align, int HeadingLevel, double SpaceBefore, double LineSpacing, double Indent, string? ListMarker = null, double ListTextOffset = 0) : LayoutBlock(Box)
 {
     public string Text => string.Concat(Runs.Select(r => r.Text));
+    /// <summary>Liste öğesi mi (madde işareti veya numara tanındı).</summary>
+    public bool IsListItem => ListMarker is not null;
+    /// <summary>Numaralı liste mi (işaret "1." / "a)" gibi); aksi hâlde madde işaretli.</summary>
+    /// <summary>İşareti metnin başına yazı olarak ekler (gerçek liste desteği olmayan yerler için: tablo hücresi, Excel).</summary>
+    public ParagraphBlock Inline() => ListMarker is null || Runs.Count == 0 ? this
+        : this with { Runs = new[] { Runs[0] with { Text = ListMarker + " " } }.Concat(Runs).ToList(), ListMarker = null, ListTextOffset = 0 };
+    public bool IsNumbered => ListMarker is { Length: > 0 } m && char.IsLetterOrDigit(m[0]);
 }
+
+/// <summary>Çok sütunlu bölge işareti: Word'de sürekli bölüm + sütun sayısı olarak yazılır (diğer yazıcılar yok sayar).</summary>
+public enum ColumnsKind { Start, Break, End }
+
+public sealed record ColumnsBlock(Box Box, ColumnsKind Kind, IReadOnlyList<double> Widths, IReadOnlyList<double> Gaps) : LayoutBlock(Box);
 
 public sealed record TableCell(int Row, int Col, int ColSpan, IReadOnlyList<ParagraphBlock> Content)
 {

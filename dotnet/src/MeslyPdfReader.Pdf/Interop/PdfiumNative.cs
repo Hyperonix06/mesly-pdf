@@ -190,6 +190,13 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial int FPDFPath_LineTo(nint path, float x, float y);
     [LibraryImport(Lib)] public static partial int FPDFPath_BezierTo(nint path, float x1, float y1, float x2, float y2, float x3, float y3);
     [LibraryImport(Lib)] public static partial int FPDFPath_Close(nint path);
+    [LibraryImport(Lib)] public static partial int FPDFPath_CountSegments(nint path);
+    [LibraryImport(Lib)] public static partial nint FPDFPath_GetPathSegment(nint path, int index);
+    [LibraryImport(Lib)] public static partial int FPDFPathSegment_GetPoint(nint segment, out float x, out float y);
+    [LibraryImport(Lib)] public static partial int FPDFPathSegment_GetType(nint segment);
+    [LibraryImport(Lib)] public static partial int FPDFPathSegment_GetClose(nint segment);
+    [LibraryImport(Lib)] public static partial int FPDFPath_GetDrawMode(nint path, out int fillMode, out int stroke);
+    [LibraryImport(Lib)] public static partial int FPDFPageObj_GetStrokeWidth(nint obj, out float width);
     [LibraryImport(Lib)] public static partial nint FPDFPage_CreateAnnot(nint page, int subtype);
     [LibraryImport(Lib)] public static partial int FPDFAnnot_SetURI(nint annot, byte* uri);
     [LibraryImport(Lib)] public static partial int FPDFAnnot_SetRect(nint annot, FS_RECTF* rect);

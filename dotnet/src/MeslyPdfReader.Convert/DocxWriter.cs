@@ -32,6 +32,7 @@ public static class DocxWriter
         var main = doc.AddMainDocumentPart();
         main.Document = new Document(new Body());
         AddStyles(main);
+        var numbering = new NumberingBuilder(main);
         var body = main.Document.Body!;
         uint imageId = 1;
         for (int p = 0; p < pages.Count; p++)
@@ -41,30 +42,45 @@ public static class DocxWriter
             double ml = Math.Clamp(area.X0, 18, 108), mr = Math.Clamp(page.Width - area.X1, 18, 108);
             double mt = Math.Clamp(area.Y0, 18, 108), mb = Math.Clamp(page.Height - area.Y1, 18, 108);
             double contentW = page.Width - ml - mr;
-            int written = 0;
+            int written = 0, segBlocks = 0;
+            bool segFirst = true;                     // sayfanın ilk bölümü yeni sayfada başlar, diğerleri sürekli
+            ColumnsBlock? openCols = null;
+            Paragraph? lastPara = null;
             double? prevBottom = null;
+            SectionProperties Sect(ColumnsBlock? cols) => MakeSect(page, ml, mr, mt, mb, segFirst, cols, contentW);
+            void CloseSegment(ColumnsBlock? cols)
+            {
+                body.Append(new Paragraph(new ParagraphProperties(Sect(cols), new SpacingBetweenLines { After = "0", Line = "20", LineRule = LineSpacingRuleValues.Exact })));
+                segFirst = false; segBlocks = 0; lastPara = null;
+            }
             foreach (var b in page.Blocks)
             {
                 // Tablo ve resimlerin üstündeki boşluk (paragraflar kendi SpaceBefore değerini taşır).
                 double gap = prevBottom is { } pbm ? Math.Clamp(b.Box.Y0 - pbm, 0, 72) : 0;
                 switch (b)
                 {
-                    case ParagraphBlock pb: body.Append(Para(pb, area)); written++; break;
+                    case ColumnsBlock { Kind: ColumnsKind.Start } cs:
+                        if (segBlocks > 0) CloseSegment(null);
+                        openCols = cs; break;
+                    case ColumnsBlock { Kind: ColumnsKind.Break }:
+                        if (lastPara is not null) lastPara.Append(new Run(new Break { Type = BreakValues.Column }));
+                        else body.Append(new Paragraph(new Run(new Break { Type = BreakValues.Column })));
+                        lastPara = null; break;
+                    case ColumnsBlock { Kind: ColumnsKind.End }:
+                        if (openCols is not null) { CloseSegment(openCols); openCols = null; }
+                        break;
+                    case ParagraphBlock pb: { var para = Para(pb, area, numbering); body.Append(para); lastPara = para; written++; segBlocks++; break; }
                     case TableBlock tb:
                         if (gap > 6) body.Append(Spacer(gap - 2));
                         body.Append(Table(tb, contentW));
                         body.Append(Spacer(1)); // Word iki tabloyu birleştirmesin diye zorunlu boş paragraf, 1 pt
-                        written++; break;
-                    case ImageBlock ib: body.Append(Image(main, ib, contentW, ref imageId, gap)); written++; break;
+                        written++; segBlocks++; lastPara = null; break;
+                    case ImageBlock ib: body.Append(Image(main, ib, contentW, ref imageId, gap)); written++; segBlocks++; lastPara = null; break;
                 }
                 prevBottom = b.Box.Y1;
             }
             if (written == 0) body.Append(new Paragraph());
-            var sect = new SectionProperties(
-                new PageSize { Width = (UInt32Value)(uint)Math.Round(page.Width * Twip), Height = (UInt32Value)(uint)Math.Round(page.Height * Twip),
-                    Orient = page.Width > page.Height ? PageOrientationValues.Landscape : PageOrientationValues.Portrait },
-                new PageMargin { Left = (UInt32Value)(uint)(ml * Twip), Right = (UInt32Value)(uint)(mr * Twip), Top = (int)(mt * Twip), Bottom = (int)(mb * Twip), Header = 360, Footer = 360, Gutter = 0 },
-                new SectionType { Val = SectionMarkValues.NextPage });
+            var sect = Sect(openCols);
             if (p < pages.Count - 1)
                 body.Append(new Paragraph(new ParagraphProperties(sect, new SpacingBetweenLines { After = "0", Line = "20", LineRule = LineSpacingRuleValues.Exact })));
             else body.Append(sect);
@@ -75,6 +91,30 @@ public static class DocxWriter
             doc.PackageProperties.Creator = "Mesly PDF Reader";
         }
         main.Document.Save();
+    }
+
+    /// <summary>Bölüm özellikleri; şema sırası: type, pgSz, pgMar, cols. Çok sütunda gerçek Word sütunları (ölçülen genişlik/boşluk).</summary>
+    private static SectionProperties MakeSect(PageLayout page, double ml, double mr, double mt, double mb, bool newPage, ColumnsBlock? cols, double contentW)
+    {
+        var sect = new SectionProperties(
+            new SectionType { Val = newPage ? SectionMarkValues.NextPage : SectionMarkValues.Continuous },
+            new PageSize { Width = (UInt32Value)(uint)Math.Round(page.Width * Twip), Height = (UInt32Value)(uint)Math.Round(page.Height * Twip),
+                Orient = page.Width > page.Height ? PageOrientationValues.Landscape : PageOrientationValues.Portrait },
+            new PageMargin { Left = (UInt32Value)(uint)(ml * Twip), Right = (UInt32Value)(uint)(mr * Twip), Top = (int)(mt * Twip), Bottom = (int)(mb * Twip), Header = 360, Footer = 360, Gutter = 0 });
+        if (cols is { Widths.Count: >= 2 })
+        {
+            double total = cols.Widths.Sum() + cols.Gaps.Sum();
+            double k = total > 0 ? contentW / total : 1;
+            var c = new Columns { EqualWidth = false, ColumnCount = (short)cols.Widths.Count };
+            for (int i = 0; i < cols.Widths.Count; i++)
+            {
+                var col = new Column { Width = ((int)Math.Round(cols.Widths[i] * k * Twip)).ToString() };
+                if (i < cols.Gaps.Count) col.Space = ((int)Math.Round(cols.Gaps[i] * k * Twip)).ToString();
+                c.Append(col);
+            }
+            sect.Append(c);
+        }
+        return sect;
     }
 
     private static void AddStyles(MainDocumentPart main)
@@ -102,7 +142,7 @@ public static class DocxWriter
         { Type = StyleValues.Paragraph, StyleId = $"Heading{level}" };
     }
 
-    private static Paragraph Para(ParagraphBlock pb, Box area)
+    private static Paragraph Para(ParagraphBlock pb, Box area, NumberingBuilder? numbering = null)
     {
         var ppr = new ParagraphProperties();
         if (pb.HeadingLevel > 0) ppr.Append(new ParagraphStyleId { Val = $"Heading{pb.HeadingLevel}" });
@@ -114,7 +154,17 @@ public static class DocxWriter
             Line = ((int)Math.Round(Math.Clamp(pb.LineSpacing / 1.17, 0.85, 3) * 240)).ToString(),
             LineRule = LineSpacingRuleValues.Auto,
         });
-        if (pb.Indent > 4 && pb.Align is ParaAlign.Left or ParaAlign.Justify) ppr.Append(new Indentation { Left = ((int)(pb.Indent * Twip)).ToString() });
+        if (pb.IsListItem && numbering is not null)
+        {
+            ppr.Append(numbering.Properties(pb));
+            int hang = (int)(Math.Clamp(pb.ListTextOffset, 6, 60) * Twip);
+            ppr.Append(new Indentation { Left = ((int)(pb.Indent * Twip) + hang).ToString(), Hanging = hang.ToString() });
+        }
+        else
+        {
+            numbering?.EndList();
+            if (pb.Indent > 4 && pb.Align is ParaAlign.Left or ParaAlign.Justify) ppr.Append(new Indentation { Left = ((int)(pb.Indent * Twip)).ToString() });
+        }
         ppr.Append(new Justification
         {
             Val = pb.Align switch { ParaAlign.Center => JustificationValues.Center, ParaAlign.Right => JustificationValues.Right, ParaAlign.Justify => JustificationValues.Both, _ => JustificationValues.Left },
@@ -122,6 +172,79 @@ public static class DocxWriter
         var para = new Paragraph(ppr);
         foreach (var r in pb.Runs) para.Append(Run(r));
         return para;
+    }
+
+    /// <summary>Gerçek Word numaralandırması: madde işareti ve numaralı listeler (her yeni numaralı liste kendi numarasından başlar).</summary>
+    private sealed class NumberingBuilder
+    {
+        private readonly Numbering numbering = new();
+        private int nextNum = 1;
+        private int? bulletNum;
+        private int? currentNum; private string? currentKind;
+        private readonly Dictionary<string, int> abstractIds = new();
+
+        public NumberingBuilder(MainDocumentPart main)
+        {
+            var part = main.AddNewPart<NumberingDefinitionsPart>();
+            part.Numbering = numbering;
+            AddAbstract("bullet", NumberFormatValues.Bullet, "•", null);
+            AddAbstract("decimal", NumberFormatValues.Decimal, "%1.", null);
+            AddAbstract("decimalParen", NumberFormatValues.Decimal, "%1)", null);
+            AddAbstract("lowerLetter", NumberFormatValues.LowerLetter, "%1)", null);
+            AddAbstract("dash", NumberFormatValues.Bullet, "–", null);
+        }
+
+        private void AddAbstract(string key, NumberFormatValues fmt, string text, string? font)
+        {
+            int id = abstractIds.Count;
+            abstractIds[key] = id;
+            var lvl = new Level(new StartNumberingValue { Val = 1 }, new NumberingFormat { Val = fmt }, new LevelText { Val = text },
+                new LevelJustification { Val = LevelJustificationValues.Left }) { LevelIndex = 0 };
+            if (font is not null) lvl.Append(new NumberingSymbolRunProperties(new RunFonts { Ascii = font, HighAnsi = font, Hint = FontTypeHintValues.Default }));
+            // Abstract tanımlar tüm <w:num> öğelerinden önce gelmelidir.
+            var an = new AbstractNum(new MultiLevelType { Val = MultiLevelValues.SingleLevel }, lvl) { AbstractNumberId = id };
+            var firstNum = numbering.GetFirstChild<NumberingInstance>();
+            if (firstNum is null) numbering.Append(an); else numbering.InsertBefore(an, firstNum);
+        }
+
+        public void EndList() { currentNum = null; currentKind = null; }
+
+        public NumberingProperties Properties(ParagraphBlock pb)
+        {
+            string m = pb.ListMarker!;
+            string kind = !pb.IsNumbered ? (m is "-" or "–" or "—" ? "dash" : "bullet")
+                : m.StartsWith('(') || m.EndsWith(')') ? (char.IsDigit(m.TrimStart('(')[0]) ? "decimalParen" : "lowerLetter") : "decimal";
+            int num;
+            if (kind is "bullet" or "dash")
+            {
+                if (!abstractIds.ContainsKey(kind)) kind = "bullet";
+                num = NumFor(kind);
+            }
+            else if (currentNum is { } cn && currentKind == kind) num = cn;
+            else
+            {
+                num = nextNum++;
+                int start = 1;
+                var core = m.Trim('(', ')', '.');
+                if (int.TryParse(core, out var n)) start = Math.Max(1, n);
+                else if (core.Length == 1 && char.IsLetter(core[0])) start = char.ToLowerInvariant(core[0]) - 'a' + 1;
+                var ni = new NumberingInstance(new AbstractNumId { Val = abstractIds[kind] },
+                    new LevelOverride(new StartOverrideNumberingValue { Val = start }) { LevelIndex = 0 }) { NumberID = num };
+                numbering.Append(ni);
+            }
+            currentNum = num; currentKind = kind;
+            return new NumberingProperties(new NumberingLevelReference { Val = 0 }, new NumberingId { Val = num });
+        }
+
+        private readonly Dictionary<string, int> shared = new();
+        private int NumFor(string kind)
+        {
+            if (shared.TryGetValue(kind, out var n)) return n;
+            n = nextNum++;
+            numbering.Append(new NumberingInstance(new AbstractNumId { Val = abstractIds[kind] }) { NumberID = n });
+            shared[kind] = n;
+            return n;
+        }
     }
 
     private static Run Run(TextRun r)
@@ -138,8 +261,11 @@ public static class DocxWriter
 
     private static Table Table(TableBlock tb, double contentWidth)
     {
-        double scale = Math.Min(1, contentWidth / Math.Max(1, tb.Box.Width));
-        var widths = Enumerable.Range(0, tb.Cols).Select(c => (int)Math.Round((tb.ColEdges[c + 1] - tb.ColEdges[c]) * scale * Twip)).ToArray();
+        // Çizgisiz tabloda sütun sınırı yazının hemen yanındadır; hücre iç boşlukları (2×4 pt) metne yer bırakacak kadar eklenir.
+        double pad = tb.Borderless ? 10 : 0;
+        double total = tb.Box.Width + pad * tb.Cols;
+        double scale = Math.Min(1, contentWidth / Math.Max(1, total));
+        var widths = Enumerable.Range(0, tb.Cols).Select(c => (int)Math.Round((tb.ColEdges[c + 1] - tb.ColEdges[c] + pad) * scale * Twip)).ToArray();
         // Şema sırası: tblStyle, tblW, tblBorders, tblLayout, tblCellMar.
         var props = new TableProperties();
         if (!tb.Borderless) props.Append(new TableStyle { Val = "TableGrid" });
@@ -167,7 +293,7 @@ public static class DocxWriter
                 if (cell.Content.Count == 0) tc.Append(new Paragraph());
                 foreach (var p in cell.Content)
                 {
-                    var para = Para(p with { Indent = 0, SpaceBefore = 0, HeadingLevel = 0 }, p.Box);
+                    var para = Para(p.Inline() with { Indent = 0, SpaceBefore = 0, HeadingLevel = 0 }, p.Box);
                     tc.Append(para);
                 }
                 row.Append(tc);

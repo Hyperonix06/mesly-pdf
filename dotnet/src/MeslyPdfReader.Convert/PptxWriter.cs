@@ -102,6 +102,21 @@ public static class PptxWriter
         // Satır aralığı: PDF satır adımı / (boyut × 1,2) → yüzde.
         int pct = (int)Math.Round(Math.Clamp(pb.LineSpacing / 1.2, 0.8, 3) * 100000);
         ppr.Append(new A.LineSpacing(new A.SpacingPercent { Val = pct }));
+        if (pb.IsListItem)
+        {
+            // Gerçek PowerPoint madde işareti / otomatik numara, asılı girinti ile.
+            int hang = (int)(Math.Clamp(pb.ListTextOffset, 6, 60) * scale * 12700);
+            ppr.LeftMargin = hang; ppr.Indent = -hang;
+            if (pb.IsNumbered)
+            {
+                string m = pb.ListMarker!;
+                var type = m.EndsWith(')') ? (char.IsDigit(m.TrimStart('(')[0]) ? A.TextAutoNumberSchemeValues.ArabicParenR : A.TextAutoNumberSchemeValues.AlphaLowerCharacterParenR) : A.TextAutoNumberSchemeValues.ArabicPeriod;
+                var an = new A.AutoNumberedBullet { Type = type };
+                if (int.TryParse(m.Trim('(', ')', '.'), out var st) && st > 1) an.StartAt = st;
+                ppr.Append(an);
+            }
+            else ppr.Append(new A.BulletFont { Typeface = "Arial" }, new A.CharacterBullet { Char = pb.ListMarker is "-" or "–" or "—" ? "–" : "•" });
+        }
         var p = new A.Paragraph(ppr);
         foreach (var r in pb.Runs)
         {
@@ -125,7 +140,9 @@ public static class PptxWriter
     private static P.GraphicFrame Table(TableBlock tb, Box box, double scale, uint id)
     {
         var grid = new A.TableGrid();
-        for (int c = 0; c < tb.Cols; c++) grid.Append(new A.GridColumn { Width = E((tb.ColEdges[c + 1] - tb.ColEdges[c]) * scale) });
+        // Çizgisiz tabloda sütun sınırı yazının hemen yanındadır; hücre iç boşluğu (2×3,6 pt) için sütunlar genişletilir.
+        double pad = tb.Borderless ? 8 : 0;
+        for (int c = 0; c < tb.Cols; c++) grid.Append(new A.GridColumn { Width = E((tb.ColEdges[c + 1] - tb.ColEdges[c] + pad) * scale) });
         var table = new A.Table(new A.TableProperties { FirstRow = false, BandRow = false }, grid);
         for (int r = 0; r < tb.Rows; r++)
         {
@@ -145,7 +162,7 @@ public static class PptxWriter
         return new P.GraphicFrame(
             new P.NonVisualGraphicFrameProperties(new P.NonVisualDrawingProperties { Id = id, Name = $"Tablo {id}" },
                 new P.NonVisualGraphicFrameDrawingProperties(new A.GraphicFrameLocks { NoGrouping = true }), new ApplicationNonVisualDrawingProperties()),
-            new Transform(new A.Offset { X = E(box.X0), Y = E(box.Y0) }, new A.Extents { Cx = E(box.Width), Cy = E(box.Height) }),
+            new Transform(new A.Offset { X = E(box.X0), Y = E(box.Y0) }, new A.Extents { Cx = E(box.Width + pad * tb.Cols * scale), Cy = E(box.Height) }),
             new A.Graphic(new A.GraphicData(table) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/table" }));
     }
 

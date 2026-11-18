@@ -53,7 +53,7 @@ public static partial class XlsxWriter
                             rows.Add(new());
                             break;
                         case ParagraphBlock pb when !o.TablesOnly:
-                            rows.Add(SplitColumns(pb).Select(t => (t, false)).ToList());
+                            rows.Add(SplitColumns(pb.Inline()).Select(t => (t, false)).ToList());
                             break;
                     }
                 }
@@ -102,8 +102,9 @@ public static partial class XlsxWriter
 
     private static Cell MakeCell(string reference, string text, bool header)
     {
-        if (TryNumber(text, out var number))
-            return new Cell { CellReference = reference, DataType = CellValues.Number, CellValue = new CellValue(number), StyleIndex = header ? 1u : 0u };
+        if (TryNumber(text, out var number, out var kind))
+            return new Cell { CellReference = reference, DataType = CellValues.Number, CellValue = new CellValue(number),
+                StyleIndex = header ? 1u : kind switch { 1 => 3u, 2 => 4u, 3 => 5u, _ => 0u } };
         return new Cell
         {
             CellReference = reference,
@@ -114,9 +115,12 @@ public static partial class XlsxWriter
     }
 
     /// <summary>“1.234,56”, “-12,5”, “1234.56”, “%15”, “12,5 TL” biçimlerini sayıya çevirir (yüzde ve para birimi atılır).</summary>
-    public static bool TryNumber(string s, out double value)
+    public static bool TryNumber(string s, out double value) => TryNumber(s, out value, out _);
+
+    /// <param name="kind">0 genel, 1 tam sayı (binlik ayraçlı), 2 ondalıklı, 3 yüzde: Excel'de görünüm özgün belgeye benzesin.</param>
+    public static bool TryNumber(string s, out double value, out int kind)
     {
-        value = 0;
+        value = 0; kind = 0;
         var t = s.Trim().Replace(" ", " ");
         bool percent = false;
         if (t.StartsWith('%')) { percent = true; t = t[1..].Trim(); }
@@ -130,7 +134,10 @@ public static partial class XlsxWriter
         else if (PlainNumber().IsMatch(t)) norm = t;
         else return false;
         if (!double.TryParse(norm, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return false;
-        if (percent) value /= 100;
+        if (percent) { value /= 100; kind = 3; }
+        else if (t.Contains('.') && !t.Contains(',') && PlainNumber().IsMatch(t)) kind = 2;
+        else if (t.Contains(',')) kind = 2;
+        else if (t.Contains('.') || Math.Abs(value) >= 10000) kind = 1; // 12.450.000 ya da 12450000
         return true;
     }
 
@@ -158,6 +165,9 @@ public static partial class XlsxWriter
             new CellFormats(
                 new CellFormat { FontId = 0, FillId = 0, BorderId = 0 },
                 new CellFormat { FontId = 1, FillId = 0, BorderId = 0, ApplyFont = true },
-                new CellFormat(new Alignment { WrapText = true, Vertical = VerticalAlignmentValues.Top }) { FontId = 0, ApplyAlignment = true }));
+                new CellFormat(new Alignment { WrapText = true, Vertical = VerticalAlignmentValues.Top }) { FontId = 0, ApplyAlignment = true },
+                new CellFormat { FontId = 0, FillId = 0, BorderId = 0, NumberFormatId = 3, ApplyNumberFormat = true },     // #,##0
+                new CellFormat { FontId = 0, FillId = 0, BorderId = 0, NumberFormatId = 4, ApplyNumberFormat = true },     // #,##0.00
+                new CellFormat { FontId = 0, FillId = 0, BorderId = 0, NumberFormatId = 10, ApplyNumberFormat = true }));  // 0.00%
     }
 }
